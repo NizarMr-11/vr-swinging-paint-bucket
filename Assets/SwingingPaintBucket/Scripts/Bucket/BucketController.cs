@@ -1,21 +1,3 @@
-// ============================================================
-// ملف : BucketController.cs
-// المجلد : Scripts/Bucket/
-// الغرض : إدارة خصائص الدلو الفيزيائية:
-//           - نوع المادة وخصائصها
-//           - كمية الطلاء المتبقية
-//           - حساب تدفق الطلاء باستخدام معادلة Torricelli
-//           - تناقص حجم الطلاء مع كل frame
-//
-// معادلة Torricelli:
-//   v_exit = Cd × √(2 × g × h)
-//   Q      = A_nozzle × v_exit
-//   volume_this_frame = Q × dt
-//
-// التبعيات : BucketMaterialType, BucketMaterialPreset,
-//            SimulationConstants, PendulumSimulator
-// ============================================================
-
 using UnityEngine;
 using SwingingPaintBucket.Core;
 using SwingingPaintBucket.Materials;
@@ -51,9 +33,7 @@ namespace SwingingPaintBucket.Bucket
         [Range(0.001f, 0.05f)]
         public float NozzleRadius = 0.005f;
 
-        // ---- الحالة الداخلية ----
-
-        /// <summary>الحجم المتبقي من الطلاء</summary>
+        
         private float _paintVolume;
 
         /// <summary>هل لا يزال هناك طلاء؟</summary>
