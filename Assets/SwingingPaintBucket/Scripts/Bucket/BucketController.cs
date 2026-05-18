@@ -7,12 +7,11 @@ namespace SwingingPaintBucket.Bucket
 {
     public class BucketController : MonoBehaviour
     {
-        // ---- إعدادات المادة ----
 
-        [Header("نوع المادة")]
+        [Header("Bucket Material Type")]
         public BucketMaterialType MaterialType = BucketMaterialType.Plastic;
 
-        [Header("قيم قابلة للتعديل اليدوي (تُحمَّل تلقائياً من المادة)")]
+        [Header("Adjustable values, material-related)")]
         [Tooltip("معامل التدفق — يتأثر بنوع المادة وشكل الثقب")]
         [Range(0.1f, 1f)]
         public float DischargeCoefficent;
@@ -23,43 +22,55 @@ namespace SwingingPaintBucket.Bucket
         [Tooltip("معدل امتصاص المادة للطلاء (للخشب فقط)")]
         public float AbsorptionRate;
 
-        // ---- إعدادات الطلاء ----
+        
 
-        [Header("الطلاء")]
-        [Tooltip("الحجم الابتدائي للطلاء داخل الدلو (لتر)")]
+        [Header("Paint")]
+        [Tooltip("Paint initial vloume inside the bucket (Liter))")]
         public float InitialPaintVolume = 2f;
 
-        [Tooltip("نصف قطر فتحة الثقب بالمتر")]
+        [Header("Paint properties")]
+        public Color PaintColor = Color.red;
+
+        [Tooltip("Paint viscosity")]
+        [Range(0.1f, 10f)]
+        public float Viscosity = 1f;
+
+        [Tooltip("Paint density")]
+        [Range(0.1f, 5f)]
+        public float Density = 1f;
+
+
+        [Tooltip("Nozzle radius")]
         [Range(0.001f, 0.05f)]
         public float NozzleRadius = 0.005f;
 
         
         private float _paintVolume;
 
-        /// <summary>هل لا يزال هناك طلاء؟</summary>
+        
         public bool HasPaint => _paintVolume > SimulationConstants.MinPaintVolume;
 
-        /// <summary>الحجم المتبقي للقراءة من الخارج</summary>
+        
         public float PaintVolume => _paintVolume;
 
-        /// <summary>حجم الطلاء الخارج في الـ frame الحالي</summary>
+        
         public float VolumeThisFrame { get; private set; }
 
-        // ---- المرجع للبندول ----
+        
         private PendulumSimulator _pendulum;
 
-        // ---- Unity Methods ----
+        
 
         private void Start()
         {
-            // تحميل القيم الافتراضية من نوع المادة
+            
             DischargeCoefficent = BucketMaterialPreset.GetDischargeCoefficent(MaterialType);
             PaintLossRate       = BucketMaterialPreset.GetPaintLossRate(MaterialType);
             AbsorptionRate      = BucketMaterialPreset.GetAbsorptionRate(MaterialType);
 
             _paintVolume = InitialPaintVolume;
 
-            // الحصول على مرجع البندول من نفس الـ GameObject
+            
             _pendulum = GetComponent<PendulumSimulator>();
         }
 
@@ -71,39 +82,33 @@ namespace SwingingPaintBucket.Bucket
 
             float dt = Time.fixedDeltaTime;
 
-            // حساب ارتفاع الطلاء داخل الدلو
-            // (تبسيط: نعتبر h يتناسب مع الحجم المتبقي)
+           
             float h = _paintVolume;
 
             if (h < SimulationConstants.MinPaintHeight) return;
 
-            // معادلة Torricelli: سرعة الخروج
+            // Torricelli formula for exit velocity
             float vExit = DischargeCoefficent * Mathf.Sqrt(2f * SimulationConstants.DefaultGravity * h);
 
-            // مساحة فتحة الثقب: A = π × r²
+            // Nozzle area: A = π × r²
             float nozzleArea = Mathf.PI * NozzleRadius * NozzleRadius;
 
-            // معدل التدفق الحجمي: Q = A × v
+            // Flowe rate: Q = A × v
             float flowRate = nozzleArea * vExit;
 
-            // الحجم الخارج في هذه الخطوة الزمنية
+            // Volume in dt
             VolumeThisFrame = flowRate * dt;
 
-            // تناقص الطلاء: الخروج + الفقدان + الامتصاص
+            //Paint decrease : Exited + apsorption + loss
             _paintVolume -= VolumeThisFrame;
             _paintVolume -= PaintLossRate * dt;
             _paintVolume -= AbsorptionRate * dt;
 
-            // منع القيم السالبة
+            //No negative values
             _paintVolume = Mathf.Max(0f, _paintVolume);
         }
 
-        // ---- Public Methods ----
-
-        /// <summary>
-        /// يُعيد السرعة الابتدائية لجسيم طلاء عند خروجه:
-        /// = سرعة الدلو (من البندول) + سرعة Torricelli (للأسفل)
-        /// </summary>
+        //  Mwthods
         public Vector3 GetParticleInitialVelocity()
         {
             Vector3 bucketVelocity = _pendulum != null
@@ -118,9 +123,7 @@ namespace SwingingPaintBucket.Bucket
             return bucketVelocity + torricelliVelocity;
         }
 
-        /// <summary>
-        /// إعادة تعيين الدلو لحالته الابتدائية
-        /// </summary>
+        // Reset
         public void ResetBucket()
         {
             _paintVolume    = InitialPaintVolume;
