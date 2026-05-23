@@ -49,6 +49,7 @@ namespace SwingingPaintBucket.Particles
             for (int i = 0; i < particleCount; i++)
             {
                 SpawnParticle();
+                
             }
         }
 
@@ -80,9 +81,9 @@ namespace SwingingPaintBucket.Particles
                 viscosity: _bucket.Viscosity,
                 density: _bucket.Density
             );
+            
         }
 
-        // ---- Public Methods ----
 
         
         /// Reset all particles

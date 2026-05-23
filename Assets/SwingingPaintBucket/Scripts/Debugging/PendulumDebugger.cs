@@ -32,12 +32,13 @@ namespace SwingingPaintBucket.Debugging
 
         private void Update()
         {
-            if (_pendulum == null) return;
-
-            // Display live values every frame
-            Debug.Log($"θ = {(_pendulum.Theta * Mathf.Rad2Deg):F2}°  |  " +
-                      $"ω = {_pendulum.Omega:F3} rad/s  |  " +
-                      $"pos = {transform.position}");
+            //Performance-friendly logging: only log every 30 frames to avoid spamming the memory
+            if (Time.frameCount % 30 == 0)
+            {
+                Debug.Log($"θ = {(_pendulum.Theta * Mathf.Rad2Deg):F2}°  |  " +
+                          $"ω = {_pendulum.Omega:F3} rad/s  |  " +
+                          $"pos = {transform.position}");
+            }
         }
 
         private void OnDrawGizmos()

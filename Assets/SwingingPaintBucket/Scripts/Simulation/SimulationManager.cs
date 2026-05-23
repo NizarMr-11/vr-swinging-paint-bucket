@@ -29,28 +29,29 @@ namespace SwingingPaintBucket.Simulation
 
             _pendulum = BucketObject.GetComponent<PendulumSimulator>();
             _bucket   = BucketObject.GetComponent<BucketController>();
+            _emitter = BucketObject.GetComponent<ParticleEmitter>();
 
             if (_emitter == null)
-                Debug.LogError("[SimulationManager] ParticleEmitter غير موجود على BucketObject!");
+                Debug.LogError("[SimulationManager] ParticleEmitter is not attached to BucketObject!");
 
 
             if (_pendulum == null)
-                Debug.LogError("[SimulationManager] PendulumSimulator غير موجود على BucketObject!");
+                Debug.LogError("[SimulationManager] PendulumSimulator is not attached to BucketObject!");
 
             if (_bucket == null)
-                Debug.LogError("[SimulationManager] BucketController غير موجود على BucketObject!");
+                Debug.LogError("[SimulationManager] BucketController is not attached to BucketObject!");
         }
 
         public void StartSimulation()
         {
             _isRunning = true;
-            Debug.Log("[SimulationManager] بدأت المحاكاة");
+            Debug.Log("[SimulationManager] Simulation started");
         }
 
         public void PauseSimulation()
         {
             _isRunning = false;
-            Debug.Log("[SimulationManager] توقفت المحاكاة");
+            Debug.Log("[SimulationManager] simulation endded");
         }
 
         public void ResetSimulation()
@@ -59,7 +60,7 @@ namespace SwingingPaintBucket.Simulation
             _pendulum?.ResetSimulation();
             _bucket?.ResetBucket();
             _emitter?.ResetParticles();
-            Debug.Log("[SimulationManager] تمت إعادة التعيين");
+            Debug.Log("[SimulationManager] reset is commited");
         }
     }
 }
