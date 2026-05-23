@@ -1,6 +1,7 @@
-using UnityEngine;
 using SwingingPaintBucket.Bucket;
+using SwingingPaintBucket.Canvas;
 using SwingingPaintBucket.Core;
+using UnityEngine;
 
 namespace SwingingPaintBucket.Particles
 {
@@ -20,7 +21,7 @@ namespace SwingingPaintBucket.Particles
         private PaintParticle[] _particles;
 
         private float _leftOver = 0f;
-
+        public CanvasController Canvas;
 
 
         private void Start()
@@ -51,6 +52,7 @@ namespace SwingingPaintBucket.Particles
                 SpawnParticle();
                 
             }
+            UpdateParticles();
         }
 
 
@@ -84,10 +86,39 @@ namespace SwingingPaintBucket.Particles
             
         }
 
+        private void UpdateParticles()
+        {
+            float dt = Time.fixedDeltaTime;
 
-        
+            for (int i = 0; i < _particles.Length; i++)
+            {
+                if (!_particles[i].IsActive) continue;
+
+                // تطبيق الجاذبية على الجسيم
+                _particles[i].Acceleration = new Vector3(0f, -9.81f, 0f);
+
+                // تحديث الموقع والسرعة
+                _particles[i].Step(dt);
+
+                // التحقق من وصول الجسيم للوحة
+                if (Canvas != null && _particles[i].Position.y <= Canvas.transform.position.y)
+                {
+                    // إخبار اللوحة برسم البقعة
+                    Canvas.OnParticleHit(
+                        _particles[i].Position,
+                        _particles[i].Color,
+                        _particles[i].Viscosity
+                    );
+
+                    // إيقاف الجسيم
+                    _particles[i].IsActive = false;
+                }
+            }
+        }
+
+
         /// Reset all particles
-        
+
         public void ResetParticles()
         {
             for (int i = 0; i < _particles.Length; i++)
