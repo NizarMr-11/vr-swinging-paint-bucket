@@ -1,9 +1,3 @@
-// ============================================================
-// ملف : SimulationConstants.cs
-// المجلد : Scripts/Core/
-// الغرض : تخزين جميع الثوابت المستخدمة في المحاكاة
-//         في مكان واحد لتسهيل التعديل لاحقاً
-// ============================================================
 
 namespace SwingingPaintBucket.Core
 {
@@ -18,10 +12,10 @@ namespace SwingingPaintBucket.Core
         
         public const float DefaultDischargeCoefficent = 0.7f;
 
-        // last volume before stopping
+        // last VOLUME before stopping
         public const float MinPaintVolume = 0.0001f;
 
-        // last paint heigh before stopping
+        // last paint HEIGHT before stopping
         public const float MinPaintHeight = 0.001f;
     }
 }

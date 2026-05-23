@@ -12,20 +12,20 @@ namespace SwingingPaintBucket.Bucket
         public BucketMaterialType MaterialType = BucketMaterialType.Plastic;
 
         [Header("Adjustable values, material-related)")]
-        [Tooltip("معامل التدفق — يتأثر بنوع المادة وشكل الثقب")]
+        [Tooltip("Discharge coefficient — affected by material type and hole shape")]
         [Range(0.1f, 1f)]
         public float DischargeCoefficent;
 
-        [Tooltip("معدل فقدان الطلاء من جدران الدلو")]
+        [Tooltip("Rate of paint loss from bucket walls")]
         public float PaintLossRate;
 
-        [Tooltip("معدل امتصاص المادة للطلاء (للخشب فقط)")]
+        [Tooltip("Material absorption rate for paint (wood only)")]
         public float AbsorptionRate;
 
         
 
         [Header("Paint")]
-        [Tooltip("Paint initial vloume inside the bucket (Liter))")]
+        [Tooltip("Paint initial volume inside the bucket (Liter)")]
         public float InitialPaintVolume = 2f;
 
         [Header("Paint properties")]
@@ -93,22 +93,22 @@ namespace SwingingPaintBucket.Bucket
             // Nozzle area: A = π × r²
             float nozzleArea = Mathf.PI * NozzleRadius * NozzleRadius;
 
-            // Flowe rate: Q = A × v
+            // Flow rate: Q = A × v
             float flowRate = nozzleArea * vExit;
 
             // Volume in dt
             VolumeThisFrame = flowRate * dt;
 
-            //Paint decrease : Exited + apsorption + loss
+            // Paint decrease: Exited + absorption + loss
             _paintVolume -= VolumeThisFrame;
             _paintVolume -= PaintLossRate * dt;
             _paintVolume -= AbsorptionRate * dt;
 
-            //No negative values
+            // No negative values
             _paintVolume = Mathf.Max(0f, _paintVolume);
         }
 
-        //  Mwthods
+        // Methods
         public Vector3 GetParticleInitialVelocity()
         {
             Vector3 bucketVelocity = _pendulum != null

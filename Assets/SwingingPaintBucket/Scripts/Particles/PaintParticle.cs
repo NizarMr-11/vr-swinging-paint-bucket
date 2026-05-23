@@ -1,7 +1,7 @@
-// لماذا struct وليس class؟
-//   - عدد الجسيمات قد يصل لملايين
-//   - struct يُخزَّن في Stack → لا يسبب Garbage Collection
-//   - class يُخزَّن في Heap → يسبب GC عند الحذف المتكرر
+// Why struct and not class?
+//   - Particle count can reach millions
+//   - struct is stored in Stack → does not cause Garbage Collection
+//   - class is stored in Heap → causes GC on repeated deletion
 //
 
 using UnityEngine;
@@ -20,7 +20,7 @@ namespace SwingingPaintBucket.Particles
   
         public float Mass;
 
- 
+  
         public Color Color;
 
 
@@ -35,7 +35,7 @@ namespace SwingingPaintBucket.Particles
         // ---- Constructor ----
 
         /// <summary>
-        /// إنشاء جسيم طلاء جديد بجميع خصائصه الابتدائية
+        /// Creates a new paint particle with all its initial properties
         /// </summary>
         public PaintParticle(
             Vector3 position,
@@ -58,8 +58,8 @@ namespace SwingingPaintBucket.Particles
         // ---- Methods ----
 
         /// <summary>
-        /// تحديث موقع وسرعة الجسيم بناءً على الخطوة الزمنية dt
-        /// المعادلات:
+        /// Updates particle position and velocity based on the time step dt
+        /// Equations:
         ///   velocity = velocity + acceleration * dt
         ///   position = position + velocity * dt
         /// </summary>
