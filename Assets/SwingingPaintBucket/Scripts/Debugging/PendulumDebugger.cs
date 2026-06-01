@@ -1,16 +1,4 @@
-// ============================================================
-// ملف : PendulumDebugger.cs
-// المجلد : Scripts/Debugging/
-// الغرض : عرض معلومات البندول في الشاشة أثناء التشغيل
-//         وتحقق من صحة الفيزياء عن طريق مقارنة الدورة
-//         الحسابية مع المعادلة النظرية: T = 2π√(L/g)
-//
-// هذا الـ class للاختبار فقط — يمكن حذفه في النسخة النهائية
-//
-// التبعيات : PendulumSimulator
-// ============================================================
-
-using UnityEngine;
+    using UnityEngine;
 using SwingingPaintBucket.Pendulum;
 
 namespace SwingingPaintBucket.Debugging
@@ -19,7 +7,7 @@ namespace SwingingPaintBucket.Debugging
     {
         private PendulumSimulator _pendulum;
 
-        [Header("إعدادات العرض")]
+        [Header("Display Settings")]
         public bool ShowGizmos = true;
         public Color RopeColor = Color.white;
 
@@ -29,38 +17,39 @@ namespace SwingingPaintBucket.Debugging
 
             if (_pendulum == null)
             {
-                Debug.LogError("[PendulumDebugger] لا يوجد PendulumSimulator على هذا الـ GameObject!");
+                Debug.LogError("[PendulumDebugger] No PendulumSimulator found on this GameObject!");
                 return;
             }
 
-            // حساب الدورة النظرية: T = 2π√(L/g)
+            // Calculate theoretical period: T = 2π√(L/g)
             float theoreticalPeriod = 2f * Mathf.PI *
                 Mathf.Sqrt(_pendulum.RopeLength / _pendulum.Gravity);
 
-            Debug.Log($"[PendulumDebugger] الدورة النظرية: {theoreticalPeriod:F3} ثانية");
-            Debug.Log($"[PendulumDebugger] طول الحبل: {_pendulum.RopeLength} م");
-            Debug.Log($"[PendulumDebugger] الجاذبية: {_pendulum.Gravity} م/ث²");
+            Debug.Log($"[PendulumDebugger] Theoretical period: {theoreticalPeriod:F3} seconds");
+            Debug.Log($"[PendulumDebugger] Rope length: {_pendulum.RopeLength} m");
+            Debug.Log($"[PendulumDebugger] Gravity: {_pendulum.Gravity} m/s²");
         }
 
         private void Update()
         {
-            if (_pendulum == null) return;
-
-            // عرض القيم الحية في كل frame
-            Debug.Log($"θ = {(_pendulum.Theta * Mathf.Rad2Deg):F2}°  |  " +
-                      $"ω = {_pendulum.Omega:F3} rad/s  |  " +
-                      $"pos = {transform.position}");
+            //Performance-friendly logging: only log every 30 frames to avoid spamming the memory
+            if (Time.frameCount % 30 == 0)
+            {
+                Debug.Log($"θ = {(_pendulum.Theta * Mathf.Rad2Deg):F2}°  |  " +
+                          $"ω = {_pendulum.Omega:F3} rad/s  |  " +
+                          $"pos = {transform.position}");
+            }
         }
 
         private void OnDrawGizmos()
         {
             if (!ShowGizmos || _pendulum == null) return;
 
-            // رسم الحبل كخط في Scene View
+            // Draw rope as a line in Scene View
             Gizmos.color = RopeColor;
             Gizmos.DrawLine(_pendulum.PivotPoint, transform.position);
 
-            // رسم نقطة التعليق
+            // Draw pivot point
             Gizmos.color = Color.yellow;
             Gizmos.DrawSphere(_pendulum.PivotPoint, 0.1f);
         }

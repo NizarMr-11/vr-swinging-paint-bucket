@@ -1,23 +1,10 @@
-// ============================================================
-// ملف : BucketMaterialPreset.cs
-// المجلد : Scripts/Materials/
-// الغرض : تخزين القيم الافتراضية لكل نوع مادة
-//         نمط التصميم المستخدم: Preset + Override
-//         المستخدم يختار المادة → تُحمَّل القيم تلقائياً
-//         ثم يستطيع تعديلها يدوياً إذا أراد دقة أكبر
-//
-// التبعيات : BucketMaterialType
-// ============================================================
-
 using SwingingPaintBucket.Materials;
 
 namespace SwingingPaintBucket.Materials
 {
     public static class BucketMaterialPreset
     {
-        // ---- القيم الافتراضية لكل مادة ----
-        // ملاحظة: هذه قيم معقولة نسبياً (Plausible Simulation)
-        // وليست قيماً علمية مختبرية دقيقة
+        //sensible values for discharge coefficients, paint loss rates, and absorption rates for each material type
 
         private static readonly float[] DischargeCoefficients = {
             0.75f,  // Plastic
@@ -40,21 +27,14 @@ namespace SwingingPaintBucket.Materials
             0.03f   // Wood — يمتص الطلاء
         };
 
-        /// <summary>
-        /// يُعيد معامل التدفق (Cd) لنوع المادة المحدد
-        /// </summary>
+
         public static float GetDischargeCoefficent(BucketMaterialType material)
             => DischargeCoefficients[(int)material];
 
-        /// <summary>
-        /// يُعيد معدل فقدان الطلاء لنوع المادة المحدد
-        /// </summary>
         public static float GetPaintLossRate(BucketMaterialType material)
             => PaintLossRates[(int)material];
 
-        /// <summary>
-        /// يُعيد معدل امتصاص الطلاء لنوع المادة المحدد
-        /// </summary>
+  
         public static float GetAbsorptionRate(BucketMaterialType material)
             => AbsorptionRates[(int)material];
     }
