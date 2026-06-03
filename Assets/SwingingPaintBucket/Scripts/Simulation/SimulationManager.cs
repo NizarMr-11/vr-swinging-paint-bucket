@@ -62,5 +62,15 @@ namespace SwingingPaintBucket.Simulation
             _emitter?.ResetParticles();
             Debug.Log("[SimulationManager] reset is commited");
         }
+
+        /// <summary>
+        /// Reset and immediately start the simulation with current values.
+        /// Used by the UI after applying new parameter values.
+        /// </summary>
+        public void RestartSimulation()
+        {
+            ResetSimulation();
+            StartSimulation();
+        }
     }
 }
