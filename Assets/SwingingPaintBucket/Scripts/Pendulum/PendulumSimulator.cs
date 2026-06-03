@@ -32,6 +32,11 @@ namespace SwingingPaintBucket.Pendulum
         [Range(0.5f, 20f)]
         public float RopeLength = 5f;
 
+        [Header("Pendulum")]
+        [Tooltip("Pendulum mass in kg — heavier pendulums resist damping more")]
+        [Range(0.1f, 50f)]
+        public float Mass = 1f;
+
         [Header("Environment")]
         [Tooltip("Gravity value — can be changed to simulate different environments")]
         [Range(0f, 20f)]
@@ -84,6 +89,11 @@ namespace SwingingPaintBucket.Pendulum
             }
         }
 
+        /// <summary>
+        /// Linear momentum of the bucket = mass × velocity
+        /// </summary>
+        public Vector3 Momentum => BucketVelocity * Mass;
+
         // ---- Unity Methods ----
 
         private void Start()
@@ -99,9 +109,9 @@ namespace SwingingPaintBucket.Pendulum
 
             // 1. Calculate angular acceleration
             //    First component  : -(g/L) × sin(θ)  Gravity force returning to center
-            //    Second component : -(b × ω)          Damping force opposing motion
+            //    Second component : -(b × ω) / Mass   Damping force (heavier = less damping effect)
             float angularAcceleration = -(Gravity / RopeLength) * Mathf.Sin(_theta)
-                                        - (DampingCoefficient * _omega);
+                                        - (DampingCoefficient * _omega / Mass);
 
             // 2. Update angular velocity
             _omega += angularAcceleration * dt;

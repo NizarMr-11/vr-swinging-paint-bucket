@@ -226,7 +226,6 @@ GameObject:
   m_Component:
   - component: {fileID: 832271371}
   - component: {fileID: 832271370}
-  - component: {fileID: 900000001}
   m_Layer: 0
   m_Name: SimulationManager
   m_TagString: Untagged
@@ -247,25 +246,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Simulation.SimulationManager
   BucketObject: {fileID: 2072273972}
---- !u!114 &900000001
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 832271369}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2625db8d2911b2323a701e12edb259e0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.UI.SimulationUI
-  SimulationManager: {fileID: 832271370}
-  BucketObject: {fileID: 2072273972}
-  PanelBackgroundColor: {r: 0.12, g: 0.12, b: 0.15, a: 0.92}
-  HeaderColor: {r: 0.2, g: 0.6, b: 1, a: 1}
-  ButtonPlayColor: {r: 0.2, g: 0.75, b: 0.3, a: 1}
-  ButtonPauseColor: {r: 1, g: 0.75, b: 0.2, a: 1}
-  ButtonResetColor: {r: 0.9, g: 0.3, b: 0.3, a: 1}
 --- !u!4 &832271371
 Transform:
   m_ObjectHideFlags: 0
@@ -637,7 +617,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Pendulum.PendulumSimulator
   RopeLength: 5
-  Mass: 1
   Gravity: 9.81
   DampingCoefficient: 0.05
   InitialAngleDegrees: 45
