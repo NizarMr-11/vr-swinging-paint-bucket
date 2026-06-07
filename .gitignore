@@ -1,0 +1,58 @@
+# ============================================================
+# .gitignore للمشاريع Unity
+# ضع هذا الملف في جذر مجلد مشروع Unity
+# ============================================================
+
+# المجلدات التي تُولَّد تلقائياً — لا ترفعها أبداً
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Mm]emory[Cc]aptures/
+[Aa]ssets/AssetStoreTools*
+
+# ملفات Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# ملفات JetBrains Rider
+.idea/
+*.sln
+
+# ملفات macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ملفات Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ملفات Unity المؤقتة
+sysinfo.txt
+*.apk
+*.unitypackage
+*.tmp
+crashlytics-build.properties
+
+# مجلدات البناء
+[Bb]uild*/
+
+.vsconfig
+UserSettings/
+*.csproj
+*.slnx
+*.sln
