@@ -22,14 +22,25 @@ namespace SwingingPaintBucket.Bucket
         [Tooltip("Material absorption rate for paint (wood only)")]
         public float AbsorptionRate;
 
-        
+
 
         [Header("Paint")]
         [Tooltip("Paint initial volume inside the bucket (Liter)")]
         public float InitialPaintVolume = 2f;
 
         [Header("Paint properties")]
-        public Color PaintColor = Color.red;
+        [Tooltip("Set the colors layered in the bucket. Left (0) = Top of paint, Right (1) = Bottom of paint")]
+        public Gradient PaintColors;
+
+        public Color CurrentPaintColor
+        {
+            get
+            {
+                if (InitialPaintVolume <= 0f) return Color.white;
+                float percentFull = Mathf.Clamp01(_paintVolume / InitialPaintVolume);
+                return PaintColors.Evaluate(1f - percentFull);
+            }
+        }
 
         [Tooltip("Paint viscosity")]
         [Range(0.1f, 10f)]
@@ -44,33 +55,33 @@ namespace SwingingPaintBucket.Bucket
         [Range(0.001f, 0.05f)]
         public float NozzleRadius = 0.005f;
 
-        
+
         private float _paintVolume;
 
-        
+
         public bool HasPaint => _paintVolume > SimulationConstants.MinPaintVolume;
 
-        
+
         public float PaintVolume => _paintVolume;
 
-        
+
         public float VolumeThisFrame { get; private set; }
 
-        
+
         private PendulumSimulator _pendulum;
 
-        
+
 
         private void Start()
         {
-            
+
             DischargeCoefficent = BucketMaterialPreset.GetDischargeCoefficent(MaterialType);
-            PaintLossRate       = BucketMaterialPreset.GetPaintLossRate(MaterialType);
-            AbsorptionRate      = BucketMaterialPreset.GetAbsorptionRate(MaterialType);
+            PaintLossRate = BucketMaterialPreset.GetPaintLossRate(MaterialType);
+            AbsorptionRate = BucketMaterialPreset.GetAbsorptionRate(MaterialType);
 
             _paintVolume = InitialPaintVolume;
 
-            
+
             _pendulum = GetComponent<PendulumSimulator>();
         }
 
@@ -82,7 +93,7 @@ namespace SwingingPaintBucket.Bucket
 
             float dt = Time.fixedDeltaTime;
 
-           
+
             float h = _paintVolume;
 
             if (h < SimulationConstants.MinPaintHeight) return;
@@ -115,8 +126,8 @@ namespace SwingingPaintBucket.Bucket
                 ? _pendulum.BucketVelocity
                 : Vector3.zero;
 
-            float h      = Mathf.Max(_paintVolume, SimulationConstants.MinPaintHeight);
-            float vExit  = DischargeCoefficent * Mathf.Sqrt(2f * SimulationConstants.DefaultGravity * h);
+            float h = Mathf.Max(_paintVolume, SimulationConstants.MinPaintHeight);
+            float vExit = DischargeCoefficent * Mathf.Sqrt(2f * SimulationConstants.DefaultGravity * h);
 
             Vector3 torricelliVelocity = Vector3.down * vExit;
 
@@ -126,12 +137,12 @@ namespace SwingingPaintBucket.Bucket
         // Reset
         public void ResetBucket()
         {
-            _paintVolume    = InitialPaintVolume;
+            _paintVolume = InitialPaintVolume;
             VolumeThisFrame = 0f;
 
             DischargeCoefficent = BucketMaterialPreset.GetDischargeCoefficent(MaterialType);
-            PaintLossRate       = BucketMaterialPreset.GetPaintLossRate(MaterialType);
-            AbsorptionRate      = BucketMaterialPreset.GetAbsorptionRate(MaterialType);
+            PaintLossRate = BucketMaterialPreset.GetPaintLossRate(MaterialType);
+            AbsorptionRate = BucketMaterialPreset.GetAbsorptionRate(MaterialType);
         }
     }
 }
