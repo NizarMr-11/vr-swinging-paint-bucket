@@ -16,8 +16,10 @@ namespace SwingingPaintBucket.Canvas
         private float _canvasWidth;
         private float _canvasHeight;
 
+        // ---- Tracks the last place the paint hit to connect the dots ----
         private Vector2? _lastHitPixel = null;
 
+        // ---- Unity Methods ----
         private void Start()
         {
             _canvasWidth = transform.localScale.x;
@@ -27,7 +29,7 @@ namespace SwingingPaintBucket.Canvas
             _canvasTexture = new Texture2D(TextureWidth, TextureHeight);
             _pixels = new Color[TextureWidth * TextureHeight];
 
-            // Fill with whiter
+            // Fill with white
             for (int i = 0; i < _pixels.Length; i++)
                 _pixels[i] = Color.white;
 
@@ -43,7 +45,7 @@ namespace SwingingPaintBucket.Canvas
 
         private void Update()
         {
-            // The shortcut for PNG saving
+            // The shortcut to test PNG saving
             if (Keyboard.current != null && Keyboard.current.sKey.wasPressedThisFrame)
             {
                 SaveArtworkToPNG();
@@ -68,6 +70,7 @@ namespace SwingingPaintBucket.Canvas
 
             Vector2 currentHitPixel = new Vector2(pixelX, pixelY);
 
+            // ---- ORGANIC INTERPOLATION LOGIC ----
             if (_lastHitPixel != null)
             {
                 float distance = Vector2.Distance(_lastHitPixel.Value, currentHitPixel);
@@ -79,23 +82,28 @@ namespace SwingingPaintBucket.Canvas
                     float t = (float)i / steps;
                     Vector2 basePos = Vector2.Lerp(_lastHitPixel.Value, currentHitPixel, t);
 
+                    // 1. Radius Pulsing: Slightly vary the thickness
                     int currentRadius = baseRadius + UnityEngine.Random.Range(-1, 2);
 
+                    // 2. Line Jitter: Wiggle the brush stroke off the perfect center
                     float jitter = 1.5f;
                     int xPos = (int)(basePos.x + UnityEngine.Random.Range(-jitter, jitter));
                     int yPos = (int)(basePos.y + UnityEngine.Random.Range(-jitter, jitter));
 
                     DrawSplat(xPos, yPos, Mathf.Max(1, currentRadius), color);
 
+                    // 3. Micro-Splashes: 30% chance to throw tiny droplets outside the stroke
                     if (UnityEngine.Random.value > 0.7f)
                     {
+                        // Calculate a random splash position
                         float splashSpread = baseRadius * 3.0f;
                         int splashX = (int)(basePos.x + UnityEngine.Random.Range(-splashSpread, splashSpread));
                         int splashY = (int)(basePos.y + UnityEngine.Random.Range(-splashSpread, splashSpread));
 
-                        
+                        // Splashes are tiny!
                         int splashRadius = UnityEngine.Random.Range(1, 3);
 
+                        // Lower the alpha so splashes blend smoothly
                         Color splashColor = color;
                         splashColor.a = UnityEngine.Random.Range(0.3f, 0.7f);
 
@@ -112,6 +120,7 @@ namespace SwingingPaintBucket.Canvas
             _canvasTexture.SetPixels(_pixels);
             _canvasTexture.Apply(false);
         }
+
         public void ClearCanvas()
         {
             for (int i = 0; i < _pixels.Length; i++)
@@ -158,7 +167,11 @@ namespace SwingingPaintBucket.Canvas
         {
             byte[] textureBytes = _canvasTexture.EncodeToPNG();
             string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            string filePath = Application.dataPath + "/SimulationResult_" + timestamp + ".png";
+
+            // Saves automatically to the user's default Pictures folder
+            string saveDirectory = System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyPictures);
+            string filePath = saveDirectory + "/SimulationResult_" + timestamp + ".png";
+
             File.WriteAllBytes(filePath, textureBytes);
             Debug.Log($"[CanvasSaver] Artwork successfully saved to: {filePath}");
         }
