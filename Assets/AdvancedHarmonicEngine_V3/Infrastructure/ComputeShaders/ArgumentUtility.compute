@@ -1,0 +1,13 @@
+#pragma kernel CalculateGridArgsKernel
+
+RWStructuredBuffer<uint> _IndirectArgsBuffer;
+
+[numthreads(1, 1, 1)]
+void CalculateGridArgsKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint rawCount = _IndirectArgsBuffer[3];
+    uint threadGroupsX = (rawCount + 63) / 64;
+    _IndirectArgsBuffer[0] = threadGroupsX;
+    _IndirectArgsBuffer[1] = 1;
+    _IndirectArgsBuffer[2] = 1;
+}

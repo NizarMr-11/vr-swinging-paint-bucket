@@ -119,6 +119,78 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &539074081
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 539074083}
+  - component: {fileID: 539074082}
+  - component: {fileID: 539074084}
+  m_Layer: 0
+  m_Name: HarmonicPipelineRoot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &539074082
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc98b8d9c4300064aa785c12f3565cda, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Management.PipelineExecutionController
+  argumentUtilityShader: {fileID: 7200000, guid: 1bfbaadec86da7c429b6aff88700106d, type: 3}
+  spatialHashGridShader: {fileID: 7200000, guid: a7b835b402ccbfc4f8c2ca320d1b2344, type: 3}
+  streamCompactionShader: {fileID: 7200000, guid: a740344fc9b94184fb233eeb5ad0a164, type: 3}
+  dataCompactionShader: {fileID: 7200000, guid: 0234c310e8ef86a41a68df6481aefc77, type: 3}
+  fallingFluidWorldShader: {fileID: 7200000, guid: ed4bddf61b02552409d2d4294da1cd19, type: 3}
+  eulerianDragGridShader: {fileID: 7200000, guid: 46bfba10dfd6e754eafe9e006f7129a6, type: 3}
+  bucketTransform: {fileID: 2072273976}
+  driveBucketFromTransform: 1
+  maxCapacity: 1000000
+  cellSize: 0.25
+  useExternalParticleIngestion: 1
+  autoRunPipeline: 1
+  simulationActive: 0
+  seedTestParticlesOnStart: 0
+--- !u!114 &539074084
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 003af3959578c7741a893ef9d0731522, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.PlaybackStreaming.HarmonicBakeRecorder
+  pipeline: {fileID: 539074082}
+--- !u!4 &539074083
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -246,6 +318,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Simulation.SimulationManager
   BucketObject: {fileID: 2072273972}
+  UseHarmonicGpuPipeline: 1
+  HarmonicPipeline: {fileID: 539074082}
+  Canvas: {fileID: 1540517399}
+  ImpastoPresenter: {fileID: 1540517400}
+  BakeRecorder: {fileID: 539074084}
+  DefaultQualityTier: 1
+  autoStartSimulationOnPlay: 1
 --- !u!4 &832271371
 Transform:
   m_ObjectHideFlags: 0
@@ -366,6 +445,7 @@ GameObject:
   - component: {fileID: 1540517397}
   - component: {fileID: 1540517396}
   - component: {fileID: 1540517399}
+  - component: {fileID: 1540517400}
   m_Layer: 0
   m_Name: Canvas
   m_TagString: Untagged
@@ -459,6 +539,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Canvas.CanvasController
   TextureWidth: 1024
   TextureHeight: 1024
+--- !u!114 &1540517400
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1540517395}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f088d2705f65fd468cda9be13ac2b8f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.PlaybackStreaming.HighScaleFramePresenter
 --- !u!1 &1821530838
 GameObject:
   m_ObjectHideFlags: 0
@@ -661,3 +753,4 @@ SceneRoots:
   - {fileID: 705507995}
   - {fileID: 832271371}
   - {fileID: 1540517398}
+  - {fileID: 539074083}

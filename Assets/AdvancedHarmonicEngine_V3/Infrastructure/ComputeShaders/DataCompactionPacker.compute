@@ -1,0 +1,46 @@
+#pragma kernel QuantizeFallingParticlesKernel
+
+struct FluidParticle
+{
+    float3 Position;
+    float Density;
+    float3 Velocity;
+    float Pressure;
+};
+
+struct QuantizedBakeParticle
+{
+    uint2 Packed0;
+    uint2 Packed1;
+};
+
+StructuredBuffer<FluidParticle> _SourceParticleBuffer;
+RWStructuredBuffer<QuantizedBakeParticle> _QuantizedOutputBuffer;
+uint _QuantizedCount;
+float3 _QuantizationOrigin;
+
+[numthreads(64, 1, 1)]
+void QuantizeFallingParticlesKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _QuantizedCount)
+    {
+        return;
+    }
+
+    FluidParticle p = _SourceParticleBuffer[id.x];
+    float3 localPos = p.Position - _QuantizationOrigin;
+
+    uint px = f32tof16(localPos.x);
+    uint py = f32tof16(localPos.y);
+    uint pz = f32tof16(localPos.z);
+    uint vx = f32tof16(p.Velocity.x);
+    uint vy = f32tof16(p.Velocity.y);
+    uint vz = f32tof16(p.Velocity.z);
+    uint d = f32tof16(p.Density);
+    uint pr = f32tof16(p.Pressure);
+
+    QuantizedBakeParticle q;
+    q.Packed0 = uint2((py << 16) | px, (vx << 16) | pz);
+    q.Packed1 = uint2((vz << 16) | vy, (pr << 16) | d);
+    _QuantizedOutputBuffer[id.x] = q;
+}

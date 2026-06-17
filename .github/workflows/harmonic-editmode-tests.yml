@@ -1,0 +1,31 @@
+name: Harmonic Edit Mode Tests
+
+on:
+  push:
+    branches: [anas-sandbox, main, master]
+  pull_request:
+    branches: [anas-sandbox, main, master]
+
+jobs:
+  editmode:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Edit Mode tests (Unity batchmode)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path env:UNITY_PATH)) {
+            Write-Host "::warning::UNITY_PATH secret not set. Skipping automated Unity tests."
+            Write-Host "Run locally: ./scripts/RunHarmonicEditModeTests.ps1"
+            exit 0
+          }
+          ./scripts/RunHarmonicEditModeTests.ps1 -UnityPath $env:UNITY_PATH
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: editmode-test-results
+          path: TestResults/
+          if-no-files-found: ignore

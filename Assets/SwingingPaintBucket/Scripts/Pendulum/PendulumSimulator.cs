@@ -18,11 +18,19 @@
 // Dependencies : SimulationConstants
 // ============================================================
 
+using HarmonicEngine.Core.Mathematics.Integrators;
+using Unity.Jobs;
 using UnityEngine;
 using SwingingPaintBucket.Core;
 
 namespace SwingingPaintBucket.Pendulum
 {
+    public enum PendulumIntegrationMode
+    {
+        ExplicitEuler = 0,
+        RungeKutta4 = 1
+    }
+
     public class PendulumSimulator : MonoBehaviour
     {
         // ---- Adjustable settings from Inspector ----
@@ -49,6 +57,12 @@ namespace SwingingPaintBucket.Pendulum
         [Tooltip("Initial angular velocity")]
         public float InitialAngularVelocity = 0f;
 
+        [Header("Integration")]
+        public PendulumIntegrationMode IntegrationMode = PendulumIntegrationMode.RungeKutta4;
+
+        [Tooltip("When RK4 is selected, integrate on a Burst worker thread via PendulumRk4Job.")]
+        public bool UseBurstRk4Job = true;
+
         [Header("Pivot Point")]
         public Vector3 PivotPoint = Vector3.zero;
 
@@ -67,6 +81,9 @@ namespace SwingingPaintBucket.Pendulum
 
         /// <summary>Current angular velocity</summary>
         public float Omega => _omega;
+
+        /// <summary>Angular acceleration from the most recent FixedUpdate step.</summary>
+        public float LastAngularAcceleration { get; private set; }
 
         /// <summary>
         /// Bucket velocity as a 3D vector
@@ -97,19 +114,46 @@ namespace SwingingPaintBucket.Pendulum
         {
             float dt = Time.fixedDeltaTime;
 
-            // 1. Calculate angular acceleration
-            //    First component  : -(g/L) × sin(θ)  Gravity force returning to center
-            //    Second component : -(b × ω)          Damping force opposing motion
-            float angularAcceleration = -(Gravity / RopeLength) * Mathf.Sin(_theta)
-                                        - (DampingCoefficient * _omega);
+            if (IntegrationMode == PendulumIntegrationMode.RungeKutta4)
+            {
+                if (UseBurstRk4Job)
+                {
+                    var job = new PendulumRk4Job
+                    {
+                        Theta = _theta,
+                        Omega = _omega,
+                        RopeLength = RopeLength,
+                        Gravity = Gravity,
+                        Damping = DampingCoefficient,
+                        DeltaTime = dt
+                    };
+                    job.Schedule().Complete();
+                    _theta = job.ResultTheta;
+                    _omega = job.ResultOmega;
+                    LastAngularAcceleration = job.ResultAngularAcceleration;
+                }
+                else
+                {
+                    PendulumRk4Integrator.Step(
+                        ref _theta,
+                        ref _omega,
+                        out float angularAcceleration,
+                        RopeLength,
+                        Gravity,
+                        DampingCoefficient,
+                        dt);
+                    LastAngularAcceleration = angularAcceleration;
+                }
+            }
+            else
+            {
+                float angularAcceleration = -(Gravity / RopeLength) * Mathf.Sin(_theta)
+                                            - (DampingCoefficient * _omega);
+                LastAngularAcceleration = angularAcceleration;
+                _omega += angularAcceleration * dt;
+                _theta += _omega * dt;
+            }
 
-            // 2. Update angular velocity
-            _omega += angularAcceleration * dt;
-
-            // 3. Update angle
-            _theta += _omega * dt;
-
-            // 4. Convert angle to position in space and move the GameObject
             UpdatePosition();
         }
 

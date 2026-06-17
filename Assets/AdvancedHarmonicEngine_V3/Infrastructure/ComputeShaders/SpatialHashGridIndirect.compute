@@ -1,0 +1,117 @@
+#pragma kernel ClearGridCellsKernel
+#pragma kernel GenerateGridKeysKernel
+#pragma kernel BitonicSortStepKernel
+#pragma kernel BuildCellRangesKernel
+
+struct HashCellGridRange
+{
+    int StartIndex;
+    int EndIndex;
+};
+
+RWStructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
+RWStructuredBuffer<uint2> _GridKeyValueBuffer;
+StructuredBuffer<float4> _ReadOnlyParticlePositions;
+uint _PaddedGridSize;
+uint _ActiveParticleCount;
+uint _GridResolution;
+float _CellSize;
+uint _BitonicLevel;
+uint _BitonicLevelMask;
+uint _BitonicWidth;
+
+uint HashPosition(float3 position)
+{
+    int3 c = (int3)floor(position / max(_CellSize, 0.0001));
+    uint x = (uint)(c.x * 73856093);
+    uint y = (uint)(c.y * 19349663);
+    uint z = (uint)(c.z * 83492791);
+    return (x ^ y ^ z) & (_GridResolution - 1);
+}
+
+[numthreads(256, 1, 1)]
+void ClearGridCellsKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _PaddedGridSize)
+    {
+        return;
+    }
+
+    _CellStartEndBuffer[id.x].StartIndex = -1;
+    _CellStartEndBuffer[id.x].EndIndex = -1;
+}
+
+[numthreads(64, 1, 1)]
+void GenerateGridKeysKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    if (index >= _PaddedGridSize)
+    {
+        return;
+    }
+
+    if (index >= _ActiveParticleCount)
+    {
+        _GridKeyValueBuffer[index] = uint2(0xFFFFFFFF, 0xFFFFFFFF);
+        return;
+    }
+
+    float3 position = _ReadOnlyParticlePositions[index].xyz;
+    uint hash = HashPosition(position);
+    _GridKeyValueBuffer[index] = uint2(hash, index);
+}
+
+[numthreads(256, 1, 1)]
+void BitonicSortStepKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _PaddedGridSize)
+    {
+        return;
+    }
+
+    uint ixj = i ^ _BitonicLevelMask;
+    if (ixj <= i || ixj >= _PaddedGridSize)
+    {
+        return;
+    }
+
+    uint2 a = _GridKeyValueBuffer[i];
+    uint2 b = _GridKeyValueBuffer[ixj];
+    bool ascending = ((i & _BitonicLevel) == 0);
+    bool swap = ascending ? (a.x > b.x) : (a.x < b.x);
+    if (swap)
+    {
+        _GridKeyValueBuffer[i] = b;
+        _GridKeyValueBuffer[ixj] = a;
+    }
+}
+
+[numthreads(64, 1, 1)]
+void BuildCellRangesKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _PaddedGridSize)
+    {
+        return;
+    }
+
+    uint2 curr = _GridKeyValueBuffer[i];
+    if (curr.x == 0xFFFFFFFF)
+    {
+        return;
+    }
+
+    uint2 prev = (i > 0) ? _GridKeyValueBuffer[i - 1] : uint2(0xFFFFFFFF, 0xFFFFFFFF);
+    uint2 next = (i + 1 < _PaddedGridSize) ? _GridKeyValueBuffer[i + 1] : uint2(0xFFFFFFFF, 0xFFFFFFFF);
+
+    if (i == 0 || prev.x != curr.x)
+    {
+        _CellStartEndBuffer[curr.x].StartIndex = (int)i;
+    }
+
+    if (i == _PaddedGridSize - 1 || next.x != curr.x)
+    {
+        _CellStartEndBuffer[curr.x].EndIndex = (int)i;
+    }
+}
