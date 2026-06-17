@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ede718ba0eb58ce4e9f68cbcee963236, type: 3}
+  m_Name: HarmonicPipelineTestSettings
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Testing.HarmonicPipelineTestSettings
+  argumentUtilityShader: {fileID: 7200000, guid: 1bfbaadec86da7c429b6aff88700106d, type: 3}
+  spatialHashGridShader: {fileID: 7200000, guid: a7b835b402ccbfc4f8c2ca320d1b2344, type: 3}
+  streamCompactionShader: {fileID: 7200000, guid: a740344fc9b94184fb233eeb5ad0a164, type: 3}
+  dataCompactionShader: {fileID: 7200000, guid: 0234c310e8ef86a41a68df6481aefc77, type: 3}
+  testCapacity: 8192

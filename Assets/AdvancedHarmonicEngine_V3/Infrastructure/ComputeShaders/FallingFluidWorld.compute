@@ -1,0 +1,67 @@
+#pragma kernel ExecuteFallingFluidIntegration
+
+struct FluidParticle
+{
+    float3 Position;
+    float Density;
+    float3 Velocity;
+    float Pressure;
+};
+
+struct CanvasPaintHit
+{
+    float3 WorldPosition;
+    float PaintWeight;
+};
+
+StructuredBuffer<FluidParticle> _FallingRead;
+AppendStructuredBuffer<FluidParticle> _FallingAppend;
+AppendStructuredBuffer<CanvasPaintHit> _CanvasHitAppend;
+
+uint _FallingCount;
+float _DeltaTime;
+float3 _WorldGravity;
+float _WorldDrag;
+float _CanvasPlaneY;
+// 1 = cull particles into the canvas-hit buffer when they cross the plane (paint canvas mode).
+// 0 = no canvas: the plane acts as a solid floor and particles are kept alive (rest/bounce).
+uint _CanvasCullingEnabled;
+// Vertical restitution applied when a particle lands on the floor in no-canvas mode (0 = stop, 1 = full bounce).
+float _FloorRestitution;
+// Horizontal velocity retained on floor contact (friction); 1 = frictionless slide.
+float _FloorFriction;
+
+[numthreads(64, 1, 1)]
+void ExecuteFallingFluidIntegration(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _FallingCount)
+    {
+        return;
+    }
+
+    FluidParticle particle = _FallingRead[id.x];
+    particle.Velocity += _WorldGravity * _DeltaTime;
+    particle.Velocity *= max(0.0, 1.0 - _WorldDrag * _DeltaTime);
+    particle.Position += particle.Velocity * _DeltaTime;
+
+    if (particle.Position.y <= _CanvasPlaneY)
+    {
+        if (_CanvasCullingEnabled != 0)
+        {
+            // Paint-canvas mode: record the hit and remove the particle from the live set.
+            CanvasPaintHit hit;
+            hit.WorldPosition = particle.Position;
+            hit.PaintWeight = length(particle.Velocity);
+            _CanvasHitAppend.Append(hit);
+            return;
+        }
+
+        // No-canvas mode: clamp to the floor plane and keep the particle alive so it stays visible.
+        particle.Position.y = _CanvasPlaneY;
+        particle.Velocity.y = -particle.Velocity.y * _FloorRestitution;
+        particle.Velocity.x *= _FloorFriction;
+        particle.Velocity.z *= _FloorFriction;
+    }
+
+    _FallingAppend.Append(particle);
+}

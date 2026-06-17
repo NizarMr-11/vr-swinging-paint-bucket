@@ -1,0 +1,95 @@
+#pragma kernel ClearDragGridKernel
+#pragma kernel AdvectDragGridKernel
+#pragma kernel ScatterParticleToGridKernel
+#pragma kernel ApplyDragFromGridKernel
+
+struct FluidParticle
+{
+    float3 Position;
+    float Density;
+    float3 Velocity;
+    float Pressure;
+};
+
+struct VoxelDragCell
+{
+    float3 Velocity;
+    float Drag;
+};
+
+RWStructuredBuffer<VoxelDragCell> _DragGrid;
+StructuredBuffer<FluidParticle> _ParticleSource;
+RWStructuredBuffer<FluidParticle> _ParticleTarget;
+
+uint _GridVolume;
+uint _ActiveParticleCount;
+float _DragStrength;
+float _DeltaTime;
+float _DragDecay;
+float _AmbientWindStrength;
+
+[numthreads(256, 1, 1)]
+void ClearDragGridKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _GridVolume)
+    {
+        return;
+    }
+
+    _DragGrid[id.x].Velocity = float3(0, 0, 0);
+    _DragGrid[id.x].Drag = 0.0;
+}
+
+[numthreads(256, 1, 1)]
+void AdvectDragGridKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _GridVolume)
+    {
+        return;
+    }
+
+    VoxelDragCell cell = _DragGrid[id.x];
+    cell.Velocity *= max(0.0, 1.0 - _DragDecay * _DeltaTime);
+    cell.Drag *= max(0.0, 1.0 - _DragDecay * _DeltaTime);
+    cell.Velocity += float3(_AmbientWindStrength, 0.0, 0.0) * _DeltaTime;
+    _DragGrid[id.x] = cell;
+}
+
+[numthreads(64, 1, 1)]
+void ScatterParticleToGridKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    FluidParticle particle = _ParticleSource[id.x];
+    uint cellHash = (uint)(abs(particle.Position.x) * 73856093.0
+        + abs(particle.Position.y) * 19349663.0
+        + abs(particle.Position.z) * 83492791.0) % max(_GridVolume, 1u);
+
+    VoxelDragCell cell = _DragGrid[cellHash];
+    cell.Velocity += particle.Velocity;
+    cell.Drag += 1.0;
+    _DragGrid[cellHash] = cell;
+}
+
+[numthreads(64, 1, 1)]
+void ApplyDragFromGridKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    FluidParticle particle = _ParticleSource[id.x];
+    uint cellHash = (uint)(abs(particle.Position.x) * 73856093.0
+        + abs(particle.Position.y) * 19349663.0
+        + abs(particle.Position.z) * 83492791.0) % max(_GridVolume, 1u);
+    VoxelDragCell cell = _DragGrid[cellHash];
+    float invWeight = 1.0 / max(cell.Drag, 1.0);
+    float3 ambientVelocity = cell.Velocity * invWeight;
+    float3 dragForce = (ambientVelocity - particle.Velocity) * cell.Drag * invWeight * _DragStrength;
+    particle.Velocity += dragForce * _DeltaTime;
+    _ParticleTarget[id.x] = particle;
+}
