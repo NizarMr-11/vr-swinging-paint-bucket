@@ -2,13 +2,13 @@ Shader "HarmonicEngine/ParticleDebugPoints"
 {
     Properties
     {
-        _Color ("Color", Color) = (1, 0.5, 0.2, 1)
-        _PointSize ("Point Size", Float) = 0.025
+        _Color ("Color", Color) = (0.25, 0.55, 0.95, 0.85)
+        _PointSize ("Point Size (world radius)", Float) = 0.18
     }
 
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "Queue" = "Transparent" }
+        Tags { "RenderType" = "Transparent" "Queue" = "Transparent" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         Cull Off
@@ -17,6 +17,7 @@ Shader "HarmonicEngine/ParticleDebugPoints"
         {
             CGPROGRAM
             #pragma vertex vert
+            #pragma geometry geom
             #pragma fragment frag
             #pragma target 4.5
             #include "UnityCG.cginc"
@@ -34,26 +35,75 @@ Shader "HarmonicEngine/ParticleDebugPoints"
             float _PointSize;
             fixed4 _Color;
 
-            struct v2f
+            struct v2g
+            {
+                float3 worldPos : TEXCOORD0;
+                fixed4 color : COLOR;
+            };
+
+            struct g2f
             {
                 float4 pos : SV_POSITION;
                 fixed4 color : COLOR;
-                float psize : PSIZE;
+                float2 uv : TEXCOORD0;
             };
 
-            v2f vert(uint vertexId : SV_VertexID)
+            v2g vert(uint vertexId : SV_VertexID)
             {
-                v2f o;
+                v2g o;
                 FluidParticle particle = _Particles[vertexId];
-                o.pos = UnityWorldToClipPos(float4(particle.Position, 1.0));
+                o.worldPos = particle.Position;
                 o.color = _Color;
-                o.psize = _PointSize * 1000.0;
                 return o;
             }
 
-            fixed4 frag(v2f i) : SV_Target
+            [maxvertexcount(4)]
+            void geom(point v2g input[1], inout TriangleStream<g2f> triStream)
             {
-                return i.color;
+                float3 worldPos = input[0].worldPos;
+                float3 viewRight = UNITY_MATRIX_V[0].xyz * _PointSize;
+                float3 viewUp = UNITY_MATRIX_V[1].xyz * _PointSize;
+
+                float3 corners[4] = {
+                    worldPos - viewRight - viewUp,
+                    worldPos + viewRight - viewUp,
+                    worldPos - viewRight + viewUp,
+                    worldPos + viewRight + viewUp
+                };
+
+                float2 uvs[4] = {
+                    float2(0.0, 0.0),
+                    float2(1.0, 0.0),
+                    float2(0.0, 1.0),
+                    float2(1.0, 1.0)
+                };
+
+                g2f o;
+                o.color = input[0].color;
+
+                [unroll]
+                for (int i = 0; i < 4; i++)
+                {
+                    o.pos = UnityWorldToClipPos(float4(corners[i], 1.0));
+                    o.uv = uvs[i];
+                    triStream.Append(o);
+                }
+
+                triStream.RestartStrip();
+            }
+
+            fixed4 frag(g2f i) : SV_Target
+            {
+                float2 centered = i.uv * 2.0 - 1.0;
+                float distSq = dot(centered, centered);
+                if (distSq > 1.0)
+                {
+                    discard;
+                }
+
+                float edge = 1.0 - distSq;
+                float alpha = edge * edge;
+                return fixed4(i.color.rgb, i.color.a * alpha);
             }
             ENDCG
         }

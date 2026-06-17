@@ -10,7 +10,17 @@ See [docs/architecure.md](docs/architecure.md), [docs/full-implementation-plan.m
 
 ### Quick start
 
-1. Open `Assets/Scenes/MainSimulation.unity`
+**Classic paint bucket (original flow)** — `Assets/Scenes/ClassicPaintSimulation.unity`
+
+1. Open the scene and press **Play**
 2. Press **Space** to start, **P** pause, **R** reset
-3. Keys **1–4** switch quality tier; **B** bake record, **V** playback, **L** live mode
+3. Keys **1–4** switch quality tier; **B** bake record, **V** playback, **L** live mode; **S** save canvas to Pictures
+
+**Harmonic Engine lab (GPU pipeline + timeline)** — `Assets/Scenes/HarmonicEngineLab.unity`
+
+1. Open the scene and press **Play**
+2. Enter particle count + duration in the setup prompt; toggle **Save calculation** for record/scrub workflow
+3. See [docs/scenes.md](docs/scenes.md) and [docs/harmonic-engine-api.md](docs/harmonic-engine-api.md)
+
+Legacy scene names: `MainSimulation.unity` (classic), `AnasScene.unity` (engine lab).
 

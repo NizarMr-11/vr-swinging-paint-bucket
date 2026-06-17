@@ -156,40 +156,26 @@ MonoBehaviour:
   fallingFluidWorldShader: {fileID: 7200000, guid: ed4bddf61b02552409d2d4294da1cd19, type: 3}
   eulerianDragGridShader: {fileID: 7200000, guid: 46bfba10dfd6e754eafe9e006f7129a6, type: 3}
   bucketTransform: {fileID: 2072273976}
-  bucketKinematicProvider: {fileID: 0}
   driveBucketFromTransform: 1
   maxCapacity: 1000000
   cellSize: 0.25
-  nozzlePlaneLocalY: -0.35
-  nozzleRadius: 0.05
-  bucketRimLocalY: 0.35
-  gravity: {x: 0, y: -9.81, z: 0}
-  applyNonInertialPseudoForces: 1
-  worldDrag: 0.15
-  canvasPlaneY: -6
-  canvasCullingEnabled: 1
-  floorRestitution: 0
-  floorFriction: 0.85
-  enableEulerianDrag: 0
-  dragGridVolume: 4096
-  dragStrength: 1
-  dragDecay: 0.5
-  ambientWindStrength: 0
-  maxCanvasHitsPerFrame: 16384
-  simulationMode: 0
-  qualityTier: 2
   useExternalParticleIngestion: 1
   autoRunPipeline: 1
   simulationActive: 0
-  worldFallingOnly: 0
-  driveWorldParticlesFromPipelineRoot: 1
   seedTestParticlesOnStart: 0
-  testParticleCount: 2048
-  testSpawnRadius: 0.2
-  verbosePipelineDiagnostics: 1
-  frameDiagnosticInterval: 15
-  positionSampleInterval: 30
-  positionSampleCount: 16
+--- !u!114 &539074084
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 003af3959578c7741a893ef9d0731522, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.PlaybackStreaming.HarmonicBakeRecorder
+  pipeline: {fileID: 539074082}
 --- !u!4 &539074083
 Transform:
   m_ObjectHideFlags: 0
@@ -205,22 +191,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &539074084
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 539074081}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 003af3959578c7741a893ef9d0731522, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.PlaybackStreaming.HarmonicBakeRecorder
-  pipeline: {fileID: 539074082}
-  outputDirectory: HarmonicBakeFrames
-  recordEveryFrame: 0
-  recordEveryNthFrame: 2
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -350,10 +320,9 @@ MonoBehaviour:
   BucketObject: {fileID: 2072273972}
   UseHarmonicGpuPipeline: 1
   HarmonicPipeline: {fileID: 539074082}
+  Canvas: {fileID: 1540517399}
   ImpastoPresenter: {fileID: 1540517400}
   BakeRecorder: {fileID: 539074084}
-  BakePlayback: {fileID: 0}
-  Canvas: {fileID: 1540517399}
   DefaultQualityTier: 1
   autoStartSimulationOnPlay: 1
 --- !u!4 &832271371
@@ -570,8 +539,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Canvas.CanvasController
   TextureWidth: 1024
   TextureHeight: 1024
-  useImpastoShader: 1
-  impastoDisplacementScale: 0.025
 --- !u!114 &1540517400
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -584,10 +551,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5f088d2705f65fd468cda9be13ac2b8f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.PlaybackStreaming.HighScaleFramePresenter
-  targetMaterial: {fileID: 0}
-  targetRenderer: {fileID: 0}
-  heightMapProperty: _HeightMap
-  quantizedBufferProperty: _QuantizedFrameBuffer
 --- !u!1 &1821530838
 GameObject:
   m_ObjectHideFlags: 0
@@ -779,8 +742,6 @@ MonoBehaviour:
   DampingCoefficient: 0.05
   InitialAngleDegrees: 45
   InitialAngularVelocity: 0
-  IntegrationMode: 1
-  UseBurstRk4Job: 1
   PivotPoint: {x: 0, y: 0, z: 0}
 --- !u!4 &2072273976
 Transform:
@@ -812,9 +773,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Particles.ParticleEmitter
   MaxParticles: 100000
   VolumePerParticle: 0.0001
-  UseHarmonicGpuPipeline: 0
-  HarmonicPipeline: {fileID: 0}
-  HarmonicBridge: {fileID: 0}
   Canvas: {fileID: 1540517399}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

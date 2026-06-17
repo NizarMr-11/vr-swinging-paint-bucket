@@ -2,7 +2,7 @@
 
 How to integrate and drive **AdvancedHarmonicEngine_V3** from Unity scenes, scripts, and VR UI.
 
-**Related docs:** [`architecure.md`](architecure.md) · [`architecture-coverage.md`](architecture-coverage.md) · [`hardware-requirements.md`](hardware-requirements.md)
+**Related docs:** [`architecure.md`](architecure.md) · [`architecture-coverage.md`](architecture-coverage.md) · [`hardware-requirements.md`](hardware-requirements.md) · [`scenes.md`](scenes.md)
 
 ---
 
@@ -23,7 +23,7 @@ MainSimulation
                                   + HarmonicCanvasHitBridge
 ```
 
-Reference scene: `Assets/Scenes/MainSimulation.unity`
+Reference scenes: [`ClassicPaintSimulation.unity`](../Assets/Scenes/ClassicPaintSimulation.unity) (full bucket/canvas flow) and [`HarmonicEngineLab.unity`](../Assets/Scenes/HarmonicEngineLab.unity) (engine timeline lab). See [`scenes.md`](scenes.md).
 
 ### 1.2 Inspector wiring
 

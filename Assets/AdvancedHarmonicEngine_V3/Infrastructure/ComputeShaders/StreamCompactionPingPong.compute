@@ -1,5 +1,6 @@
 #pragma kernel ExecuteSphDensityPass
 #pragma kernel ExecuteInternalFluidIntegration
+#pragma kernel ExecuteContainerFluidIntegration
 
 struct FluidParticle
 {
@@ -46,6 +47,17 @@ float _NozzleRadius;
 float _BucketRimLocalY;
 float4x4 _LocalToWorldMatrix;
 float3 _InstantaneousBucketGlobalVelocity;
+
+// World-space cylindrical container (open top). Used by ExecuteContainerFluidIntegration.
+float3 _ContainerCenter;
+float _ContainerRadius;
+float _ContainerFloorY;
+float _ContainerRimY;
+float _ContainerRestitution;
+float _ContainerFriction;
+float _ContainerWallStiffness;
+float _ContainerDamping;
+float _ContainerMaxSpeed;
 
 static const int3 kNeighborOffsets[27] =
 {
@@ -267,4 +279,85 @@ void ExecuteInternalFluidIntegration(uint3 id : SV_DispatchThreadID)
     {
         _InternalAppend.Append(particle);
     }
+}
+
+// Integrator stability clamp for the world-space container SPH pass.
+static const float kMaxContainerAccel = 600.0;
+
+// Hard cylinder boundary: clamp position back inside and reflect/damp velocity.
+// Open top: no ceiling clamp.
+void ProjectIntoContainer(inout float3 pos, inout float3 vel)
+{
+    if (pos.y < _ContainerFloorY)
+    {
+        pos.y = _ContainerFloorY;
+        if (vel.y < 0.0)
+        {
+            vel.y = -vel.y * _ContainerRestitution;
+        }
+        vel.x *= _ContainerFriction;
+        vel.z *= _ContainerFriction;
+    }
+
+    float2 rel = pos.xz - _ContainerCenter.xz;
+    float d = length(rel);
+    if (d > _ContainerRadius && d > 1e-5)
+    {
+        float2 n = rel / d;
+        pos.xz = _ContainerCenter.xz + n * _ContainerRadius;
+
+        float vn = dot(vel.xz, n);
+        if (vn > 0.0)
+        {
+            float2 vNormal = vn * n;
+            float2 vTangent = vel.xz - vNormal;
+            vel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
+        }
+    }
+}
+
+[numthreads(64, 1, 1)]
+void ExecuteContainerFluidIntegration(uint3 id : SV_DispatchThreadID)
+{
+    uint particleIndex = id.x;
+    if (particleIndex >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    FluidParticle particle = _DensityWritableCache[particleIndex];
+
+    float density;
+    float3 pressureGrad;
+    float3 viscosityForce;
+    ForEachNeighbor(particleIndex, particle, true, density, pressureGrad, viscosityForce);
+
+    float safeDensity = max(particle.Density, 1e-4);
+    float3 acceleration = pressureGrad / safeDensity + _Viscosity * viscosityForce / safeDensity;
+    acceleration += _Gravity;
+
+    // Stability clamp: keep stiff SPH pressure spikes from exploding the integrator.
+    float accelMag = length(acceleration);
+    if (accelMag > kMaxContainerAccel)
+    {
+        acceleration *= kMaxContainerAccel / accelMag;
+    }
+
+    particle.Velocity += acceleration * _DeltaTime;
+
+    // Per-step velocity bleed dissipates excess energy so the pool settles.
+    particle.Velocity *= max(0.0, 1.0 - _ContainerDamping);
+
+    float speed = length(particle.Velocity);
+    if (speed > _ContainerMaxSpeed)
+    {
+        particle.Velocity *= _ContainerMaxSpeed / speed;
+    }
+
+    particle.Position += particle.Velocity * _DeltaTime;
+
+    // Hard cylinder boundary keeps particles confined; provides the wall response.
+    ProjectIntoContainer(particle.Position, particle.Velocity);
+
+    _InternalAppend.Append(particle);
 }

@@ -87,7 +87,7 @@ namespace SwingingPaintBucket.Particles
 
         private void ApplyHits(NativeArray<CanvasPaintHit> hits)
         {
-            Color paintColor = bucket != null ? bucket.PaintColor : Color.red;
+            Color paintColor = bucket != null ? bucket.CurrentPaintColor : Color.red;
             float viscosity = bucket != null ? bucket.Viscosity : 1f;
 
             for (int i = 0; i < hits.Length; i++)

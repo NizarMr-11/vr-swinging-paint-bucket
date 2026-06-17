@@ -4,7 +4,13 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/ClassicPaintSimulation.unity
+    guid: c4a8f1e23b5d4a7091c2e8f6d3b7a901
+  - enabled: 1
+    path: Assets/Scenes/HarmonicEngineLab.unity
+    guid: d7b2e9f14c6e5b8203d1f9a7e4c8b012
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}

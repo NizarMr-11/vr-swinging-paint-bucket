@@ -17,6 +17,18 @@ namespace SwingingPaintBucket.Scene
         [SerializeField] private PipelineExecutionController pipeline;
         [SerializeField] private CanvasController canvas;
 
+        [Header("Container pooling")]
+        [Tooltip("Rain into a cylindrical FluidContainer (world-space SPH) instead of the flat falling floor.")]
+        [SerializeField] private bool poolInContainer;
+        [SerializeField] private FluidContainer container;
+        [Tooltip("Extra height above the container rim to spawn the rain from.")]
+        [SerializeField] private float spawnHeightAboveRim = 0.55f;
+        [Tooltip("Fraction of the container radius used as the rain spawn footprint.")]
+        [SerializeField, Range(0.05f, 1f)] private float spawnRadiusFraction = 0.22f;
+        [Tooltip("Estimate initial particle count from container volume and SPH cell size.")]
+        [SerializeField] private bool autoParticleCountFromVolume = true;
+        [SerializeField, Range(0.2f, 0.95f)] private float targetFillFraction = 0.65f;
+
         [Header("Countdown")]
         [SerializeField] private float countdownSeconds = 3f;
         [SerializeField] private bool autoStartOnPlay = true;
@@ -31,9 +43,11 @@ namespace SwingingPaintBucket.Scene
         [Tooltip("Spawn well above the floor so the rain is clearly visible falling into view.")]
         [SerializeField] private Vector3 spawnCenter = new(0f, 10f, 0f);
         [SerializeField] private Vector3 spawnHalfExtents = new(1.2f, 0.15f, 1.2f);
-        [SerializeField] private int initialParticleCount = 4096;
+        [SerializeField] private int initialParticleCount = 8000;
         [SerializeField] private float restDensity = 1000f;
-        [SerializeField] private Vector2 horizontalVelocityRange = new(-0.15f, 0.15f);
+        [SerializeField] private Vector2 horizontalVelocityRange = new(-0.08f, 0.08f);
+        [Tooltip("Downward speed when pooling into a container (m/s).")]
+        [SerializeField] private Vector2 verticalVelocityRange = new(-3.5f, -1.2f);
 
         [Header("Gradual spawn (fixes 0 → 4096 jump)")]
         [SerializeField] private bool rampInitialSpawn = true;
@@ -56,6 +70,7 @@ namespace SwingingPaintBucket.Scene
         private float _burstAccumulator;
         private FluidParticle[] _spawnBatch;
         private uint _randomState = 0xA14A5123u;
+        private int _targetParticleCount = -1;
         private int _lastCountdownDisplay = -1;
 
         private void Awake()
@@ -70,35 +85,98 @@ namespace SwingingPaintBucket.Scene
                 canvas = FindFirstObjectByType<CanvasController>();
             }
 
-            if (pipeline != null)
+            if (poolInContainer && container == null)
             {
-                pipeline.SetWorldFallingOnly(true);
+                container = FindFirstObjectByType<FluidContainer>();
+            }
+
+            if (pipeline == null)
+            {
+                return;
+            }
+
+            if (poolInContainer)
+            {
+                // World-space SPH container: particles are appended to the internal buffer and
+                // confined by the FluidContainer (which enables container mode in its own Start).
                 pipeline.EnableExternalIngestion(true);
                 pipeline.SetSimulationActive(false);
                 pipeline.ClearAllParticles();
+                pipeline.SetContainerFluidEnabled(true);
 
-                if (disableCanvas)
+                if (canvas != null)
                 {
-                    // No canvas: the plane becomes a solid floor below the spawn so particles
-                    // keep falling, land and stay visible (not consumed into the canvas buffer).
-                    pipeline.SetCanvasCullingEnabled(false);
-                    pipeline.SetCanvasPlaneY(floorY);
-
-                    if (canvas != null)
-                    {
-                        canvas.gameObject.SetActive(false);
-                    }
+                    canvas.gameObject.SetActive(false);
                 }
-                else if (canvas != null)
+
+                AlignSpawnToContainer();
+                return;
+            }
+
+            pipeline.SetWorldFallingOnly(true);
+            pipeline.EnableExternalIngestion(true);
+            pipeline.SetSimulationActive(false);
+            pipeline.ClearAllParticles();
+
+            if (disableCanvas)
+            {
+                // No canvas: the plane becomes a solid floor below the spawn so particles
+                // keep falling, land and stay visible (not consumed into the canvas buffer).
+                pipeline.SetCanvasCullingEnabled(false);
+                pipeline.SetCanvasPlaneY(floorY);
+
+                if (canvas != null)
                 {
-                    pipeline.SetCanvasCullingEnabled(true);
-                    pipeline.SetCanvasPlaneY(canvas.transform.position.y);
+                    canvas.gameObject.SetActive(false);
                 }
             }
+            else if (canvas != null)
+            {
+                pipeline.SetCanvasCullingEnabled(true);
+                pipeline.SetCanvasPlaneY(canvas.transform.position.y);
+            }
+        }
+
+        private void AlignSpawnToContainer()
+        {
+            if (container == null)
+            {
+                return;
+            }
+
+            spawnCenter = new Vector3(
+                container.Center.x,
+                container.RimY + spawnHeightAboveRim,
+                container.Center.z);
+
+            float footprint = container.Radius * spawnRadiusFraction;
+            float rainColumnHalfHeight = Mathf.Max(0.18f, spawnHeightAboveRim * 0.55f);
+            spawnHalfExtents = new Vector3(footprint, rainColumnHalfHeight, footprint);
+        }
+
+        private int ResolveInitialParticleCount()
+        {
+            if (!poolInContainer || !autoParticleCountFromVolume || container == null || pipeline == null)
+            {
+                return initialParticleCount;
+            }
+
+            float fillHeight = container.Height * targetFillFraction;
+            float volume = Mathf.PI * container.Radius * container.Radius * fillHeight;
+            float spacing = pipeline.CellSize * 0.72f;
+            float cellVolume = spacing * spacing * spacing;
+            int estimate = Mathf.CeilToInt(volume / cellVolume);
+            return Mathf.Clamp(estimate, 8000, pipeline.MaxCapacity / 2);
         }
 
         private void Start()
         {
+            if (poolInContainer)
+            {
+                AlignSpawnToContainer();
+                container?.ApplyToPipeline();
+            }
+
             if (!autoStartOnPlay)
             {
                 return;
@@ -170,24 +248,40 @@ namespace SwingingPaintBucket.Scene
                 return;
             }
 
-            pipeline.SetWorldFallingOnly(true);
+            if (poolInContainer)
+            {
+                pipeline.SetContainerFluidEnabled(true);
+                if (container != null)
+                {
+                    container.ApplyToPipeline();
+                    AlignSpawnToContainer();
+                }
+            }
+            else
+            {
+                pipeline.SetWorldFallingOnly(true);
+            }
+
             pipeline.SetSimulationActive(true);
             _simulationStarted = true;
 
-            if (rampInitialSpawn && initialSpawnDuration > 0f && initialParticleCount > 0)
+            int targetCount = ResolveInitialParticleCount();
+            _targetParticleCount = targetCount;
+
+            if (rampInitialSpawn && initialSpawnDuration > 0f && targetCount > 0)
             {
                 _rampActive = true;
-                _rampParticlesRemaining = initialParticleCount;
+                _rampParticlesRemaining = targetCount;
                 _rampChunkTimer = 0f;
                 Publish(
                     HarmonicDiagnosticEventType.RainStart,
                     "RAIN",
-                    $"rampStart total={initialParticleCount} duration={initialSpawnDuration} chunk={initialSpawnChunkSize}");
+                    $"rampStart total={targetCount} duration={initialSpawnDuration} chunk={initialSpawnChunkSize}");
             }
             else
             {
-                Publish(HarmonicDiagnosticEventType.RainStart, "RAIN", $"instantStart total={initialParticleCount}");
-                SpawnBurst(initialParticleCount);
+                Publish(HarmonicDiagnosticEventType.RainStart, "RAIN", $"instantStart total={targetCount}");
+                SpawnBurst(targetCount);
             }
         }
 
@@ -200,7 +294,9 @@ namespace SwingingPaintBucket.Scene
                 return;
             }
 
-            float chunkInterval = initialSpawnDuration / Mathf.Max(1, Mathf.CeilToInt((float)initialParticleCount / initialSpawnChunkSize));
+            float chunkInterval = initialSpawnDuration / Mathf.Max(
+                1,
+                Mathf.CeilToInt((float)(_targetParticleCount > 0 ? _targetParticleCount : ResolveInitialParticleCount()) / initialSpawnChunkSize));
             _rampChunkTimer += Time.deltaTime;
 
             while (_rampChunkTimer >= chunkInterval && _rampParticlesRemaining > 0)
@@ -230,9 +326,12 @@ namespace SwingingPaintBucket.Scene
             for (int i = 0; i < spawnCount; i++)
             {
                 float3 pos = RandomInSpawnBox();
+                float downward = poolInContainer
+                    ? RandomRange(verticalVelocityRange.x, verticalVelocityRange.y)
+                    : 0f;
                 var vel = new Vector3(
                     RandomRange(horizontalVelocityRange.x, horizontalVelocityRange.y),
-                    0f,
+                    downward,
                     RandomRange(horizontalVelocityRange.x, horizontalVelocityRange.y));
                 _spawnBatch[i] = FluidParticleFactory.FromWorldPosition(pos, vel, restDensity);
             }
