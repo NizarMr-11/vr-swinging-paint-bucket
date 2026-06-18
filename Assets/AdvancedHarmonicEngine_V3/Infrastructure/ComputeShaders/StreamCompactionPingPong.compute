@@ -45,6 +45,7 @@ float _ContainerMaxSpeed;
 // SPH color diffusion coefficient (sigma). 0 = colors stay perfectly distinct;
 // higher = neighbors blend faster (marbling -> uniform mix).
 float _ColorDiffusionRate;
+uint _MaxParticleCount;
 
 float3 ComputeNonInertialAcceleration(float3 localPosition, float3 localVelocity)
 {
@@ -71,7 +72,7 @@ bool EvaluateNozzleExitSDF(float3 localPosition)
 void ExecuteSphDensityPass(uint3 id : SV_DispatchThreadID)
 {
     uint particleIndex = id.x;
-    if (particleIndex >= _ActiveParticleCount)
+    if (particleIndex >= _ActiveParticleCount || particleIndex >= _MaxParticleCount)
     {
         return;
     }
@@ -92,7 +93,7 @@ void ExecuteSphDensityPass(uint3 id : SV_DispatchThreadID)
 void ExecuteInternalFluidIntegration(uint3 id : SV_DispatchThreadID)
 {
     uint particleIndex = id.x;
-    if (particleIndex >= _ActiveParticleCount)
+    if (particleIndex >= _ActiveParticleCount || particleIndex >= _MaxParticleCount)
     {
         return;
     }
@@ -168,7 +169,7 @@ void ProjectIntoContainer(inout float3 pos, inout float3 vel)
 void ExecuteContainerFluidIntegration(uint3 id : SV_DispatchThreadID)
 {
     uint particleIndex = id.x;
-    if (particleIndex >= _ActiveParticleCount)
+    if (particleIndex >= _ActiveParticleCount || particleIndex >= _MaxParticleCount)
     {
         return;
     }

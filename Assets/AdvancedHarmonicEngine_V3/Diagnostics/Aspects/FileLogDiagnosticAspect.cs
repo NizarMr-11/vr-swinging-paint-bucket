@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using UnityEngine;
 
 namespace HarmonicEngine.Diagnostics.Aspects
 {
@@ -8,6 +9,8 @@ namespace HarmonicEngine.Diagnostics.Aspects
     {
         public string AspectName => "FileLog";
         public int Order => 0;
+
+        private static readonly object LogCreationLock = new();
 
         private StreamWriter _writer;
         private string _logFilePath;
@@ -17,9 +20,22 @@ namespace HarmonicEngine.Diagnostics.Aspects
 
         public void OnAttach(HarmonicDiagnosticSession session)
         {
-            string stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            _logFilePath = Path.Combine(session.LogDirectory, $"harmonic_session_{stamp}.log");
-            _writer = new StreamWriter(_logFilePath, false, Encoding.UTF8) { AutoFlush = _flushEachLine };
+            OnDetach();
+
+            lock (LogCreationLock)
+            {
+                _logFilePath = CreateUniqueLogPath(session.LogDirectory);
+                _writer = TryOpenLogWriter(_logFilePath);
+            }
+
+            if (_writer == null)
+            {
+                Debug.LogWarning(
+                    $"[HarmonicDiagnostic] Could not open log file at '{_logFilePath}'. " +
+                    "Close any program viewing Logs/HarmonicSimulation, or disable File Log on HarmonicDiagnosticHost.");
+                return;
+            }
+
             WriteLine($"# Harmonic AOP log — {DateTime.Now:O}");
             WriteLine($"# path={_logFilePath}");
         }
@@ -31,8 +47,16 @@ namespace HarmonicEngine.Diagnostics.Aspects
                 return;
             }
 
-            _writer.Flush();
-            _writer.Close();
+            try
+            {
+                _writer.Flush();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[HarmonicDiagnostic] Failed flushing log: {ex.Message}");
+            }
+
+            _writer.Dispose();
             _writer = null;
         }
 
@@ -44,7 +68,56 @@ namespace HarmonicEngine.Diagnostics.Aspects
 
         private void WriteLine(string line)
         {
-            _writer?.WriteLine(line);
+            try
+            {
+                _writer?.WriteLine(line);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[HarmonicDiagnostic] Failed writing log line: {ex.Message}");
+            }
+        }
+
+        private static string CreateUniqueLogPath(string logDirectory)
+        {
+            Directory.CreateDirectory(logDirectory);
+            string stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff");
+            string path = Path.Combine(logDirectory, $"harmonic_session_{stamp}.log");
+            int attempt = 0;
+            while (File.Exists(path) && attempt < 100)
+            {
+                attempt++;
+                path = Path.Combine(logDirectory, $"harmonic_session_{stamp}_{attempt}.log");
+            }
+
+            return path;
+        }
+
+        private StreamWriter TryOpenLogWriter(string path)
+        {
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    // FileShare.Read allows tail/viewers while Unity writes; avoids common sharing violations.
+                    var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
+                    return new StreamWriter(stream, Encoding.UTF8) { AutoFlush = _flushEachLine };
+                }
+                catch (IOException ex) when (attempt < 4)
+                {
+                    Debug.LogWarning($"[HarmonicDiagnostic] Log open retry {attempt + 1}: {ex.Message}");
+                    string dir = Path.GetDirectoryName(path) ?? ".";
+                    string name = Path.GetFileNameWithoutExtension(path);
+                    path = Path.Combine(dir, $"{name}_{Guid.NewGuid():N}.log");
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    Debug.LogWarning($"[HarmonicDiagnostic] Log access denied: {ex.Message}");
+                    return null;
+                }
+            }
+
+            return null;
         }
 
         private static string FormatLine(in HarmonicDiagnosticEvent e)

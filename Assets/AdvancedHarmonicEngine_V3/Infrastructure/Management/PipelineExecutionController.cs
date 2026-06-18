@@ -424,11 +424,13 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int ContainerDampingId = Shader.PropertyToID("_ContainerDamping");
         private static readonly int ContainerMaxSpeedId = Shader.PropertyToID("_ContainerMaxSpeed");
         private static readonly int ColorDiffusionRateId = Shader.PropertyToID("_ColorDiffusionRate");
+        private static readonly int MaxParticleCountId = Shader.PropertyToID("_MaxParticleCount");
         private static readonly int CanvasPaintAbsorbEnabledId = Shader.PropertyToID("_CanvasPaintAbsorbEnabled");
         private static readonly int CanvasAbsorbRateId = Shader.PropertyToID("_CanvasAbsorbRate");
         private static readonly int CanvasAbsorbPaintWeightScaleId = Shader.PropertyToID("_CanvasAbsorbPaintWeightScale");
 
         private int _frameSortSize;
+        private bool _capacityClampWarningLogged;
 
         private static readonly ProfilerMarker MarkerGrid = new("Harmonic.SpatialHashGrid");
         private static readonly ProfilerMarker MarkerSort = new("Harmonic.BitonicSort");
@@ -484,7 +486,11 @@ namespace HarmonicEngine.Infrastructure.Management
             return appended;
         }
 
-        public uint GetActiveParticleCount() => _bufferService?.GetActiveCount() ?? 0;
+        public uint GetActiveParticleCount()
+        {
+            uint raw = _bufferService?.GetActiveCount() ?? 0;
+            return raw > (uint)maxCapacity ? (uint)maxCapacity : raw;
+        }
 
         public void ClearAllParticles()
         {
@@ -517,7 +523,7 @@ namespace HarmonicEngine.Infrastructure.Management
             _bufferCanvasHits?.SetCounterValue(0);
             _lastCanvasHitCount = 0;
 
-            uint activeCount = FetchActiveCount(_pingPong.ReadBuffer);
+            uint activeCount = SanitizeAndRepairCount(_pingPong.ReadBuffer);
             _cachedInternalCount = activeCount;
             if (activeCount == 0)
             {
@@ -581,7 +587,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 streamCompactionShader.DispatchIndirect(_kernelIntegration, _indirectArgsBuffer, 0);
             }
 
-            uint fallingCount = FetchActiveCount(_bufferFalling);
+            uint fallingCount = SanitizeCount(FetchActiveCount(_bufferFalling));
             ComputeBuffer quantizeSource = _bufferFalling;
             _lastFallingDebugCount = fallingCount;
 
@@ -596,7 +602,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 fallingFluidWorldShader.Dispatch(_kernelFallingWorld, fallingGroups, 1, 1);
 
                 _lastCanvasHitCount = FetchActiveCount(_bufferCanvasHits);
-                fallingCount = FetchActiveCount(_bufferFallingWorld);
+                fallingCount = SanitizeAndRepairCount(_bufferFallingWorld);
                 quantizeSource = _bufferFallingWorld;
                 _lastFallingDebugCount = fallingCount;
             }
@@ -610,8 +616,7 @@ namespace HarmonicEngine.Infrastructure.Management
             }
 
             ComputeBuffer.CopyCount(quantizeSource, _indirectArgsBuffer, sizeof(int) * 3);
-            argumentUtilityShader.SetBuffer(_kernelArgSetup, IndirectArgsBufferId, _indirectArgsBuffer);
-            argumentUtilityShader.Dispatch(_kernelArgSetup, 1, 1, 1);
+            DispatchIndirectArgsSetup();
 
             dataCompactionShader.SetBuffer(_kernelQuantize, SourceParticleBufferId, quantizeSource);
             dataCompactionShader.SetBuffer(_kernelQuantize, QuantizedOutputBufferId, _quantizedBakeBuffer);
@@ -644,7 +649,7 @@ namespace HarmonicEngine.Infrastructure.Management
             fallingFluidWorldShader.Dispatch(_kernelFallingWorld, groups, 1, 1);
 
             _lastCanvasHitCount = FetchActiveCount(_bufferCanvasHits);
-            _cachedInternalCount = FetchActiveCount(_pingPong.WriteBuffer);
+            _cachedInternalCount = SanitizeAndRepairCount(_pingPong.WriteBuffer);
             _lastFallingDebugCount = _cachedInternalCount;
             _lastFallingQuantizeCount = _cachedInternalCount;
             _pingPong.Swap();
@@ -677,7 +682,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 {
                     if (step > 0)
                     {
-                        activeCount = FetchActiveCount(_pingPong.ReadBuffer);
+                        activeCount = SanitizeAndRepairCount(_pingPong.ReadBuffer);
                         if (activeCount == 0)
                         {
                             break;
@@ -687,7 +692,7 @@ namespace HarmonicEngine.Infrastructure.Management
                     RunContainerFluidSubstep(activeCount, subDt);
                 }
 
-                _cachedInternalCount = FetchActiveCount(_pingPong.ReadBuffer);
+                _cachedInternalCount = SanitizeAndRepairCount(_pingPong.ReadBuffer);
                 _lastFallingDebugCount = 0;
                 _lastFallingQuantizeCount = 0;
 
@@ -704,6 +709,10 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private void RunContainerFluidSubstep(uint activeCount, float deltaTime)
         {
+            // Each substep ping-pongs; the write side must start empty or append counters double
+            // (e.g. 30k + 30k = 60k) and the sim reads stale slots — fluid appears frozen.
+            _pingPong.WriteBuffer.SetCounterValue(0);
+
             float smoothingRadius = sphSolver.SmoothingRadius(cellSize);
 
             ComputeFrameSortSize(activeCount);
@@ -766,8 +775,7 @@ namespace HarmonicEngine.Infrastructure.Management
         private void BuildSpatialHashGrid(ComputeBuffer positions, uint activeCount)
         {
             ComputeBuffer.CopyCount(positions, _indirectArgsBuffer, sizeof(int) * 3);
-            argumentUtilityShader.SetBuffer(_kernelArgSetup, IndirectArgsBufferId, _indirectArgsBuffer);
-            argumentUtilityShader.Dispatch(_kernelArgSetup, 1, 1, 1);
+            DispatchIndirectArgsSetup();
 
             using (MarkerGrid.Auto())
             {
@@ -829,6 +837,7 @@ namespace HarmonicEngine.Infrastructure.Management
             shader.SetFloat(ContainerDampingId, containerFluid.velocityDamping);
             shader.SetFloat(ContainerMaxSpeedId, containerFluid.maxSpeed);
             shader.SetFloat(ColorDiffusionRateId, colorDiffusionRate);
+            shader.SetInt(MaxParticleCountId, maxCapacity);
         }
 
         private float ResolveContainerParticleMass()
@@ -867,6 +876,7 @@ namespace HarmonicEngine.Infrastructure.Management
             shader.SetMatrix(LocalToWorldMatrixId, localToWorld);
             shader.SetVector(InstantaneousBucketGlobalVelocityId, bucketVelocity);
             shader.SetFloat(ColorDiffusionRateId, colorDiffusionRate);
+            shader.SetInt(MaxParticleCountId, maxCapacity);
         }
 
         private void ResolveAngularKinematics(out Vector3 angularVelocityWorld, out Vector3 angularAccelerationWorld)
@@ -1003,7 +1013,7 @@ namespace HarmonicEngine.Infrastructure.Management
             int canvasHitCapacity = Mathf.Max(1, maxCanvasHitsPerFrame);
             _bufferCanvasHits = new ComputeBuffer(canvasHitCapacity, canvasHitStride, ComputeBufferType.Append);
 
-            _paddedSortSize = GPUIndirectSortBinder.CalculatePaddedSortSize(maxCapacity);
+            _paddedSortSize = HarmonicEngineLimits.SortGridSizeForCapacity(maxCapacity);
             _frameSortSize = _paddedSortSize;
             _gridKeyValueBuffer = new ComputeBuffer(_paddedSortSize, keyStride, ComputeBufferType.Structured);
             _cellStartEndBuffer = new ComputeBuffer(_paddedSortSize, cellStride, ComputeBufferType.Structured);
@@ -1276,6 +1286,40 @@ namespace HarmonicEngine.Infrastructure.Management
             ComputeBuffer.CopyCount(source, _counterReadbackBuffer, 0);
             _counterReadbackBuffer.GetData(_activeCountCpu);
             return _activeCountCpu[0];
+        }
+
+        private void DispatchIndirectArgsSetup()
+        {
+            argumentUtilityShader.SetInt(MaxParticleCountId, maxCapacity);
+            argumentUtilityShader.SetBuffer(_kernelArgSetup, IndirectArgsBufferId, _indirectArgsBuffer);
+            argumentUtilityShader.Dispatch(_kernelArgSetup, 1, 1, 1);
+        }
+
+        private uint SanitizeCount(uint raw) => raw > (uint)maxCapacity ? (uint)maxCapacity : raw;
+
+        /// <summary>
+        /// Append counters can drift above the allocated buffer when a prior frame overflowed.
+        /// Clamp for dispatch and repair the GPU counter so indirect args stay in bounds.
+        /// </summary>
+        private uint SanitizeAndRepairCount(ComputeBuffer source)
+        {
+            uint raw = FetchActiveCount(source);
+            if (raw <= (uint)maxCapacity)
+            {
+                _capacityClampWarningLogged = false;
+                return raw;
+            }
+
+            if (!_capacityClampWarningLogged)
+            {
+                _capacityClampWarningLogged = true;
+                Debug.LogWarning(
+                    $"[HarmonicPipeline] Active count {raw} exceeded maxCapacity {maxCapacity}; clamping. " +
+                    "If this persists after a fix, use Clear All / restart Play.");
+            }
+
+            source.SetCounterValue((uint)maxCapacity);
+            return (uint)maxCapacity;
         }
     }
 }

@@ -467,7 +467,7 @@ MonoBehaviour:
   bucketKinematicProvider: {fileID: 0}
   driveBucketFromTransform: 0
   maxCapacity: 30000
-  cellSize: 0.1
+  cellSize: 0.01
   nozzlePlaneLocalY: -0.35
   nozzleRadius: 0.05
   bucketRimLocalY: 0.35
@@ -549,9 +549,9 @@ MonoBehaviour:
   particleDebugMaterial: {fileID: 1376947134}
   drawInternalParticles: 1
   drawFallingParticles: 1
-  autoSizeFromSph: 1
-  pointSizeMultiplier: 1.05
-  pointSize: 0.18
+  autoSizeFromSph: 0
+  pointSizeMultiplier: 0.67
+  pointSize: 0.022
   internalColor: {r: 0.35, g: 0.65, b: 0.98, a: 0.48}
   fallingColor: {r: 1, g: 0.45, b: 0.1, a: 0.9}
 --- !u!114 &539074086

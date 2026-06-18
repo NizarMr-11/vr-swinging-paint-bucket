@@ -43,7 +43,14 @@ namespace HarmonicEngine.Diagnostics
             Array.Sort(aspects, (a, b) => a.Order.CompareTo(b.Order));
             foreach (IHarmonicDiagnosticAspect aspect in aspects)
             {
-                aspect.OnAttach(_session);
+                try
+                {
+                    aspect.OnAttach(_session);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[HarmonicDiagnosticHub] Failed to attach {aspect.AspectName}: {ex.Message}");
+                }
             }
 
             Publish(new HarmonicDiagnosticEvent(

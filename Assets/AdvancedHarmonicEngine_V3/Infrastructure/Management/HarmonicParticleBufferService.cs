@@ -46,6 +46,12 @@ namespace HarmonicEngine.Infrastructure.Management
             }
 
             uint current = GetActiveCount();
+            if (current > _maxCapacity)
+            {
+                _pingPong.ReadBuffer.SetCounterValue((uint)_maxCapacity);
+                current = (uint)_maxCapacity;
+            }
+
             if (current >= _maxCapacity)
             {
                 return 0;
