@@ -8,9 +8,9 @@ namespace HarmonicEngine.Tests
     public class CanvasPaintHitTests
     {
         [Test]
-        public void CanvasPaintHit_Size_Is16Bytes()
+        public void CanvasPaintHit_Size_Is32Bytes()
         {
-            Assert.AreEqual(16, Marshal.SizeOf<CanvasPaintHit>());
+            Assert.AreEqual(32, Marshal.SizeOf<CanvasPaintHit>());
         }
 
         [Test]

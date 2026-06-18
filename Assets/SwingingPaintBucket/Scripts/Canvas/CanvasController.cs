@@ -15,8 +15,14 @@ namespace SwingingPaintBucket.Canvas
         [SerializeField] private bool useImpastoShader = true;
         [SerializeField] private float impastoDisplacementScale = 0.025f;
 
+        [Header("Paint drying")]
+        [SerializeField, Min(0f)] private float wetnessDryRate = 0.35f;
+        [SerializeField, Range(0f, 1f)] private float dryDesaturation = 0.25f;
+        [SerializeField, Range(0f, 1f)] private float dryDarkening = 0.08f;
+
         private Texture2D _canvasTexture;
         private Color[] _pixels;
+        private float[] _wetnessMap;
         private Renderer _renderer;
         private Material _impastoMaterial;
 
@@ -35,10 +41,12 @@ namespace SwingingPaintBucket.Canvas
 
             _canvasTexture = new Texture2D(TextureWidth, TextureHeight);
             _pixels = new Color[TextureWidth * TextureHeight];
+            _wetnessMap = new float[TextureWidth * TextureHeight];
 
             for (int i = 0; i < _pixels.Length; i++)
             {
                 _pixels[i] = Color.white;
+                _wetnessMap[i] = 0f;
             }
 
             _canvasTexture.SetPixels(_pixels);
@@ -59,6 +67,8 @@ namespace SwingingPaintBucket.Canvas
 
         private void Update()
         {
+            DecayWetnessAndDry(Time.deltaTime);
+
             if (Keyboard.current != null && Keyboard.current.sKey.wasPressedThisFrame)
             {
                 SaveArtworkToPNG();
@@ -85,6 +95,11 @@ namespace SwingingPaintBucket.Canvas
 
         public void OnParticleHit(Vector3 hitPosition, Color color, float viscosity)
         {
+            OnParticleHit(hitPosition, color, viscosity, wetnessDeposit: 1f);
+        }
+
+        public void OnParticleHit(Vector3 hitPosition, Color color, float viscosity, float wetnessDeposit)
+        {
             if (!TryWorldToUv(hitPosition, out Vector2 uv))
             {
                 _lastHitPixel = null;
@@ -95,6 +110,7 @@ namespace SwingingPaintBucket.Canvas
             int pixelY = (int)(uv.y * TextureHeight);
             int baseRadius = Mathf.Max(2, (int)(10f / viscosity));
             Vector2 currentHitPixel = new Vector2(pixelX, pixelY);
+            float wetBoost = Mathf.Clamp01(wetnessDeposit);
 
             if (_lastHitPixel != null)
             {
@@ -110,7 +126,7 @@ namespace SwingingPaintBucket.Canvas
                     float jitter = 1.5f;
                     int xPos = (int)(basePos.x + Random.Range(-jitter, jitter));
                     int yPos = (int)(basePos.y + Random.Range(-jitter, jitter));
-                    DrawSplat(xPos, yPos, Mathf.Max(1, currentRadius), color);
+                    DrawSplat(xPos, yPos, Mathf.Max(1, currentRadius), color, wetBoost);
 
                     if (Random.value > 0.7f)
                     {
@@ -120,13 +136,13 @@ namespace SwingingPaintBucket.Canvas
                         int splashRadius = Random.Range(1, 3);
                         Color splashColor = color;
                         splashColor.a = Random.Range(0.3f, 0.7f);
-                        DrawSplat(splashX, splashY, splashRadius, splashColor);
+                        DrawSplat(splashX, splashY, splashRadius, splashColor, wetBoost * 0.5f);
                     }
                 }
             }
             else
             {
-                DrawSplat(pixelX, pixelY, baseRadius, color);
+                DrawSplat(pixelX, pixelY, baseRadius, color, wetBoost);
             }
 
             _lastHitPixel = currentHitPixel;
@@ -144,6 +160,7 @@ namespace SwingingPaintBucket.Canvas
             for (int i = 0; i < _pixels.Length; i++)
             {
                 _pixels[i] = Color.white;
+                _wetnessMap[i] = 0f;
             }
 
             _lastHitPixel = null;
@@ -171,7 +188,7 @@ namespace SwingingPaintBucket.Canvas
             _renderer.material = _impastoMaterial;
         }
 
-        private void DrawSplat(int centerX, int centerY, int radius, Color color)
+        private void DrawSplat(int centerX, int centerY, int radius, Color color, float wetnessDeposit = 1f)
         {
             for (int x = centerX - radius; x <= centerX + radius; x++)
             {
@@ -188,7 +205,58 @@ namespace SwingingPaintBucket.Canvas
                         float alpha = 1f - (dist / radius);
                         int index = y * TextureWidth + x;
                         _pixels[index] = Color.Lerp(_pixels[index], color, alpha);
+                        _wetnessMap[index] = Mathf.Max(_wetnessMap[index], wetnessDeposit * alpha);
                     }
+                }
+            }
+        }
+
+        private void DecayWetnessAndDry(float deltaTime)
+        {
+            if (_wetnessMap == null || wetnessDryRate <= 0f)
+            {
+                return;
+            }
+
+            float decay = wetnessDryRate * deltaTime;
+            bool changed = false;
+
+            for (int i = 0; i < _wetnessMap.Length; i++)
+            {
+                float wetness = _wetnessMap[i];
+                if (wetness <= 0.001f)
+                {
+                    continue;
+                }
+
+                float previous = wetness;
+                wetness = Mathf.Max(0f, wetness - decay);
+                _wetnessMap[i] = wetness;
+
+                float driedFraction = previous - wetness;
+                if (driedFraction > 0f)
+                {
+                    Color dryTarget = _pixels[i];
+                    float gray = dryTarget.grayscale;
+                    dryTarget.r = Mathf.Lerp(dryTarget.r, gray, dryDesaturation);
+                    dryTarget.g = Mathf.Lerp(dryTarget.g, gray, dryDesaturation);
+                    dryTarget.b = Mathf.Lerp(dryTarget.b, gray, dryDesaturation);
+                    dryTarget.r *= 1f - dryDarkening;
+                    dryTarget.g *= 1f - dryDarkening;
+                    dryTarget.b *= 1f - dryDarkening;
+                    _pixels[i] = Color.Lerp(_pixels[i], dryTarget, driedFraction);
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                _canvasTexture.SetPixels(_pixels);
+                _canvasTexture.Apply(false);
+
+                if (_impastoMaterial != null)
+                {
+                    _impastoMaterial.SetTexture("_MainTex", _canvasTexture);
                 }
             }
         }

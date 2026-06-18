@@ -1,16 +1,15 @@
 using HarmonicEngine.Diagnostics;
 using HarmonicEngine.Domain.Adapters;
-using HarmonicEngine.Domain.Models;
 using HarmonicEngine.Infrastructure.Management;
-using Unity.Mathematics;
 using UnityEngine;
 
 namespace SwingingPaintBucket.Scene
 {
     /// <summary>
-    /// Fills a 3D shape with an equal, uniformly distributed share of particles and sends that
-    /// initial state to the harmonic engine. Supports box / sphere / capsule primitives and
-    /// arbitrary mesh volumes (via <see cref="MeshVolumeSampler"/>).
+    /// Fills a 3D shape with a uniformly distributed share of particles and sends that initial
+    /// state to the harmonic engine. Supports box / sphere / capsule primitives and arbitrary
+    /// mesh volumes. Sampling + colored ingestion is delegated to the engine-level
+    /// <see cref="HarmonicParticleSpawner"/> via a <see cref="HarmonicSpawnRegion"/>.
     /// </summary>
     public class ShapeVolumeEmitter : MonoBehaviour
     {
@@ -34,6 +33,8 @@ namespace SwingingPaintBucket.Scene
         [Tooltip("Number of particles to divide equally across the shape volume.")]
         [SerializeField] private int particleCount = 4096;
         [SerializeField] private float restDensity = 1000f;
+        [Tooltip("Color assigned to every particle from this volume (mixes via SPH color diffusion).")]
+        [SerializeField] private Color spawnColor = Color.white;
         [SerializeField] private uint seed = 12345u;
         [SerializeField, Min(1)] private int meshMaxAttemptsPerPoint = 32;
 
@@ -46,9 +47,6 @@ namespace SwingingPaintBucket.Scene
         [Header("Gizmos")]
         [SerializeField] private bool drawGizmo = true;
         [SerializeField] private Color gizmoColor = new(0.2f, 0.8f, 1f, 0.25f);
-
-        private float3[] _positionBuffer;
-        private FluidParticle[] _particleBuffer;
 
         public int LastEmittedCount { get; private set; }
 
@@ -94,6 +92,8 @@ namespace SwingingPaintBucket.Scene
             capsuleHeight = height;
         }
 
+        public void SetSpawnColor(Color color) => spawnColor = color;
+
         private void Awake()
         {
             if (pipeline == null)
@@ -121,7 +121,7 @@ namespace SwingingPaintBucket.Scene
         }
 
         /// <summary>
-        /// Samples the shape, builds particles, and sends the initial state to the engine.
+        /// Builds a spawn region from the inspector shape and sends the initial state to the engine.
         /// Returns the number of particles appended.
         /// </summary>
         public int Emit()
@@ -137,32 +137,13 @@ namespace SwingingPaintBucket.Scene
                 shapeSource = transform;
             }
 
-            int requested = Mathf.Clamp(particleCount, 0, pipeline.MaxCapacity);
-            if (requested <= 0)
-            {
-                return 0;
-            }
-
-            EnsureBuffers(requested);
-            int sampled = SamplePositions(requested);
-            if (sampled <= 0)
-            {
-                Publish($"emitFailed shape={shapeType} requested={requested} sampled=0");
-                return 0;
-            }
-
-            for (int i = 0; i < sampled; i++)
-            {
-                _particleBuffer[i] = FluidParticleFactory.FromWorldPosition(
-                    (Vector3)_positionBuffer[i], Vector3.zero, restDensity);
-            }
-
             if (clearBeforeEmit)
             {
                 pipeline.ClearAllParticles();
             }
 
-            int appended = pipeline.AppendParticles(_particleBuffer, sampled);
+            HarmonicSpawnRegion region = BuildRegion();
+            int appended = HarmonicParticleSpawner.Spawn(pipeline, region);
             LastEmittedCount = appended;
 
             if (activateSimulationOnEmit)
@@ -171,93 +152,63 @@ namespace SwingingPaintBucket.Scene
             }
 
             Publish(
-                $"shape={shapeType} requested={requested} sampled={sampled} appended={appended} " +
-                $"perShape={appended} restDensity={restDensity}",
+                $"shape={shapeType} requested={region.particleCount} appended={appended} " +
+                $"restDensity={restDensity}",
                 intArg0: appended,
-                intArg1: requested);
+                intArg1: region.particleCount);
 
             return appended;
         }
 
-        private int SamplePositions(int count)
+        private HarmonicSpawnRegion BuildRegion()
         {
-            Vector3 center = shapeSource.position;
-            quaternion rotation = shapeSource.rotation;
             Vector3 scale = shapeSource.lossyScale;
             float maxScale = Mathf.Max(scale.x, Mathf.Max(scale.y, scale.z));
+
+            var region = new HarmonicSpawnRegion
+            {
+                shape = shapeType,
+                center = shapeSource.position,
+                rotation = shapeSource.rotation,
+                particleCount = particleCount,
+                restDensity = restDensity,
+                spawnColor = spawnColor,
+                seed = seed,
+                meshMaxAttemptsPerPoint = meshMaxAttemptsPerPoint
+            };
 
             switch (shapeType)
             {
                 case ShapeVolumeType.Box:
-                    float3 worldSize = new(
+                    region.boxSize = new Vector3(
                         boxSize.x * Mathf.Abs(scale.x),
                         boxSize.y * Mathf.Abs(scale.y),
                         boxSize.z * Mathf.Abs(scale.z));
-                    return ShapeVolumeSampler.SampleBox(center, worldSize, rotation, count, seed, _positionBuffer);
-
+                    break;
                 case ShapeVolumeType.Sphere:
-                    return ShapeVolumeSampler.SampleSphere(center, sphereRadius * maxScale, count, seed, _positionBuffer);
-
+                    region.sphereRadius = sphereRadius * maxScale;
+                    break;
                 case ShapeVolumeType.Capsule:
                     float radial = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
-                    return ShapeVolumeSampler.SampleCapsule(
-                        center,
-                        capsuleRadius * radial,
-                        capsuleHeight * Mathf.Abs(scale.y),
-                        rotation,
-                        count,
-                        seed,
-                        _positionBuffer);
-
+                    region.capsuleRadius = capsuleRadius * radial;
+                    region.capsuleHeight = capsuleHeight * Mathf.Abs(scale.y);
+                    break;
                 case ShapeVolumeType.Mesh:
-                    return SampleMesh(count);
+                    if (meshFilter == null)
+                    {
+                        meshFilter = shapeSource.GetComponent<MeshFilter>();
+                    }
 
-                default:
-                    return 0;
-            }
-        }
+                    if (meshFilter != null)
+                    {
+                        region.mesh = meshFilter.sharedMesh;
+                        region.meshToWorld = meshFilter.transform.localToWorldMatrix;
+                    }
 
-        private int SampleMesh(int count)
-        {
-            if (meshFilter == null)
-            {
-                meshFilter = shapeSource.GetComponent<MeshFilter>();
-            }
-
-            Mesh mesh = meshFilter != null ? meshFilter.sharedMesh : null;
-            if (mesh == null)
-            {
-                Debug.LogWarning("[ShapeVolumeEmitter] Mesh shape selected but no readable mesh found.");
-                return 0;
+                    break;
             }
 
-            Vector3[] localVerts = mesh.vertices;
-            int[] tris = mesh.triangles;
-            Matrix4x4 toWorld = meshFilter.transform.localToWorldMatrix;
-
-            var worldVerts = new Vector3[localVerts.Length];
-            var worldBounds = new Bounds(toWorld.MultiplyPoint3x4(localVerts.Length > 0 ? localVerts[0] : Vector3.zero), Vector3.zero);
-            for (int i = 0; i < localVerts.Length; i++)
-            {
-                worldVerts[i] = toWorld.MultiplyPoint3x4(localVerts[i]);
-                worldBounds.Encapsulate(worldVerts[i]);
-            }
-
-            return MeshVolumeSampler.SampleInsideMesh(
-                worldBounds, worldVerts, tris, count, seed, meshMaxAttemptsPerPoint, _positionBuffer);
-        }
-
-        private void EnsureBuffers(int count)
-        {
-            if (_positionBuffer == null || _positionBuffer.Length < count)
-            {
-                _positionBuffer = new float3[count];
-            }
-
-            if (_particleBuffer == null || _particleBuffer.Length < count)
-            {
-                _particleBuffer = new FluidParticle[count];
-            }
+            return region;
         }
 
         private static void Publish(string message, int intArg0 = 0, int intArg1 = 0)

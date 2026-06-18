@@ -2,7 +2,7 @@
 
 How to integrate and drive **AdvancedHarmonicEngine_V3** from Unity scenes, scripts, and VR UI.
 
-**Related docs:** [`architecure.md`](architecure.md) · [`architecture-coverage.md`](architecture-coverage.md) · [`hardware-requirements.md`](hardware-requirements.md) · [`scenes.md`](scenes.md)
+**Related docs:** [`architecure.md`](architecure.md) · [`architecture-coverage.md`](architecture-coverage.md) · [`hardware-requirements.md`](hardware-requirements.md) · [`scenes.md`](scenes.md) · [`configuration-api.md`](configuration-api.md) · [`neighbor-queries-and-spatial-hashing.md`](neighbor-queries-and-spatial-hashing.md) · [`engine-communication.md`](engine-communication.md) · [`paint-color-and-lifecycle.md`](paint-color-and-lifecycle.md) · [`testing-strategy.md`](testing-strategy.md) · [`debugging-and-rendering.md`](debugging-and-rendering.md) · [`architecture-divergences.md`](architecture-divergences.md)
 
 ---
 

@@ -3,11 +3,10 @@
 #pragma kernel BitonicSortStepKernel
 #pragma kernel BuildCellRangesKernel
 
-struct HashCellGridRange
-{
-    int StartIndex;
-    int EndIndex;
-};
+// Shared structs (HashCellGridRange, ...) and the spatial hash helpers. The
+// grid-build hash here and the neighbor-query hash in the SPH solver both use
+// SphHashPosition/SphHashCell from this include, so they are guaranteed to match.
+#include "Include/SphCommon.hlsl"
 
 RWStructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
 RWStructuredBuffer<uint2> _GridKeyValueBuffer;
@@ -19,15 +18,6 @@ float _CellSize;
 uint _BitonicLevel;
 uint _BitonicLevelMask;
 uint _BitonicWidth;
-
-uint HashPosition(float3 position)
-{
-    int3 c = (int3)floor(position / max(_CellSize, 0.0001));
-    uint x = (uint)(c.x * 73856093);
-    uint y = (uint)(c.y * 19349663);
-    uint z = (uint)(c.z * 83492791);
-    return (x ^ y ^ z) & (_GridResolution - 1);
-}
 
 [numthreads(256, 1, 1)]
 void ClearGridCellsKernel(uint3 id : SV_DispatchThreadID)
@@ -57,7 +47,7 @@ void GenerateGridKeysKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float3 position = _ReadOnlyParticlePositions[index].xyz;
-    uint hash = HashPosition(position);
+    uint hash = SphHashPosition(position, _CellSize, _GridResolution);
     _GridKeyValueBuffer[index] = uint2(hash, index);
 }
 

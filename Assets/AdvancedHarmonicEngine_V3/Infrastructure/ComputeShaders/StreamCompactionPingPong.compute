@@ -2,25 +2,8 @@
 #pragma kernel ExecuteInternalFluidIntegration
 #pragma kernel ExecuteContainerFluidIntegration
 
-struct FluidParticle
-{
-    float3 Position;
-    float Density;
-    float3 Velocity;
-    float Pressure;
-};
-
-struct HashCellGridRange
-{
-    int StartIndex;
-    int EndIndex;
-};
-
-struct GridKeyPair
-{
-    uint CellHash;
-    uint ParticleIndex;
-};
+// Shared particle/grid structs, hash + cell helpers, and SPH smoothing kernels.
+#include "Include/SphCommon.hlsl"
 
 StructuredBuffer<FluidParticle> _ReadOnlyParticleSource;
 StructuredBuffer<GridKeyPair> _SortedGridKeyValueBuffer;
@@ -59,31 +42,9 @@ float _ContainerWallStiffness;
 float _ContainerDamping;
 float _ContainerMaxSpeed;
 
-static const int3 kNeighborOffsets[27] =
-{
-    int3(-1, -1, -1), int3(0, -1, -1), int3(1, -1, -1),
-    int3(-1, 0, -1), int3(0, 0, -1), int3(1, 0, -1),
-    int3(-1, 1, -1), int3(0, 1, -1), int3(1, 1, -1),
-    int3(-1, -1, 0), int3(0, -1, 0), int3(1, -1, 0),
-    int3(-1, 0, 0), int3(0, 0, 0), int3(1, 0, 0),
-    int3(-1, 1, 0), int3(0, 1, 0), int3(1, 1, 0),
-    int3(-1, -1, 1), int3(0, -1, 1), int3(1, -1, 1),
-    int3(-1, 0, 1), int3(0, 0, 1), int3(1, 0, 1),
-    int3(-1, 1, 1), int3(0, 1, 1), int3(1, 1, 1)
-};
-
-uint HashCell(int3 cell)
-{
-    uint x = (uint)(cell.x * 73856093);
-    uint y = (uint)(cell.y * 19349663);
-    uint z = (uint)(cell.z * 83492791);
-    return (x ^ y ^ z) & (_GridResolution - 1u);
-}
-
-int3 CellFromPosition(float3 position)
-{
-    return (int3)floor(position / max(_CellSize, 1e-4));
-}
+// SPH color diffusion coefficient (sigma). 0 = colors stay perfectly distinct;
+// higher = neighbors blend faster (marbling -> uniform mix).
+float _ColorDiffusionRate;
 
 float3 ComputeNonInertialAcceleration(float3 localPosition, float3 localVelocity)
 {
@@ -93,128 +54,9 @@ float3 ComputeNonInertialAcceleration(float3 localPosition, float3 localVelocity
     return centrifugal + euler + coriolis;
 }
 
-float CubicSplineKernel(float r, float h)
-{
-    float k = 8.0 / (3.14159265 * h * h * h);
-    float q = r / max(h, 1e-4);
-    if (q <= 1.0)
-    {
-        float t = 1.0 - q;
-        return k * (t * t * t);
-    }
-    if (q <= 2.0)
-    {
-        float t = 2.0 - q;
-        return k * 0.125 * (t * t * t);
-    }
-    return 0.0;
-}
-
-float3 CubicSplineGradient(float3 diff, float r, float h)
-{
-    float k = 8.0 / (3.14159265 * h * h * h);
-    float q = r / max(h, 1e-4);
-    if (r < 1e-6 || q > 2.0)
-    {
-        return float3(0, 0, 0);
-    }
-
-    float3 dir = diff / r;
-    if (q <= 1.0)
-    {
-        return -dir * k * 3.0 * q * q / max(h, 1e-4);
-    }
-
-    float t = 2.0 - q;
-    return -dir * k * (-0.375) * (t * t) / max(h, 1e-4);
-}
-
-float CubicSplineLaplacian(float r, float h)
-{
-    float k = 8.0 / (3.14159265 * h * h * h);
-    float q = r / max(h, 1e-4);
-    if (q <= 1.0)
-    {
-        return k * (3.0 / max(h * h, 1e-4)) * (1.0 - q);
-    }
-    if (q <= 2.0)
-    {
-        float t = 2.0 - q;
-        return k * (-0.75 / max(h * h, 1e-4)) * t;
-    }
-    return 0.0;
-}
-
-void ForEachNeighbor(uint particleIndex, FluidParticle self, bool useDensityCache, out float density, out float3 pressureGrad, out float3 viscosityForce)
-{
-    density = 0.0;
-    pressureGrad = float3(0, 0, 0);
-    viscosityForce = float3(0, 0, 0);
-
-    int3 baseCell = CellFromPosition(self.Position);
-    float h = _SmoothingRadius;
-    float selfDensity = max(self.Density, 1e-4);
-    float selfPressure = self.Pressure;
-
-    [loop]
-    for (int n = 0; n < 27; n++)
-    {
-        uint cellHash = HashCell(baseCell + kNeighborOffsets[n]);
-        HashCellGridRange range = _CellStartEndBuffer[cellHash];
-        if (range.StartIndex < 0 || range.EndIndex < range.StartIndex)
-        {
-            continue;
-        }
-
-        for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
-        {
-            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
-            if (pair.CellHash == 0xFFFFFFFFu)
-            {
-                continue;
-            }
-
-            uint neighborIndex = pair.ParticleIndex;
-            if (neighborIndex >= _ActiveParticleCount)
-            {
-                continue;
-            }
-
-            FluidParticle neighbor;
-            if (useDensityCache)
-            {
-                neighbor = _DensityWritableCache[neighborIndex];
-            }
-            else
-            {
-                neighbor = _ReadOnlyParticleSource[neighborIndex];
-            }
-
-            float3 diff = self.Position - neighbor.Position;
-            float r = length(diff);
-            if (r > 2.0 * h)
-            {
-                continue;
-            }
-
-            float w = CubicSplineKernel(r, h);
-            density += _ParticleMass * w;
-
-            if (!useDensityCache)
-            {
-                continue;
-            }
-
-            float neighborDensity = max(neighbor.Density, 1e-4);
-            float3 gradW = CubicSplineGradient(diff, r, h);
-            float pressureTerm = (selfPressure / (selfDensity * selfDensity) + neighbor.Pressure / (neighborDensity * neighborDensity));
-            pressureGrad += -_ParticleMass * pressureTerm * gradW;
-
-            float3 relVel = neighbor.Velocity - self.Velocity;
-            viscosityForce += _ParticleMass * relVel / neighborDensity * CubicSplineLaplacian(r, h);
-        }
-    }
-}
+// Buffer-bound neighbor iteration (ForEachNeighbor). Requires the buffers and
+// uniforms declared above; see the include header for the full contract.
+#include "Include/SphNeighborQuery.hlsl"
 
 bool EvaluateNozzleExitSDF(float3 localPosition)
 {
@@ -238,7 +80,8 @@ void ExecuteSphDensityPass(uint3 id : SV_DispatchThreadID)
     float density;
     float3 pressureGrad;
     float3 viscosityForce;
-    ForEachNeighbor(particleIndex, particle, false, density, pressureGrad, viscosityForce);
+    float3 colorLaplacian;
+    ForEachNeighbor(particleIndex, particle, false, density, pressureGrad, viscosityForce, colorLaplacian);
 
     particle.Density = max(density, _RestDensity * 0.01);
     particle.Pressure = _GasConstantK * (particle.Density - _RestDensity);
@@ -259,7 +102,8 @@ void ExecuteInternalFluidIntegration(uint3 id : SV_DispatchThreadID)
     float density;
     float3 pressureGrad;
     float3 viscosityForce;
-    ForEachNeighbor(particleIndex, particle, true, density, pressureGrad, viscosityForce);
+    float3 colorLaplacian;
+    ForEachNeighbor(particleIndex, particle, true, density, pressureGrad, viscosityForce, colorLaplacian);
 
     float safeDensity = max(particle.Density, 1e-4);
     float3 acceleration = pressureGrad / safeDensity + _Viscosity * viscosityForce / safeDensity;
@@ -268,6 +112,10 @@ void ExecuteInternalFluidIntegration(uint3 id : SV_DispatchThreadID)
 
     particle.Velocity += acceleration * _DeltaTime;
     particle.Position += particle.Velocity * _DeltaTime;
+
+    // SPH color mixing: blend toward neighbors (no-op when _ColorDiffusionRate == 0).
+    float3 mixedColor = saturate(UnpackUintToFloat3(particle.PackedColorRGBA) + _ColorDiffusionRate * colorLaplacian * _DeltaTime);
+    particle.PackedColorRGBA = PackFloat3ToUint(mixedColor);
 
     if (EvaluateNozzleExitSDF(particle.Position))
     {
@@ -330,11 +178,16 @@ void ExecuteContainerFluidIntegration(uint3 id : SV_DispatchThreadID)
     float density;
     float3 pressureGrad;
     float3 viscosityForce;
-    ForEachNeighbor(particleIndex, particle, true, density, pressureGrad, viscosityForce);
+    float3 colorLaplacian;
+    ForEachNeighbor(particleIndex, particle, true, density, pressureGrad, viscosityForce, colorLaplacian);
 
     float safeDensity = max(particle.Density, 1e-4);
     float3 acceleration = pressureGrad / safeDensity + _Viscosity * viscosityForce / safeDensity;
     acceleration += _Gravity;
+
+    // SPH color mixing: blend toward neighbors (no-op when _ColorDiffusionRate == 0).
+    float3 mixedColor = saturate(UnpackUintToFloat3(particle.PackedColorRGBA) + _ColorDiffusionRate * colorLaplacian * _DeltaTime);
+    particle.PackedColorRGBA = PackFloat3ToUint(mixedColor);
 
     // Stability clamp: keep stiff SPH pressure spikes from exploding the integrator.
     float accelMag = length(acceleration);

@@ -22,18 +22,30 @@ Shader "HarmonicEngine/ParticleDebugPoints"
             #pragma target 4.5
             #include "UnityCG.cginc"
 
+            // Must match the 48-byte FluidParticle in SphCommon.hlsl / FluidParticle.cs.
             struct FluidParticle
             {
                 float3 Position;
                 float Density;
                 float3 Velocity;
                 float Pressure;
+                uint PackedColorRGBA;
+                float3 _Padding;
             };
 
             StructuredBuffer<FluidParticle> _Particles;
             uint _ParticleCount;
             float _PointSize;
             fixed4 _Color;
+            float _UseParticleColor;
+
+            float3 UnpackUintToFloat3(uint packed)
+            {
+                float r = (float)(packed & 0xFFu);
+                float g = (float)((packed >> 8) & 0xFFu);
+                float b = (float)((packed >> 16) & 0xFFu);
+                return float3(r, g, b) / 255.0;
+            }
 
             struct v2g
             {
@@ -53,7 +65,9 @@ Shader "HarmonicEngine/ParticleDebugPoints"
                 v2g o;
                 FluidParticle particle = _Particles[vertexId];
                 o.worldPos = particle.Position;
-                o.color = _Color;
+                fixed3 particleRgb = UnpackUintToFloat3(particle.PackedColorRGBA);
+                fixed3 rgb = lerp(_Color.rgb, particleRgb, _UseParticleColor);
+                o.color = fixed4(rgb, _Color.a);
                 return o;
             }
 

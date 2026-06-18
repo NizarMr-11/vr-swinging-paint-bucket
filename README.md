@@ -8,6 +8,8 @@ AdvancedHarmonicEngine_V3 provides a GPU SPH paint simulation with impasto canva
 
 See [docs/architecure.md](docs/architecure.md), [docs/full-implementation-plan.md](docs/full-implementation-plan.md), [docs/hardware-requirements.md](docs/hardware-requirements.md), and **[docs/harmonic-engine-api.md](docs/harmonic-engine-api.md)** (Unity integration guide).
 
+**Developer docs:** [neighbor queries & spatial hashing](docs/neighbor-queries-and-spatial-hashing.md) · [configuration API](docs/configuration-api.md) · [engine communication](docs/engine-communication.md) · [paint color & lifecycle](docs/paint-color-and-lifecycle.md) · [testing strategy](docs/testing-strategy.md) · [debugging & rendering](docs/debugging-and-rendering.md) · [architecture divergences](docs/architecture-divergences.md)
+
 ### Quick start
 
 **Classic paint bucket (original flow)** — `Assets/Scenes/ClassicPaintSimulation.unity`

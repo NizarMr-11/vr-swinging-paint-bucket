@@ -7,9 +7,10 @@ namespace HarmonicEngine.Tests
     public class StructLayoutTests
     {
         [Test]
-        public void FluidParticle_Size_Is32Bytes()
+        public void FluidParticle_Size_Is48Bytes()
         {
-            Assert.AreEqual(32, Marshal.SizeOf<FluidParticle>());
+            // 3x 16-byte blocks: Position+Density | Velocity+Pressure | PackedColorRGBA+_Padding.
+            Assert.AreEqual(48, Marshal.SizeOf<FluidParticle>());
         }
 
         [Test]

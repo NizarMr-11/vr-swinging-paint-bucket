@@ -3,13 +3,8 @@
 #pragma kernel ScatterParticleToGridKernel
 #pragma kernel ApplyDragFromGridKernel
 
-struct FluidParticle
-{
-    float3 Position;
-    float Density;
-    float3 Velocity;
-    float Pressure;
-};
+// Shared 48-byte FluidParticle (single source of truth).
+#include "Include/SphCommon.hlsl"
 
 struct VoxelDragCell
 {

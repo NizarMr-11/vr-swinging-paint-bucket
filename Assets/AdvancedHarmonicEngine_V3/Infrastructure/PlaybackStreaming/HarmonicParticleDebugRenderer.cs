@@ -19,11 +19,13 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
         [SerializeField, Min(0.001f)] private float pointSize = 0.18f;
         [SerializeField] private Color internalColor = new(0.35f, 0.65f, 0.98f, 0.48f);
         [SerializeField] private Color fallingColor = new(1f, 0.45f, 0.1f, 0.9f);
+        [SerializeField] private bool useParticleColor = true;
 
         private static readonly int ParticlesId = Shader.PropertyToID("_Particles");
         private static readonly int ParticleCountId = Shader.PropertyToID("_ParticleCount");
         private static readonly int PointSizeId = Shader.PropertyToID("_PointSize");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
+        private static readonly int UseParticleColorId = Shader.PropertyToID("_UseParticleColor");
 
         public void SetPipeline(PipelineExecutionController controller) => pipeline = controller;
 
@@ -88,12 +90,8 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
 
         private float ResolvePointRadius()
         {
-            if (autoSizeFromSph && pipeline != null)
-            {
-                return pipeline.SmoothingRadius * pointSizeMultiplier;
-            }
-
-            return pointSize;
+            return HarmonicParticleDebugSizing.ResolvePointRadius(
+                pipeline, autoSizeFromSph, pointSizeMultiplier, pointSize);
         }
 
         private void DrawBuffer(ComputeBuffer buffer, uint count, Color color)
@@ -102,6 +100,7 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
             particleDebugMaterial.SetInt(ParticleCountId, (int)count);
             particleDebugMaterial.SetFloat(PointSizeId, ResolvePointRadius());
             particleDebugMaterial.SetColor(ColorId, color);
+            particleDebugMaterial.SetFloat(UseParticleColorId, useParticleColor ? 1f : 0f);
             particleDebugMaterial.SetPass(0);
             Graphics.DrawProceduralNow(MeshTopology.Points, (int)count, 1);
         }

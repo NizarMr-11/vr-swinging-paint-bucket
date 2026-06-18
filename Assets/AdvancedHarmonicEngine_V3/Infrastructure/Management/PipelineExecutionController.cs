@@ -1,3 +1,4 @@
+using System;
 using HarmonicEngine.Core.DataStructures;
 using HarmonicEngine.Diagnostics;
 using HarmonicEngine.Domain.Models;
@@ -8,8 +9,29 @@ using UnityEngine;
 
 namespace HarmonicEngine.Infrastructure.Management
 {
-    public class PipelineExecutionController : MonoBehaviour
+    /// <summary>
+    /// GPU-resident SPH pipeline owner and the engine's main entry point.
+    ///
+    /// Adding a kernel that needs neighbor queries (the spatial hash): bind the four
+    /// query buffers the grid build produces and dispatch after <c>BuildSpatialHashGrid</c>.
+    /// The reusable iterator lives in
+    /// <c>Infrastructure/ComputeShaders/Include/SphNeighborQuery.hlsl</c> (call
+    /// <c>ForEachNeighbor</c>); shared structs/hash/kernels live in <c>SphCommon.hlsl</c>.
+    /// Steps: (1) <c>BuildSpatialHashGrid(readBuffer, activeCount)</c>; (2) bind
+    /// <c>_SortedGridKeyValueBuffer</c>, <c>_CellStartEndBuffer</c>, <c>_ReadOnlyParticleSource</c>,
+    /// <c>_DensityWritableCache</c> + the SPH uniforms; (3) <c>#include</c> the query header;
+    /// (4) <c>DispatchIndirect</c> with <c>_indirectArgsBuffer</c>.
+    ///
+    /// Communication: pull (the <c>TryGet*</c> buffer accessors / <see cref="IHarmonicParticleSource"/>)
+    /// or push (<see cref="FrameCompleted"/>, raised once per simulated frame).
+    /// </summary>
+    public class PipelineExecutionController : MonoBehaviour, IHarmonicParticleSource
     {
+        /// <summary>
+        /// Raised at the end of every simulated frame (all modes) with a summary snapshot,
+        /// so overlays/debug tooling can react without polling buffers.
+        /// </summary>
+        public event Action<HarmonicFrameInfo> FrameCompleted;
         [Header("Compute Shaders")]
         [SerializeField] private ComputeShader argumentUtilityShader;
         [SerializeField] private ComputeShader spatialHashGridShader;
@@ -43,6 +65,10 @@ namespace HarmonicEngine.Infrastructure.Management
         [SerializeField] private float dragDecay = 0.5f;
         [SerializeField] private float ambientWindStrength;
         [SerializeField] private int maxCanvasHitsPerFrame = 16_384;
+        [Tooltip("When canvas culling is on, particles rest on the plane and drain wetness into the canvas before removal.")]
+        [SerializeField] private bool canvasPaintAbsorbEnabled = true;
+        [SerializeField, Min(0.01f)] private float canvasAbsorbRate = 1.5f;
+        [SerializeField, Min(0f)] private float canvasAbsorbPaintWeightScale = 1f;
 
         [Header("Simulation Mode")]
         [SerializeField] private HarmonicSimulationMode simulationMode = HarmonicSimulationMode.Live;
@@ -61,30 +87,11 @@ namespace HarmonicEngine.Infrastructure.Management
         [SerializeField] private bool driveWorldParticlesFromPipelineRoot = true;
 
         [Header("Container fluid (world-space SPH in a cylinder)")]
-        [Tooltip("When true the pipeline runs world-space SPH and confines particles to an open-top cylinder (set via SetContainerFluid). Bucket/nozzle/falling paths are bypassed.")]
-        [SerializeField] private bool containerFluidEnabled;
-        [SerializeField] private Vector3 containerCenter = Vector3.zero;
-        [SerializeField, Min(0.01f)] private float containerRadius = 2f;
-        [SerializeField] private float containerFloorY;
-        [SerializeField] private float containerRimY = 4f;
-        [SerializeField, Range(0f, 1f)] private float containerRestitution = 0.1f;
-        [SerializeField, Range(0f, 1f)] private float containerFriction = 0.85f;
-        [SerializeField, Min(0f)] private float containerWallStiffness = 400f;
-        [Tooltip("Maximum integration time step for the container SPH pass (CFL stability guard).")]
-        [SerializeField, Min(0.001f)] private float containerMaxTimeStep = 0.008f;
-        [Header("Container SPH tuning (overrides solver for the container path only)")]
-        [Tooltip("Softer pressure stiffness than the bucket sim so the pooled fluid stays stable.")]
-        [SerializeField, Min(0f)] private float containerGasConstantK = 380f;
-        [Tooltip("Water-like viscosity for the pooled fluid (lower = more splashy).")]
-        [SerializeField, Min(0f)] private float containerViscosity = 2.5f;
-        [Tooltip("Per-step velocity bleed (0 = none). Keep low so motion feels fluid, not syrupy.")]
-        [SerializeField, Range(0f, 0.5f)] private float containerVelocityDamping = 0.012f;
-        [Tooltip("Maximum particle speed in the container pass (limits splash height).")]
-        [SerializeField, Min(1f)] private float containerMaxSpeed = 12f;
-        [Tooltip("Per-particle mass for container SPH. 0 = auto from cell size and rest density.")]
-        [SerializeField, Min(0f)] private float containerParticleMass;
-        [Tooltip("Integration substeps per frame for smoother container fluid motion.")]
-        [SerializeField, Range(1, 4)] private int containerSubsteps = 2;
+        [SerializeField] private ContainerFluidSettings containerFluid = new();
+
+        [Header("Color mixing")]
+        [Tooltip("SPH color diffusion coefficient. 0 = colors stay distinct; higher = neighbors blend faster (marbling -> uniform mix).")]
+        [SerializeField, Min(0f)] private float colorDiffusionRate;
 
         [Header("Performance")]
         [Tooltip("Size the spatial-hash sort/grid to the active particle count each frame instead of the full capacity. Big win at low/medium counts.")]
@@ -139,7 +146,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public float CanvasPlaneY => canvasPlaneY;
         public bool WorldFallingOnly => worldFallingOnly;
         public bool CanvasCullingEnabled => canvasCullingEnabled;
-        public bool ContainerFluidEnabled => containerFluidEnabled;
+        public bool ContainerFluidEnabled => containerFluid.enabled;
         public float CellSize => cellSize;
         public float SmoothingRadius => sphSolver.SmoothingRadius(cellSize);
 
@@ -151,7 +158,7 @@ namespace HarmonicEngine.Infrastructure.Management
         /// </summary>
         public void SetContainerFluidEnabled(bool enabled)
         {
-            containerFluidEnabled = enabled;
+            containerFluid.enabled = enabled;
             if (enabled)
             {
                 worldFallingOnly = false;
@@ -175,13 +182,56 @@ namespace HarmonicEngine.Infrastructure.Management
             float friction,
             float wallStiffness)
         {
-            containerCenter = center;
-            containerRadius = Mathf.Max(0.01f, radius);
-            containerFloorY = floorY;
-            containerRimY = rimY;
-            containerRestitution = Mathf.Clamp01(restitution);
-            containerFriction = Mathf.Clamp01(friction);
-            containerWallStiffness = Mathf.Max(0f, wallStiffness);
+            containerFluid.ApplyBounds(center, radius, floorY, rimY, restitution, friction, wallStiffness);
+        }
+
+        // ---- Explicit typed configuration API (spawn / canvas / bucket) -------------------
+        // A scene hands the engine three clear things instead of calling scattered setters.
+
+        /// <summary>Stores a default spawn region used by the parameterless <see cref="SpawnVolume()"/>.</summary>
+        public void SetSpawnRegion(HarmonicSpawnRegion region) => _defaultSpawnRegion = region;
+
+        /// <summary>Samples the given region and appends its colored particles. Returns the appended count.</summary>
+        public int SpawnVolume(HarmonicSpawnRegion region) => HarmonicParticleSpawner.Spawn(this, region);
+
+        /// <summary>Spawns the region previously set via <see cref="SetSpawnRegion"/>.</summary>
+        public int SpawnVolume() => HarmonicParticleSpawner.Spawn(this, _defaultSpawnRegion);
+
+        /// <summary>Configures the canvas hit surface (horizontal plane + culling mode).</summary>
+        public void SetCanvasSurface(HarmonicCanvasSurface surface)
+        {
+            if (surface == null)
+            {
+                return;
+            }
+
+            SetCanvasPlaneY(surface.planeY);
+            SetCanvasCullingEnabled(surface.cullIntoCanvas);
+            canvasPaintAbsorbEnabled = surface.paintAbsorbEnabled;
+            canvasAbsorbRate = surface.absorbRate;
+            canvasAbsorbPaintWeightScale = surface.absorbPaintWeightScale;
+        }
+
+        /// <summary>Configures the bucket interaction volume (open-top cylinder + nozzle SDF).</summary>
+        public void SetBucketVolume(HarmonicBucketVolume volume)
+        {
+            if (volume == null)
+            {
+                return;
+            }
+
+            SetContainerFluid(
+                volume.center, volume.radius, volume.floorY, volume.rimY,
+                volume.restitution, volume.friction, volume.wallStiffness);
+            SetNozzle(volume.nozzlePlaneLocalY, volume.nozzleRadius, volume.bucketRimLocalY);
+        }
+
+        /// <summary>Sets the local-space bucket nozzle exit SDF parameters.</summary>
+        public void SetNozzle(float planeLocalY, float radius, float rimLocalY)
+        {
+            nozzlePlaneLocalY = planeLocalY;
+            nozzleRadius = Mathf.Max(0f, radius);
+            bucketRimLocalY = rimLocalY;
         }
 
         public void SetWorldFallingOnly(bool enabled)
@@ -205,6 +255,8 @@ namespace HarmonicEngine.Infrastructure.Management
         /// </summary>
         public void SetCanvasCullingEnabled(bool enabled) => canvasCullingEnabled = enabled;
 
+        public void SetColorDiffusionRate(float rate) => colorDiffusionRate = Mathf.Max(0f, rate);
+
         public void SetFloorResponse(float restitution, float friction)
         {
             floorRestitution = Mathf.Clamp01(restitution);
@@ -222,6 +274,18 @@ namespace HarmonicEngine.Infrastructure.Management
 
             _indirectArgsBuffer.GetData(destination);
             return true;
+        }
+
+        /// <summary>
+        /// Exposes the spatial-hash buffers built each frame (sorted keys + cell ranges).
+        /// Intended for tests and diagnostics; read after <see cref="ExecutePipelineFrame"/>.
+        /// </summary>
+        public bool TryGetSpatialHashBuffers(out ComputeBuffer sortedGridKeys, out ComputeBuffer cellRanges, out int frameSortSize)
+        {
+            sortedGridKeys = _gridKeyValueBuffer;
+            cellRanges = _cellStartEndBuffer;
+            frameSortSize = _frameSortSize;
+            return sortedGridKeys != null && cellRanges != null;
         }
 
         public void ApplyQualityTier(HarmonicQualityTier tier)
@@ -293,6 +357,7 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private readonly uint[] _activeCountCpu = new uint[1];
         private FluidParticle[] _seedParticles;
+        private HarmonicSpawnRegion _defaultSpawnRegion;
 
         private uint _lastLoggedActive;
         private bool _hasLoggedActive;
@@ -358,6 +423,10 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int ContainerWallStiffnessId = Shader.PropertyToID("_ContainerWallStiffness");
         private static readonly int ContainerDampingId = Shader.PropertyToID("_ContainerDamping");
         private static readonly int ContainerMaxSpeedId = Shader.PropertyToID("_ContainerMaxSpeed");
+        private static readonly int ColorDiffusionRateId = Shader.PropertyToID("_ColorDiffusionRate");
+        private static readonly int CanvasPaintAbsorbEnabledId = Shader.PropertyToID("_CanvasPaintAbsorbEnabled");
+        private static readonly int CanvasAbsorbRateId = Shader.PropertyToID("_CanvasAbsorbRate");
+        private static readonly int CanvasAbsorbPaintWeightScaleId = Shader.PropertyToID("_CanvasAbsorbPaintWeightScale");
 
         private int _frameSortSize;
 
@@ -466,7 +535,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 return;
             }
 
-            if (containerFluidEnabled)
+            if (containerFluid.enabled)
             {
                 ExecuteContainerFluidFrame(activeCount, deltaTime);
                 PublishPipelineFrameDiagnostic(_cachedInternalCount);
@@ -522,14 +591,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, FallingReadId, _bufferFalling);
                 fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, FallingAppendId, _bufferFallingWorld);
                 fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, CanvasHitAppendId, _bufferCanvasHits);
-                fallingFluidWorldShader.SetInt(FallingCountId, (int)fallingCount);
-                fallingFluidWorldShader.SetFloat(DeltaTimeId, deltaTime);
-                fallingFluidWorldShader.SetVector(WorldGravityId, gravity);
-                fallingFluidWorldShader.SetFloat(WorldDragId, worldDrag);
-                fallingFluidWorldShader.SetFloat(CanvasPlaneYId, canvasPlaneY);
-                fallingFluidWorldShader.SetInt(CanvasCullingEnabledId, canvasCullingEnabled ? 1 : 0);
-                fallingFluidWorldShader.SetFloat(FloorRestitutionId, floorRestitution);
-                fallingFluidWorldShader.SetFloat(FloorFrictionId, floorFriction);
+                ApplyFallingWorldUniforms(fallingFluidWorldShader, fallingCount, deltaTime);
                 int fallingGroups = Mathf.CeilToInt(fallingCount / 64f);
                 fallingFluidWorldShader.Dispatch(_kernelFallingWorld, fallingGroups, 1, 1);
 
@@ -577,14 +639,7 @@ namespace HarmonicEngine.Infrastructure.Management
             fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, FallingReadId, _pingPong.ReadBuffer);
             fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, FallingAppendId, _pingPong.WriteBuffer);
             fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, CanvasHitAppendId, _bufferCanvasHits);
-            fallingFluidWorldShader.SetInt(FallingCountId, (int)activeCount);
-            fallingFluidWorldShader.SetFloat(DeltaTimeId, deltaTime);
-            fallingFluidWorldShader.SetVector(WorldGravityId, gravity);
-            fallingFluidWorldShader.SetFloat(WorldDragId, worldDrag);
-            fallingFluidWorldShader.SetFloat(CanvasPlaneYId, canvasPlaneY);
-            fallingFluidWorldShader.SetInt(CanvasCullingEnabledId, canvasCullingEnabled ? 1 : 0);
-            fallingFluidWorldShader.SetFloat(FloorRestitutionId, floorRestitution);
-            fallingFluidWorldShader.SetFloat(FloorFrictionId, floorFriction);
+            ApplyFallingWorldUniforms(fallingFluidWorldShader, activeCount, deltaTime);
             int groups = Mathf.CeilToInt(activeCount / 64f);
             fallingFluidWorldShader.Dispatch(_kernelFallingWorld, groups, 1, 1);
 
@@ -614,8 +669,8 @@ namespace HarmonicEngine.Infrastructure.Management
         {
             using (MarkerContainerFrame.Auto())
             {
-                deltaTime = Mathf.Min(deltaTime, containerMaxTimeStep);
-                int steps = Mathf.Max(1, containerSubsteps);
+                deltaTime = Mathf.Min(deltaTime, containerFluid.maxTimeStep);
+                int steps = Mathf.Max(1, containerFluid.substeps);
                 float subDt = deltaTime / steps;
 
                 for (int step = 0; step < steps; step++)
@@ -640,8 +695,8 @@ namespace HarmonicEngine.Infrastructure.Management
                 {
                     PublishStageDiagnostic(
                         "containerFluid",
-                        $"active={_cachedInternalCount} sortSize={_frameSortSize} R={containerRadius:F2} " +
-                        $"floorY={containerFloorY:F2} rimY={containerRimY:F2} substeps={steps}");
+                        $"active={_cachedInternalCount} sortSize={_frameSortSize} R={containerFluid.radius:F2} " +
+                        $"floorY={containerFluid.floorY:F2} rimY={containerFluid.rimY:F2} substeps={steps}");
                     MaybeSampleParticlePositions(_pingPong.ReadBuffer, _cachedInternalCount, "containerFluid");
                 }
             }
@@ -678,6 +733,21 @@ namespace HarmonicEngine.Infrastructure.Management
             }
 
             _pingPong.Swap();
+        }
+
+        private void ApplyFallingWorldUniforms(ComputeShader shader, uint fallingCount, float deltaTime)
+        {
+            shader.SetInt(FallingCountId, (int)fallingCount);
+            shader.SetFloat(DeltaTimeId, deltaTime);
+            shader.SetVector(WorldGravityId, gravity);
+            shader.SetFloat(WorldDragId, worldDrag);
+            shader.SetFloat(CanvasPlaneYId, canvasPlaneY);
+            shader.SetInt(CanvasCullingEnabledId, canvasCullingEnabled ? 1 : 0);
+            shader.SetInt(CanvasPaintAbsorbEnabledId, canvasPaintAbsorbEnabled ? 1 : 0);
+            shader.SetFloat(CanvasAbsorbRateId, canvasAbsorbRate);
+            shader.SetFloat(CanvasAbsorbPaintWeightScaleId, canvasAbsorbPaintWeightScale);
+            shader.SetFloat(FloorRestitutionId, floorRestitution);
+            shader.SetFloat(FloorFrictionId, floorFriction);
         }
 
         private void ComputeFrameSortSize(uint activeCount)
@@ -745,26 +815,27 @@ namespace HarmonicEngine.Infrastructure.Management
             shader.SetFloat(CellSizeId, cellSize);
             shader.SetFloat(SmoothingRadiusId, smoothingRadius);
             shader.SetFloat(ParticleMassId, ResolveContainerParticleMass());
-            shader.SetFloat(GasConstantKId, containerGasConstantK);
+            shader.SetFloat(GasConstantKId, containerFluid.gasConstantK);
             shader.SetFloat(RestDensityId, sphSolver.RestDensity);
-            shader.SetFloat(ViscosityId, containerViscosity);
+            shader.SetFloat(ViscosityId, containerFluid.viscosity);
             shader.SetVector(GravityId, gravity);
-            shader.SetVector(ContainerCenterId, containerCenter);
-            shader.SetFloat(ContainerRadiusId, containerRadius);
-            shader.SetFloat(ContainerFloorYId, containerFloorY);
-            shader.SetFloat(ContainerRimYId, containerRimY);
-            shader.SetFloat(ContainerRestitutionId, containerRestitution);
-            shader.SetFloat(ContainerFrictionId, containerFriction);
-            shader.SetFloat(ContainerWallStiffnessId, containerWallStiffness);
-            shader.SetFloat(ContainerDampingId, containerVelocityDamping);
-            shader.SetFloat(ContainerMaxSpeedId, containerMaxSpeed);
+            shader.SetVector(ContainerCenterId, containerFluid.center);
+            shader.SetFloat(ContainerRadiusId, containerFluid.radius);
+            shader.SetFloat(ContainerFloorYId, containerFluid.floorY);
+            shader.SetFloat(ContainerRimYId, containerFluid.rimY);
+            shader.SetFloat(ContainerRestitutionId, containerFluid.restitution);
+            shader.SetFloat(ContainerFrictionId, containerFluid.friction);
+            shader.SetFloat(ContainerWallStiffnessId, containerFluid.wallStiffness);
+            shader.SetFloat(ContainerDampingId, containerFluid.velocityDamping);
+            shader.SetFloat(ContainerMaxSpeedId, containerFluid.maxSpeed);
+            shader.SetFloat(ColorDiffusionRateId, colorDiffusionRate);
         }
 
         private float ResolveContainerParticleMass()
         {
-            if (containerParticleMass > 0f)
+            if (containerFluid.particleMass > 0f)
             {
-                return containerParticleMass;
+                return containerFluid.particleMass;
             }
 
             // Match mass to the SPH cell spacing so rest density stays coherent.
@@ -795,6 +866,7 @@ namespace HarmonicEngine.Infrastructure.Management
             shader.SetFloat(BucketRimLocalYId, bucketRimLocalY);
             shader.SetMatrix(LocalToWorldMatrixId, localToWorld);
             shader.SetVector(InstantaneousBucketGlobalVelocityId, bucketVelocity);
+            shader.SetFloat(ColorDiffusionRateId, colorDiffusionRate);
         }
 
         private void ResolveAngularKinematics(out Vector3 angularVelocityWorld, out Vector3 angularAccelerationWorld)
@@ -891,7 +963,8 @@ namespace HarmonicEngine.Infrastructure.Management
                     Position = offset,
                     Velocity = float3.zero,
                     Density = sphSolver.RestDensity,
-                    Pressure = 0f
+                    Pressure = 0f,
+                    PackedColorRGBA = 0xFFFFFFFFu
                 };
             }
 
@@ -910,7 +983,7 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private void InitializeBuffers()
         {
-            int particleStride = sizeof(float) * 8;
+            int particleStride = sizeof(float) * 12; // 48-byte FluidParticle (incl. packed color + padding)
             int keyStride = sizeof(uint) * 2;
             int cellStride = sizeof(int) * 2;
             int quantizedStride = sizeof(ushort) * 8;
@@ -926,7 +999,7 @@ namespace HarmonicEngine.Infrastructure.Management
             int dragStride = sizeof(float) * 4;
             _bufferDragGrid = new ComputeBuffer(dragVolume, dragStride, ComputeBufferType.Structured);
 
-            int canvasHitStride = sizeof(float) * 4;
+            int canvasHitStride = sizeof(float) * 8; // 32-byte CanvasPaintHit
             int canvasHitCapacity = Mathf.Max(1, maxCanvasHitsPerFrame);
             _bufferCanvasHits = new ComputeBuffer(canvasHitCapacity, canvasHitStride, ComputeBufferType.Append);
 
@@ -1056,6 +1129,14 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private void PublishPipelineFrameDiagnostic(uint activeCount)
         {
+            // Push-side notification fires every frame regardless of diagnostics throttling.
+            FrameCompleted?.Invoke(new HarmonicFrameInfo(
+                activeCount,
+                _lastCanvasHitCount,
+                _frameSortSize,
+                containerFluid.enabled,
+                worldFallingOnly));
+
             if (!HarmonicDiagnosticHub.Enabled || HarmonicDiagnosticHub.Session == null)
             {
                 return;

@@ -466,7 +466,7 @@ MonoBehaviour:
   bucketTransform: {fileID: 0}
   bucketKinematicProvider: {fileID: 0}
   driveBucketFromTransform: 0
-  maxCapacity: 1000000
+  maxCapacity: 30000
   cellSize: 0.1
   nozzlePlaneLocalY: -0.35
   nozzleRadius: 0.05
@@ -491,21 +491,23 @@ MonoBehaviour:
   simulationActive: 0
   worldFallingOnly: 0
   driveWorldParticlesFromPipelineRoot: 1
-  containerFluidEnabled: 1
-  containerCenter: {x: 0, y: 0, z: 0}
-  containerRadius: 0.55
-  containerFloorY: 0
-  containerRimY: 1.1
-  containerRestitution: 0.1
-  containerFriction: 0.85
-  containerWallStiffness: 400
-  containerMaxTimeStep: 0.008
-  containerGasConstantK: 380
-  containerViscosity: 2.5
-  containerVelocityDamping: 0.012
-  containerMaxSpeed: 14
-  containerParticleMass: 0
-  containerSubsteps: 2
+  containerFluid:
+    enabled: 1
+    center: {x: 0, y: 0, z: 0}
+    radius: 0.55
+    floorY: 0
+    rimY: 1.1
+    restitution: 0.1
+    friction: 0.85
+    wallStiffness: 400
+    maxTimeStep: 0.008
+    gasConstantK: 380
+    viscosity: 2.5
+    velocityDamping: 0.012
+    maxSpeed: 14
+    particleMass: 0
+    substeps: 2
+  colorDiffusionRate: 0.6
   dynamicSortSizing: 1
   minSortSize: 256
   perfDiagnosticsMuted: 0

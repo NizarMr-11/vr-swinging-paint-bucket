@@ -45,6 +45,8 @@ namespace SwingingPaintBucket.Scene
         [SerializeField] private Vector3 spawnHalfExtents = new(1.2f, 0.15f, 1.2f);
         [SerializeField] private int initialParticleCount = 8000;
         [SerializeField] private float restDensity = 1000f;
+        [Tooltip("Color assigned to every rained particle (mixes via SPH color diffusion).")]
+        [SerializeField] private Color spawnColor = Color.white;
         [SerializeField] private Vector2 horizontalVelocityRange = new(-0.08f, 0.08f);
         [Tooltip("Downward speed when pooling into a container (m/s).")]
         [SerializeField] private Vector2 verticalVelocityRange = new(-3.5f, -1.2f);
@@ -166,7 +168,7 @@ namespace SwingingPaintBucket.Scene
             float spacing = pipeline.CellSize * 0.72f;
             float cellVolume = spacing * spacing * spacing;
             int estimate = Mathf.CeilToInt(volume / cellVolume);
-            return Mathf.Clamp(estimate, 8000, pipeline.MaxCapacity / 2);
+            return Mathf.Clamp(estimate, 4000, pipeline.MaxCapacity);
         }
 
         private void Start()
@@ -323,6 +325,7 @@ namespace SwingingPaintBucket.Scene
                 _spawnBatch = new FluidParticle[spawnCount];
             }
 
+            uint packedColor = FluidParticleFactory.PackColor(spawnColor);
             for (int i = 0; i < spawnCount; i++)
             {
                 float3 pos = RandomInSpawnBox();
@@ -333,7 +336,7 @@ namespace SwingingPaintBucket.Scene
                     RandomRange(horizontalVelocityRange.x, horizontalVelocityRange.y),
                     downward,
                     RandomRange(horizontalVelocityRange.x, horizontalVelocityRange.y));
-                _spawnBatch[i] = FluidParticleFactory.FromWorldPosition(pos, vel, restDensity);
+                _spawnBatch[i] = FluidParticleFactory.FromWorldPosition(pos, vel, restDensity, packedColor);
             }
 
             int appended = pipeline.AppendParticles(_spawnBatch, spawnCount);

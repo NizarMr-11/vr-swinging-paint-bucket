@@ -1,3 +1,4 @@
+using HarmonicEngine.Domain.Adapters;
 using HarmonicEngine.Domain.Models;
 using HarmonicEngine.Infrastructure.Management;
 using HarmonicEngine.Infrastructure.PlaybackStreaming;
@@ -71,7 +72,7 @@ namespace SwingingPaintBucket.Particles
                 return;
             }
 
-            int byteCount = (int)hitCount * 16;
+            int byteCount = (int)hitCount * 32;
             _readbackInFlight = true;
             AsyncGPUReadback.Request(hitBuffer, byteCount, 0, request =>
             {
@@ -87,13 +88,17 @@ namespace SwingingPaintBucket.Particles
 
         private void ApplyHits(NativeArray<CanvasPaintHit> hits)
         {
-            Color paintColor = bucket != null ? bucket.CurrentPaintColor : Color.red;
+            Color fallbackColor = bucket != null ? bucket.CurrentPaintColor : Color.red;
             float viscosity = bucket != null ? bucket.Viscosity : 1f;
 
             for (int i = 0; i < hits.Length; i++)
             {
                 CanvasPaintHit hit = hits[i];
-                canvas.OnParticleHit(hit.WorldPosition, paintColor, viscosity);
+                Color paintColor = hit.PackedColorRGBA != 0
+                    ? FluidParticleFactory.UnpackColor(hit.PackedColorRGBA)
+                    : fallbackColor;
+
+                canvas.OnParticleHit(hit.WorldPosition, paintColor, viscosity, hit.WetnessDeposit);
 
                 if (impastoPresenter != null && canvas.TryWorldToUv(hit.WorldPosition, out Vector2 uv))
                 {

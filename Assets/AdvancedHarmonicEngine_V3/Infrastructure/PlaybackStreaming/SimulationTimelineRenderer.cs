@@ -52,7 +52,8 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
                     Position = positions[i],
                     Velocity = float3.zero,
                     Density = 1000f,
-                    Pressure = 0f
+                    Pressure = 0f,
+                    PackedColorRGBA = 0xFFFFFFFFu
                 };
             }
 
@@ -93,7 +94,7 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
             if (_buffer == null || _buffer.count < count)
             {
                 _buffer?.Release();
-                _buffer = new ComputeBuffer(Mathf.NextPowerOfTwo(count), sizeof(float) * 8, ComputeBufferType.Structured);
+                _buffer = new ComputeBuffer(Mathf.NextPowerOfTwo(count), sizeof(float) * 12, ComputeBufferType.Structured);
             }
         }
 
