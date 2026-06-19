@@ -194,6 +194,5 @@ namespace SwingingPaintBucket.Canvas
             float realArea = paintedRatio * _canvasWidth * _canvasHeight;
             return realArea;
         }
-
     }
 }

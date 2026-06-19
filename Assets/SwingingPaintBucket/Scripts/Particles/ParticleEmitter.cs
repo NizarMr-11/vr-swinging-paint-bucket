@@ -50,7 +50,7 @@ namespace SwingingPaintBucket.Particles
             for (int i = 0; i < particleCount; i++)
             {
                 SpawnParticle();
-                
+
             }
             UpdateParticles();
         }
@@ -79,11 +79,11 @@ namespace SwingingPaintBucket.Particles
                 spawnPosition,
                 spawnVelocity,
                 mass: mass,
-                color: _bucket.PaintColor,
+                color: _bucket.CurrentPaintColor,
                 viscosity: _bucket.Viscosity,
                 density: _bucket.Density
             );
-            
+
         }
 
         private void UpdateParticles()
@@ -126,14 +126,12 @@ namespace SwingingPaintBucket.Particles
             _leftOver = 0f;
         }
 
-        
-        // Returns the particle array for external reading (for rendering later)
-        
+
+        // Returns the particle array for external reading 
+
         public PaintParticle[] GetParticles() => _particles;
 
-        
-        /// Count of currently active particles
-        /// </summary>
+
         public int GetActiveCount()
         {
             int count = 0;
