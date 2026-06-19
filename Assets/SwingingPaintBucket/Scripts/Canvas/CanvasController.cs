@@ -175,5 +175,24 @@ namespace SwingingPaintBucket.Canvas
             File.WriteAllBytes(filePath, textureBytes);
             Debug.Log($"[CanvasSaver] Artwork successfully saved to: {filePath}");
         }
+
+        // دالة حساب المساحة الحقيقية الملوّنة
+        public float CalculateRealPaintedArea()
+        {
+            int paintedPixels = 0;
+            float colorThreshold = 0.95f;
+
+            for (int i = 0; i < _pixels.Length; i++)
+            {
+                if (_pixels[i].r < colorThreshold || _pixels[i].g < colorThreshold || _pixels[i].b < colorThreshold)
+                {
+                    paintedPixels++;
+                }
+            }
+
+            float paintedRatio = (float)paintedPixels / _pixels.Length;
+            float realArea = paintedRatio * _canvasWidth * _canvasHeight;
+            return realArea;
+        }
     }
 }
