@@ -1,23 +1,3 @@
-// ============================================================
-// File : PendulumSimulator.cs
-// Folder : Scripts/Pendulum/
-// Purpose : Simulates spherical pendulum movement (swinging bucket)
-//           without any use of Unity Physics
-//
-// Equations Used:
-//   α = -(g / L) × sin(θ) - (b × ω)     Angular acceleration with damping
-//   ω = ω + α × dt                        Update angular velocity
-//   θ = θ + ω × dt                        Update angle
-//   x = L × sin(θ)                        Convert to 3D space
-//   y = -L × cos(θ)
-//
-// Why FixedUpdate and not Update?
-//   FixedUpdate is called every 0.02 seconds constantly regardless of device speed
-//   This is necessary because physics equations depend on constant and reliable dt
-//
-// Dependencies : SimulationConstants
-// ============================================================
-
 using UnityEngine;
 using SwingingPaintBucket.Core;
 
@@ -28,9 +8,12 @@ namespace SwingingPaintBucket.Pendulum
         // ---- Adjustable settings from Inspector ----
 
         [Header("Rope Properties")]
-        [Tooltip("Rope length in meters")]
-        [Range(0.5f, 20f)]
         public float RopeLength = 5f;
+
+        [Header("Pendulum")]
+        [Tooltip("Pendulum mass in kg")]
+        [Range(0.1f, 50f)]
+        public float Mass = 1f;
 
         [Header("Environment")]
         [Tooltip("Gravity value — can be changed to simulate different environments")]
@@ -84,6 +67,11 @@ namespace SwingingPaintBucket.Pendulum
             }
         }
 
+        /// <summary>
+        /// Linear momentum of the bucket = mass × velocity
+        /// </summary>
+        public Vector3 Momentum => BucketVelocity * Mass;
+
         // ---- Unity Methods ----
 
         private void Start()
@@ -99,9 +87,9 @@ namespace SwingingPaintBucket.Pendulum
 
             // 1. Calculate angular acceleration
             //    First component  : -(g/L) × sin(θ)  Gravity force returning to center
-            //    Second component : -(b × ω)          Damping force opposing motion
+            //    Second component : -(b × ω) / Mass   Damping force (heavier = less damping effect)
             float angularAcceleration = -(Gravity / RopeLength) * Mathf.Sin(_theta)
-                                        - (DampingCoefficient * _omega);
+                                        - (DampingCoefficient * _omega / Mass);
 
             // 2. Update angular velocity
             _omega += angularAcceleration * dt;
