@@ -26,6 +26,10 @@ namespace HarmonicEngine.Diagnostics
 
         public string LogFilePath => _fileLog?.LogFilePath ?? string.Empty;
 
+        public bool IsOverlayVisible => _overlay?.IsVisible ?? false;
+
+        public void SetOverlayVisible(bool visible) => _overlay?.SetVisible(visible);
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -87,7 +91,7 @@ namespace HarmonicEngine.Diagnostics
             if (enableOverlay)
             {
                 _overlay = new OverlayDiagnosticAspect();
-                _overlay.Configure(overlayFontSize, true);
+                _overlay.Configure(overlayFontSize, false);
                 HarmonicDiagnosticHub.Register(_overlay);
             }
 

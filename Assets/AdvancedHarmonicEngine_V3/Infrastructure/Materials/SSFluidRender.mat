@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: SSFluidRender
+  m_Shader: {fileID: 4800000, guid: 7e4a9c2b1d8f4e6a9b3c5d7e1f2a4b6c, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs: []
+    m_Ints: []
+    m_Floats:
+    - _BlurFalloff: 0.05
+    - _BlurRadius: 3
+    - _MaxEyeDepth: 12
+    - _NormalScale: 100
+    - _SpecularIntensity: 1.5
+    - _SpecularPower: 250
+    - _SplatRadius: 0.020999998
+    - _ThicknessAbsorption: 8
+    - _ThicknessWeight: 0.035
+    - _UseParticleColor: 1
+    m_Colors:
+    - _FluidColor: {r: 0.1, g: 0.4, b: 0.8, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

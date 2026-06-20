@@ -73,6 +73,43 @@ Uses **container fluid mode** with a small cylinder so SPH runs on all particles
 
 ---
 
+## GPU verification — Phase 1 & 2
+
+Automated checklist for memory sanity and spatial-hash integrity before trusting SPH thermodynamics.
+
+| Phase | Test class | What it proves |
+|-------|------------|----------------|
+| **1 — stride** | [`StructLayoutTests`](../Assets/Tests/Editor/EditMode/StructLayoutTests.cs), [`GpuPhase1PlayModeTests`](../Assets/Tests/Editor/PlayMode/GpuPhase1PlayModeTests.cs) | `FluidParticle` = 48 bytes; GPU buffers use matching stride |
+| **1 — lattice spawn** | [`GpuPhase1PlayModeTests`](../Assets/Tests/Editor/PlayMode/GpuPhase1PlayModeTests.cs) | 1000 lattice particles read back on Frame 0: finite fields, zero velocity, correct color/density |
+| **2 — hash keys** | [`GpuPhase2PlayModeTests`](../Assets/Tests/Editor/PlayMode/GpuPhase2PlayModeTests.cs) | CPU `SphHashCpuMirror` matches GPU hash; neighbors in same cell share bucket |
+| **2 — sort/ranges** | [`GpuPhase2PlayModeTests`](../Assets/Tests/Editor/PlayMode/GpuPhase2PlayModeTests.cs), [`SpatialHashGridPlayModeTests`](../Assets/Tests/Editor/PlayMode/SpatialHashGridPlayModeTests.cs) | Bitonic sort monotonic; cell ranges contiguous for lattice block |
+
+**Lattice spawner:** [`HarmonicLatticeSpawner`](../Assets/AdvancedHarmonicEngine_V3/Infrastructure/Management/HarmonicLatticeSpawner.cs) + [`HarmonicLatticeSpawnSettings`](../Assets/AdvancedHarmonicEngine_V3/Infrastructure/Management/HarmonicLatticeSpawnSettings.cs)
+
+**Readback helpers:** [`GpuParticleReadbackUtility`](../Assets/AdvancedHarmonicEngine_V3/Diagnostics/GpuParticleReadbackUtility.cs), [`SphHashCpuMirror`](../Assets/AdvancedHarmonicEngine_V3/Diagnostics/SphHashCpuMirror.cs)
+
+**Run Phase 1 & 2:** Test Runner → EditMode → filter **`Category=GPU`** (includes `GpuPhase1PlayModeTests`, `GpuPhase2PlayModeTests`, `SpatialHashGridPlayModeTests`).
+
+---
+
+## GPU verification — Phase 3
+
+SPH thermodynamics and stream compaction after Phase 1/2 hash integrity is green.
+
+| Phase | Test class | What it proves |
+|-------|------------|----------------|
+| **3 — density** | [`GpuPhase3PlayModeTests`](../Assets/Tests/Editor/PlayMode/GpuPhase3PlayModeTests.cs) | Inner 2×2×2 of 10³ lattice: `ExecuteContainerSphDensityForVerification` + density cache readback; core average within ±15% of `RestDensity` (mass scaled for lattice coherence) |
+| **3 — floor** | [`GpuPhase3PlayModeTests`](../Assets/Tests/Editor/PlayMode/GpuPhase3PlayModeTests.cs) | Heavy gravity + 10 frames: every particle stays at or above `ContainerFloorY` |
+| **3 — nozzle** | [`GpuPhase3PlayModeTests`](../Assets/Tests/Editor/PlayMode/GpuPhase3PlayModeTests.cs) | Bucket path: open nozzle SDF routes particles to falling buffer; internal count decreases |
+
+**Run Phase 3:** Test Runner → **EditMode** → filter **`Category=GPU`** (same filter as Phase 1 & 2; expect 13 GPU tests total).
+
+**Path note:** density and floor tests use **container fluid** mode; the nozzle test uses the **bucket integration** path (`SetContainerFluidEnabled` left false) because `EvaluateNozzleExitSDF` lives only in `ExecuteInternalFluidIntegration`.
+
+**Phase 4 (SSFR) manual:** Window → Analysis → Frame Debugger while playing HarmonicEngineLab; see [`debugging-and-rendering.md`](debugging-and-rendering.md) SSFR section.
+
+---
+
 ## Debug rendering
 
 [`HarmonicParticleDebugSizingTests`](../Assets/Tests/Editor/EditMode/HarmonicParticleDebugSizingTests.cs):

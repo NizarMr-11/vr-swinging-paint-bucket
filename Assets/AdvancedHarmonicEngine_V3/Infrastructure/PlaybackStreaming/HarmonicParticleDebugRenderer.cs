@@ -21,6 +21,9 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
         [SerializeField] private Color fallingColor = new(1f, 0.45f, 0.1f, 0.9f);
         [SerializeField] private bool useParticleColor = true;
 
+        /// <summary>When true, <see cref="OnRenderObject"/> skips drawing (e.g. SSFR active).</summary>
+        public bool SuppressDrawing { get; set; }
+
         private static readonly int ParticlesId = Shader.PropertyToID("_Particles");
         private static readonly int ParticleCountId = Shader.PropertyToID("_ParticleCount");
         private static readonly int PointSizeId = Shader.PropertyToID("_PointSize");
@@ -48,7 +51,7 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
 
         private void OnRenderObject()
         {
-            if (pipeline == null || particleDebugMaterial == null)
+            if (SuppressDrawing || pipeline == null || particleDebugMaterial == null)
             {
                 return;
             }

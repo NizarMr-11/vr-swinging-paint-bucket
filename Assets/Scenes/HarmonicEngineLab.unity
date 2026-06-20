@@ -268,7 +268,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 351da80bceced3e4293351960e05d832, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Debugging.HarmonicPipelineStatsOverlay
-  pipeline: {fileID: 0}
+  pipeline: {fileID: 539074082}
   visible: 1
   fontSize: 16
   smoothingFrames: 30
@@ -860,6 +860,9 @@ GameObject:
   - component: {fileID: 963194227}
   - component: {fileID: 963194226}
   - component: {fileID: 963194229}
+  - component: {fileID: 963194230}
+  - component: {fileID: 963194231}
+  - component: {fileID: 963194232}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -957,6 +960,69 @@ MonoBehaviour:
   sprintMultiplier: 2.5
   lookSensitivity: 2
   lockCursorOnStart: 1
+--- !u!114 &963194230
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f5b0d3c2e9a4f7b8c1d6e3a0b5c7d9e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Rendering.HarmonicScreenSpaceFluidRenderer
+  pipeline: {fileID: 539074082}
+  fluidMaterial: {fileID: 2100000, guid: 2c8e3f0a5b7d9e1f4a6c8b0d2e4f6a8c, type: 2}
+  drawInternalParticles: 1
+  drawFallingParticles: 1
+  splatRadiusMultiplier: 1.05
+  thicknessWeight: 0.035
+  fluidColor: {r: 0.1, g: 0.4, b: 0.8, a: 1}
+  useParticleColor: 1
+  blurFalloff: 0.05
+  blurRadius: 3
+  normalScale: 100
+  specularPower: 250
+  specularIntensity: 1.5
+  thicknessAbsorption: 8
+  halfResolutionFluid: 1
+  debugPass0Only: 0
+  debugMaxEyeDepth: 12
+--- !u!114 &963194231
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9a6c1e4d3f0b5a8c7d2e9f1b4c6d8e0f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Rendering.HarmonicFluidVisualController
+  pipeline: {fileID: 539074082}
+  screenSpaceRenderer: {fileID: 963194230}
+  debugRenderer: {fileID: 539074085}
+  visualMode: 0
+  useScreenSpaceFluidInPlayMode: 0
+--- !u!114 &963194232
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b4e7c2a91d0f4e6b8a3d5c7e9f1b2d4a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Rendering.HarmonicLabViewController
+  statsOverlay: {fileID: 368667902}
+  diagnosticHost: {fileID: 539074086}
+  fluidVisualController: {fileID: 963194231}
+  initialMode: 1
+  showModeHint: 1
 --- !u!21 &1376947134
 Material:
   serializedVersion: 8

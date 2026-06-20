@@ -149,8 +149,14 @@ namespace HarmonicEngine.Infrastructure.Management
         public bool ContainerFluidEnabled => containerFluid.enabled;
         public float CellSize => cellSize;
         public float SmoothingRadius => sphSolver.SmoothingRadius(cellSize);
+        public float RestDensity => sphSolver.RestDensity;
+        public float ContainerFloorY => containerFluid.floorY;
 
         public void SetSimulationMode(HarmonicSimulationMode mode) => simulationMode = mode;
+
+        public void SetGravity(Vector3 value) => gravity = value;
+
+        public void SetContainerParticleMass(float mass) => containerFluid.particleMass = Mathf.Max(0f, mass);
 
         /// <summary>
         /// Enable/disable the world-space SPH container path. When enabled the pipeline confines
@@ -475,10 +481,11 @@ namespace HarmonicEngine.Infrastructure.Management
             int appended = _bufferService?.AppendParticles(particles, count) ?? 0;
             if (appended > 0)
             {
+                _cachedInternalCount = GetActiveParticleCount();
                 PublishDiagnostic(
                     HarmonicDiagnosticEventType.ParticlesAppended,
                     "PIPELINE",
-                    $"appended={appended} total={GetActiveParticleCount()}",
+                    $"appended={appended} total={_cachedInternalCount}",
                     intArg0: appended,
                     intArg1: count);
             }
@@ -495,7 +502,75 @@ namespace HarmonicEngine.Infrastructure.Management
         public void ClearAllParticles()
         {
             _bufferService?.ClearAll();
+            _cachedInternalCount = 0;
             PublishDiagnostic(HarmonicDiagnosticEventType.ParticlesCleared, "PIPELINE", "cleared");
+        }
+
+        /// <summary>
+        /// Rebuilds the spatial hash for currently appended particles without SPH integration.
+        /// Used by GPU verification tests to validate hash/sort invariants at frame 0.
+        /// </summary>
+        public void RebuildSpatialHashForVerification()
+        {
+            if (!AreShadersReady() || _pingPong == null)
+            {
+                return;
+            }
+
+            uint activeCount = SanitizeAndRepairCount(_pingPong.ReadBuffer);
+            _cachedInternalCount = activeCount;
+            if (activeCount == 0)
+            {
+                return;
+            }
+
+            ComputeFrameSortSize(activeCount);
+            BuildSpatialHashGrid(_pingPong.ReadBuffer, activeCount);
+        }
+
+        /// <summary>
+        /// Runs container-fluid spatial hash + SPH density pass only (no integration).
+        /// Used by GPU verification tests to validate ExecuteSphDensityPass at frame 0.
+        /// </summary>
+        public void ExecuteContainerSphDensityForVerification()
+        {
+            if (!AreShadersReady() || _pingPong == null || !containerFluid.enabled)
+            {
+                return;
+            }
+
+            uint activeCount = SanitizeAndRepairCount(_pingPong.ReadBuffer);
+            _cachedInternalCount = activeCount;
+            if (activeCount == 0)
+            {
+                return;
+            }
+
+            ComputeFrameSortSize(activeCount);
+            BuildSpatialHashGrid(_pingPong.ReadBuffer, activeCount);
+
+            float smoothingRadius = sphSolver.SmoothingRadius(cellSize);
+            ApplyContainerSphUniforms(streamCompactionShader, smoothingRadius);
+
+            ComputeBuffer.CopyCount(_pingPong.ReadBuffer, _indirectArgsBuffer, sizeof(int) * 3);
+            DispatchIndirectArgsSetup();
+
+            using (MarkerDensity.Auto())
+            {
+                streamCompactionShader.SetBuffer(_kernelDensity, ReadOnlyParticleSourceId, _pingPong.ReadBuffer);
+                streamCompactionShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
+                streamCompactionShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
+                streamCompactionShader.SetBuffer(_kernelDensity, DensityWritableCacheId, _bufferDensityCache);
+                streamCompactionShader.SetInt(ActiveParticleCountId, (int)activeCount);
+                streamCompactionShader.DispatchIndirect(_kernelDensity, _indirectArgsBuffer, 0);
+            }
+        }
+
+        public bool TryGetDensityCacheBuffer(out ComputeBuffer buffer, out uint count)
+        {
+            buffer = _bufferDensityCache;
+            count = _cachedInternalCount;
+            return buffer != null;
         }
 
         public void SetSimulationActive(bool active)
@@ -780,9 +855,10 @@ namespace HarmonicEngine.Infrastructure.Management
             using (MarkerGrid.Auto())
             {
                 spatialHashGridShader.SetBuffer(_kernelGridClear, CellStartEndBufferId, _cellStartEndBuffer);
-                spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
+                // Clear the full allocated range table; dynamic frame sort may use fewer active slots.
+                spatialHashGridShader.SetInt(PaddedGridSizeId, _paddedSortSize);
                 spatialHashGridShader.SetInt(GridResolutionId, _frameSortSize);
-                int clearGroups = Mathf.CeilToInt(_frameSortSize / 256f);
+                int clearGroups = Mathf.CeilToInt(_paddedSortSize / 256f);
                 spatialHashGridShader.Dispatch(_kernelGridClear, clearGroups, 1, 1);
 
                 spatialHashGridShader.SetBuffer(_kernelGridGenerate, GridKeyValueBufferId, _gridKeyValueBuffer);
@@ -791,7 +867,10 @@ namespace HarmonicEngine.Infrastructure.Management
                 spatialHashGridShader.SetInt(ActiveParticleCountId, (int)activeCount);
                 spatialHashGridShader.SetInt(GridResolutionId, _frameSortSize);
                 spatialHashGridShader.SetFloat(CellSizeId, cellSize);
-                spatialHashGridShader.DispatchIndirect(_kernelGridGenerate, _indirectArgsBuffer, 0);
+                // Fill the entire padded sort buffer (sentinels above activeCount). Indirect
+                // dispatch sized to particle count leaves stale keys that corrupt bitonic sort.
+                int generateGroups = Mathf.CeilToInt(_frameSortSize / 64f);
+                spatialHashGridShader.Dispatch(_kernelGridGenerate, generateGroups, 1, 1);
             }
 
             using (MarkerSort.Auto())

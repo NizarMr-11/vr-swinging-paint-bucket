@@ -15,6 +15,10 @@ namespace SwingingPaintBucket.Debugging
     {
         [SerializeField] private PipelineExecutionController pipeline;
         [SerializeField] private bool visible = true;
+
+        public bool IsVisible => visible;
+
+        public void SetVisible(bool value) => visible = value;
         [SerializeField] private int fontSize = 16;
         [SerializeField, Min(1)] private int smoothingFrames = 30;
 

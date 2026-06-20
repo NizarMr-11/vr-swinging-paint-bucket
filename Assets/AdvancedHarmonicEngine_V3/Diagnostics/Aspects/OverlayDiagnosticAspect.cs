@@ -16,11 +16,15 @@ namespace HarmonicEngine.Diagnostics.Aspects
         private int _overlayFontSize = 14;
         private bool _visible = true;
 
+        public bool IsVisible => _visible;
+
         public void Configure(int fontSize, bool visible)
         {
             _overlayFontSize = fontSize;
             _visible = visible;
         }
+
+        public void SetVisible(bool visible) => _visible = visible;
 
         public void OnAttach(HarmonicDiagnosticSession session)
         {

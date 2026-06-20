@@ -10,7 +10,7 @@
 
 RWStructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
 RWStructuredBuffer<uint2> _GridKeyValueBuffer;
-StructuredBuffer<float4> _ReadOnlyParticlePositions;
+StructuredBuffer<FluidParticle> _ReadOnlyParticlePositions;
 uint _PaddedGridSize;
 uint _ActiveParticleCount;
 uint _GridResolution;
@@ -46,7 +46,7 @@ void GenerateGridKeysKernel(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    float3 position = _ReadOnlyParticlePositions[index].xyz;
+    float3 position = _ReadOnlyParticlePositions[index].Position;
     uint hash = SphHashPosition(position, _CellSize, _GridResolution);
     _GridKeyValueBuffer[index] = uint2(hash, index);
 }
