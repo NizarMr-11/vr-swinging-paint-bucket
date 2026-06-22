@@ -14,12 +14,30 @@ namespace HarmonicEngine.Diagnostics
         private static readonly List<IHarmonicDiagnosticAspect> Aspects = new();
         private static HarmonicDiagnosticSession _session;
         private static bool _initialized;
+        private static bool _initSnapshotWritten;
 
         public static bool Enabled { get; set; } = true;
         public static HarmonicDiagnosticSession Session => _session;
         public static IReadOnlyList<IHarmonicDiagnosticAspect> RegisteredAspects => Aspects;
+        public static bool InitSnapshotWritten => _initSnapshotWritten;
 
-        public static void Initialize(PipelineExecutionController pipeline, bool forceReset = false)
+        public static void Initialize(
+            PipelineExecutionController pipeline,
+            bool forceReset = false,
+            string runDirectoryOverride = null)
+        {
+            Initialize(
+                pipeline,
+                HarmonicPipelineDiagnosticsSettings.CreateDefault(),
+                forceReset,
+                runDirectoryOverride);
+        }
+
+        public static void Initialize(
+            PipelineExecutionController pipeline,
+            HarmonicPipelineDiagnosticsSettings settings,
+            bool forceReset = false,
+            string runDirectoryOverride = null)
         {
             if (_initialized && !forceReset)
             {
@@ -33,9 +51,14 @@ namespace HarmonicEngine.Diagnostics
 
             Shutdown();
 
-            string logDir = GetDefaultLogDirectory();
-            Directory.CreateDirectory(logDir);
-            _session = new HarmonicDiagnosticSession(pipeline, logDir);
+            string logRoot = GetDefaultLogDirectory();
+            Directory.CreateDirectory(logRoot);
+            string runDirectory = runDirectoryOverride ?? CreateRunDirectory(logRoot);
+            Directory.CreateDirectory(runDirectory);
+
+            _session = new HarmonicDiagnosticSession(pipeline, logRoot, runDirectory, settings);
+            _initSnapshotWritten = false;
+            HarmonicRunManifest.WriteStart(_session, settings);
             _initialized = true;
             _session.FrameIndex = 0;
 
@@ -81,8 +104,26 @@ namespace HarmonicEngine.Diagnostics
 
             _session = null;
             _initialized = false;
+            _initSnapshotWritten = false;
         }
 
+        public static void RefreshManifestInit(
+            HarmonicRunSpawnInfo spawnOverride = null,
+            bool spawnLatticeOnStart = false,
+            string sceneContainerName = null)
+        {
+            if (_session == null || _initSnapshotWritten)
+            {
+                return;
+            }
+
+            HarmonicRunManifest.WriteInitSnapshot(
+                _session,
+                spawnOverride,
+                spawnLatticeOnStart,
+                sceneContainerName);
+            _initSnapshotWritten = true;
+        }
         public static void Register(IHarmonicDiagnosticAspect aspect)
         {
             if (aspect == null || Aspects.Contains(aspect))
@@ -91,6 +132,7 @@ namespace HarmonicEngine.Diagnostics
             }
 
             Aspects.Add(aspect);
+
             if (_session != null)
             {
                 aspect.OnAttach(_session);
@@ -156,6 +198,21 @@ namespace HarmonicEngine.Diagnostics
 #else
             return Path.Combine(Application.persistentDataPath, "HarmonicSimulation");
 #endif
+        }
+
+        internal static string CreateRunDirectory(string logRoot)
+        {
+            Directory.CreateDirectory(logRoot);
+            string stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff");
+            string path = Path.Combine(logRoot, $"run_{stamp}");
+            int attempt = 0;
+            while (Directory.Exists(path) && attempt < 100)
+            {
+                attempt++;
+                path = Path.Combine(logRoot, $"run_{stamp}_{attempt}");
+            }
+
+            return path;
         }
     }
 }

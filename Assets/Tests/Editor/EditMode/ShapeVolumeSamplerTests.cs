@@ -70,6 +70,31 @@ namespace HarmonicEngine.Tests
         }
 
         [Test]
+        public void SampleCylinder_AllPointsInsideVolume()
+        {
+            const int count = 1000;
+            const float radius = 0.5f;
+            const float height = 2f;
+            float3 center = new(1f, 2f, 3f);
+            quaternion rotation = quaternion.Euler(math.radians(15f), math.radians(30f), 0f);
+            var outPositions = new float3[count];
+
+            int n = ShapeVolumeSampler.SampleCylinder(
+                center, radius, height, rotation, count, 888u, outPositions);
+
+            Assert.AreEqual(count, n);
+            float halfHeight = height * 0.5f;
+            quaternion inverseRotation = math.inverse(rotation);
+            for (int i = 0; i < n; i++)
+            {
+                float3 local = math.mul(inverseRotation, outPositions[i] - center);
+                Assert.LessOrEqual(math.abs(local.y), halfHeight + 1e-3f);
+                float radial = math.length(new float2(local.x, local.z));
+                Assert.LessOrEqual(radial, radius + 1e-3f, $"Point {i} outside cylinder: radial={radial}");
+            }
+        }
+
+        [Test]
         public void SampleSphere_IsDeterministicForSameSeed()
         {
             var a = new float3[64];

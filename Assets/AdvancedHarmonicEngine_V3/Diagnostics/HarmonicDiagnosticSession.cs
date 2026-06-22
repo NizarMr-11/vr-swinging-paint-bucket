@@ -7,14 +7,26 @@ namespace HarmonicEngine.Diagnostics
     public sealed class HarmonicDiagnosticSession
     {
         public PipelineExecutionController Pipeline { get; internal set; }
+        public HarmonicPipelineDiagnosticsSettings DiagnosticsSettings { get; internal set; }
         public int FrameIndex { get; internal set; }
         public float StartTime { get; }
+
+        /// <summary>Root log folder (parent of all run directories).</summary>
         public string LogDirectory { get; }
 
-        internal HarmonicDiagnosticSession(PipelineExecutionController pipeline, string logDirectory)
+        /// <summary>Per-run folder containing channel log files and manifest.json.</summary>
+        public string RunDirectory { get; }
+
+        internal HarmonicDiagnosticSession(
+            PipelineExecutionController pipeline,
+            string logRootDirectory,
+            string runDirectory,
+            HarmonicPipelineDiagnosticsSettings diagnosticsSettings)
         {
             Pipeline = pipeline;
-            LogDirectory = logDirectory;
+            DiagnosticsSettings = diagnosticsSettings;
+            LogDirectory = logRootDirectory;
+            RunDirectory = runDirectory;
             StartTime = Time.realtimeSinceStartup;
         }
 
@@ -30,7 +42,8 @@ namespace HarmonicEngine.Diagnostics
                 $"platform={Application.platform}\n" +
                 $"scene={SceneManager.GetActiveScene().name}\n" +
                 $"gpu={SystemInfo.graphicsDeviceName}\n" +
-                $"logDirectory={LogDirectory}\n" +
+                $"logRoot={LogDirectory}\n" +
+                $"runDirectory={RunDirectory}\n" +
                 $"maxCapacity={Pipeline?.MaxCapacity ?? 0}\n" +
                 $"worldFallingOnly={Pipeline?.WorldFallingOnly ?? false}";
         }

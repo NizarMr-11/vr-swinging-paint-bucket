@@ -7,6 +7,7 @@ namespace HarmonicEngine.Domain.Adapters
         Box,
         Sphere,
         Capsule,
+        Cylinder,
         Mesh
     }
 
@@ -97,6 +98,33 @@ namespace HarmonicEngine.Domain.Adapters
                         : new float3(inBall.x, inBall.y - yOffset, inBall.z);
                 }
 
+                outPositions[i] = center + math.mul(rotation, local);
+            }
+
+            return n;
+        }
+
+        /// <summary>Uniformly fills a solid cylinder (flat caps) whose axis is local +Y.</summary>
+        public static int SampleCylinder(
+            float3 center,
+            float radius,
+            float height,
+            quaternion rotation,
+            int count,
+            uint seed,
+            float3[] outPositions)
+        {
+            int n = Clamp(count, outPositions);
+            radius = math.max(radius, 1e-5f);
+            height = math.max(height, 1e-5f);
+            float halfHeight = height * 0.5f;
+
+            var rng = NewRandom(seed);
+            for (int i = 0; i < n; i++)
+            {
+                float2 disk = RandomInDisk(ref rng, radius);
+                float y = rng.NextFloat(-halfHeight, halfHeight);
+                float3 local = new float3(disk.x, y, disk.y);
                 outPositions[i] = center + math.mul(rotation, local);
             }
 

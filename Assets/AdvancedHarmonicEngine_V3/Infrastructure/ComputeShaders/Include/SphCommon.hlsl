@@ -43,7 +43,7 @@ struct GridKeyPair
 };
 
 // 3x3x3 stencil (including the self cell) covering every cell that can hold a
-// neighbor within the 2*h cubic-spline support radius when h ~= 2 * cellSize.
+// neighbor within the 2*h cubic-spline support radius when h = cellSize (support = 2h = 2 * cellSize).
 static const int3 kNeighborOffsets[27] =
 {
     int3(-1, -1, -1), int3(0, -1, -1), int3(1, -1, -1),

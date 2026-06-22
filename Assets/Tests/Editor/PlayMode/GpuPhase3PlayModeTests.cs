@@ -47,15 +47,6 @@ namespace HarmonicEngine.Tests.PlayMode
             int spawned = HarmonicLatticeSpawner.SpawnLattice(pipeline, settings);
             Assert.AreEqual(1000, spawned);
 
-            // Auto mass uses cell volume; cubic-spline sum on a 10^3 lattice undershoots rest density
-            // by ~34% unless scaled. This validates the density pass reaches rest when mass is coherent.
-            float cellVolume = spacing * spacing * spacing;
-            float autoMass = pipeline.RestDensity * cellVolume;
-            const float latticeRestDensityMassScale = 1.507f;
-            float scaledMass = autoMass * latticeRestDensityMassScale;
-            pipeline.SetContainerParticleMass(scaledMass);
-            Assert.Greater(scaledMass, autoMass, "Mass scale should increase auto mass for lattice rest-density target");
-
             pipeline.ExecuteContainerSphDensityForVerification();
             yield return null;
 

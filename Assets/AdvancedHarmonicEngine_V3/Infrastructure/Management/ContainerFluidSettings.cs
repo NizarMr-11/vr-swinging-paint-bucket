@@ -26,9 +26,9 @@ namespace HarmonicEngine.Infrastructure.Management
         [Header("SPH tuning")]
         [Min(0f)] public float gasConstantK = 380f;
         [Min(0f)] public float viscosity = 2.5f;
-        [Range(0f, 0.5f)] public float velocityDamping = 0.012f;
-        [Min(1f)] public float maxSpeed = 14f;
-        [Tooltip("0 = auto from cell size and rest density.")]
+        [Range(0f, 0.5f)] public float velocityDamping;
+        [Min(1f)] public float maxSpeed = 100f;
+        [Tooltip("0 = auto from cell size and rest density (mass = rho0 * spacing^3).")]
         [Min(0f)] public float particleMass;
         [Range(1, 4)] public int substeps = 2;
 

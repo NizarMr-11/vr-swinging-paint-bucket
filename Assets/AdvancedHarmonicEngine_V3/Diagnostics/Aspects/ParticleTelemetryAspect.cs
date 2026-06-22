@@ -11,14 +11,14 @@ namespace HarmonicEngine.Diagnostics.Aspects
         public int Order => 10;
 
         private HarmonicDiagnosticSession _session;
-        private OverlayDiagnosticAspect _overlay;
+        private IParticleCountOverlaySink _overlay;
         private uint _peak;
         private uint _lastPublished;
         private float _sampleTimer;
         private float _sampleInterval = 0.25f;
         private bool _logToConsole;
 
-        public void Configure(float sampleIntervalSeconds, bool logToConsole, OverlayDiagnosticAspect overlay)
+        public void Configure(float sampleIntervalSeconds, bool logToConsole, IParticleCountOverlaySink overlay)
         {
             _sampleInterval = Mathf.Max(0.05f, sampleIntervalSeconds);
             _logToConsole = logToConsole;
@@ -37,6 +37,11 @@ namespace HarmonicEngine.Diagnostics.Aspects
 
         public void OnEvent(in HarmonicDiagnosticEvent diagnosticEvent)
         {
+            if (diagnosticEvent.Category == "TELEMETRY")
+            {
+                return;
+            }
+
             uint active = diagnosticEvent.ActiveParticleCount;
             if (active == 0 && _session != null)
             {
@@ -95,6 +100,8 @@ namespace HarmonicEngine.Diagnostics.Aspects
             {
                 Debug.Log($"[HarmonicTelemetry] {msg}");
             }
+
+            HarmonicDiagnosticHub.Publish(evt);
         }
     }
 }

@@ -1,17 +1,16 @@
 using HarmonicEngine.Diagnostics;
 using HarmonicEngine.Domain.Adapters;
-using HarmonicEngine.Infrastructure.Management;
 using UnityEngine;
 
-namespace SwingingPaintBucket.Scene
+namespace HarmonicEngine.Infrastructure.Management
 {
     /// <summary>
-    /// Fills a 3D shape with a uniformly distributed share of particles and sends that initial
-    /// state to the harmonic engine. Supports box / sphere / capsule primitives and arbitrary
-    /// mesh volumes. Sampling + colored ingestion is delegated to the engine-level
-    /// <see cref="HarmonicParticleSpawner"/> via a <see cref="HarmonicSpawnRegion"/>.
+    /// Scene-attached spawn volume: shape, color, priority, and particle count.
+    /// Attach to any GameObject, configure in the Inspector, and emit alone or via
+    /// <see cref="HarmonicParticleSpawnCoordinator"/>.
     /// </summary>
-    public class ShapeVolumeEmitter : MonoBehaviour
+    [AddComponentMenu("Harmonic Engine/Particle Spawn Volume")]
+    public class ParticleSpawnVolume : MonoBehaviour
     {
         [Header("Engine")]
         [SerializeField] private PipelineExecutionController pipeline;
@@ -28,26 +27,34 @@ namespace SwingingPaintBucket.Scene
         [SerializeField] private float sphereRadius = 0.5f;
         [SerializeField] private float capsuleRadius = 0.5f;
         [SerializeField] private float capsuleHeight = 2f;
+        [SerializeField] private float cylinderRadius = 0.5f;
+        [SerializeField] private float cylinderHeight = 2f;
 
         [Header("Particles")]
-        [Tooltip("Number of particles to divide equally across the shape volume.")]
+        [Tooltip("Requested particles for this volume (may be reduced by priority coordinator).")]
         [SerializeField] private int particleCount = 4096;
         [SerializeField] private float restDensity = 1000f;
-        [Tooltip("Color assigned to every particle from this volume (mixes via SPH color diffusion).")]
+        [SerializeField] private Vector3 initialVelocity = Vector3.zero;
+        [Tooltip("Higher priority spawns first and receives a larger share when capacity is limited.")]
+        [SerializeField] private int spawnPriority;
+        [Tooltip("Color assigned to every particle from this volume.")]
         [SerializeField] private Color spawnColor = Color.white;
         [SerializeField] private uint seed = 12345u;
         [SerializeField, Min(1)] private int meshMaxAttemptsPerPoint = 32;
 
         [Header("Flow")]
-        [SerializeField] private bool emitOnStart = true;
+        [SerializeField] private bool emitOnStart;
         [SerializeField] private bool clearBeforeEmit = true;
-        [Tooltip("Activate the engine simulation right after sending the initial state.")]
         [SerializeField] private bool activateSimulationOnEmit = true;
 
         [Header("Gizmos")]
         [SerializeField] private bool drawGizmo = true;
-        [SerializeField] private Color gizmoColor = new(0.2f, 0.8f, 1f, 0.25f);
+        [Tooltip("When enabled, draw a faint outline even when this object is not selected.")]
+        [SerializeField] private bool drawGizmoWhenNotSelected = true;
 
+        public int ParticleCount => particleCount;
+        public int SpawnPriority => spawnPriority;
+        public ShapeVolumeType ShapeType => shapeType;
         public int LastEmittedCount { get; private set; }
 
         public void SetPipeline(PipelineExecutionController controller) => pipeline = controller;
@@ -68,9 +75,6 @@ namespace SwingingPaintBucket.Scene
             activateSimulationOnEmit = activateSimulationOnEmitValue;
         }
 
-        /// <summary>
-        /// Applies run-time emit settings from a director/UI without overwriting shape type or dimensions.
-        /// </summary>
         public void PrepareRun(
             int count,
             bool clearBeforeEmitValue = true,
@@ -92,7 +96,15 @@ namespace SwingingPaintBucket.Scene
             capsuleHeight = height;
         }
 
+        public void SetCylinder(float radius, float height)
+        {
+            cylinderRadius = radius;
+            cylinderHeight = height;
+        }
+
         public void SetSpawnColor(Color color) => spawnColor = color;
+
+        public void SetSpawnPriority(int priority) => spawnPriority = priority;
 
         private void Awake()
         {
@@ -120,15 +132,18 @@ namespace SwingingPaintBucket.Scene
             }
         }
 
-        /// <summary>
-        /// Builds a spawn region from the inspector shape and sends the initial state to the engine.
-        /// Returns the number of particles appended.
-        /// </summary>
+        /// <summary>Spawns using this volume's full <see cref="particleCount"/>.</summary>
         public int Emit()
+        {
+            return Emit(particleCount, clearBeforeEmit, activateSimulationOnEmit);
+        }
+
+        /// <summary>Spawns with an explicit particle count (used by the priority coordinator).</summary>
+        public int Emit(int count, bool clearFirst, bool activateSimulation)
         {
             if (pipeline == null)
             {
-                Debug.LogWarning("[ShapeVolumeEmitter] No pipeline assigned; cannot emit.");
+                Debug.LogWarning("[ParticleSpawnVolume] No pipeline assigned; cannot emit.");
                 return 0;
             }
 
@@ -137,30 +152,25 @@ namespace SwingingPaintBucket.Scene
                 shapeSource = transform;
             }
 
-            if (clearBeforeEmit)
+            if (clearFirst)
             {
                 pipeline.ClearAllParticles();
             }
 
-            HarmonicSpawnRegion region = BuildRegion();
+            HarmonicSpawnRegion region = BuildRegion(count);
             int appended = HarmonicParticleSpawner.Spawn(pipeline, region);
             LastEmittedCount = appended;
 
-            if (activateSimulationOnEmit)
+            if (activateSimulation)
             {
                 pipeline.SetSimulationActive(true);
             }
 
-            Publish(
-                $"shape={shapeType} requested={region.particleCount} appended={appended} " +
-                $"restDensity={restDensity}",
-                intArg0: appended,
-                intArg1: region.particleCount);
-
+            PublishEmitDiagnostic(region, appended);
             return appended;
         }
 
-        private HarmonicSpawnRegion BuildRegion()
+        public HarmonicSpawnRegion BuildRegion(int countOverride = -1)
         {
             Vector3 scale = shapeSource.lossyScale;
             float maxScale = Mathf.Max(scale.x, Mathf.Max(scale.y, scale.z));
@@ -170,9 +180,11 @@ namespace SwingingPaintBucket.Scene
                 shape = shapeType,
                 center = shapeSource.position,
                 rotation = shapeSource.rotation,
-                particleCount = particleCount,
+                particleCount = countOverride >= 0 ? countOverride : particleCount,
                 restDensity = restDensity,
+                initialVelocity = initialVelocity,
                 spawnColor = spawnColor,
+                spawnPriority = spawnPriority,
                 seed = seed,
                 meshMaxAttemptsPerPoint = meshMaxAttemptsPerPoint
             };
@@ -193,6 +205,11 @@ namespace SwingingPaintBucket.Scene
                     region.capsuleRadius = capsuleRadius * radial;
                     region.capsuleHeight = capsuleHeight * Mathf.Abs(scale.y);
                     break;
+                case ShapeVolumeType.Cylinder:
+                    float cylRadial = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z));
+                    region.cylinderRadius = cylinderRadius * cylRadial;
+                    region.cylinderHeight = cylinderHeight * Mathf.Abs(scale.y);
+                    break;
                 case ShapeVolumeType.Mesh:
                     if (meshFilter == null)
                     {
@@ -211,7 +228,7 @@ namespace SwingingPaintBucket.Scene
             return region;
         }
 
-        private static void Publish(string message, int intArg0 = 0, int intArg1 = 0)
+        internal void PublishEmitDiagnostic(HarmonicSpawnRegion region, int appended)
         {
             if (!HarmonicDiagnosticHub.Enabled)
             {
@@ -223,8 +240,25 @@ namespace SwingingPaintBucket.Scene
             int frame = session?.FrameIndex ?? 0;
             uint active = session?.ReadActiveParticleCount() ?? 0;
             HarmonicDiagnosticHub.Publish(new HarmonicDiagnosticEvent(
-                HarmonicDiagnosticEventType.ShapeEmit, "SHAPE", message, frame, t, active,
-                intArg0: intArg0, intArg1: intArg1));
+                HarmonicDiagnosticEventType.ShapeEmit,
+                "SHAPE",
+                $"shape={shapeType} priority={spawnPriority} requested={region.particleCount} appended={appended} " +
+                $"restDensity={restDensity}",
+                frame,
+                t,
+                active,
+                intArg0: appended,
+                intArg1: region.particleCount));
+        }
+
+        private void OnDrawGizmos()
+        {
+            if (!drawGizmo || !drawGizmoWhenNotSelected)
+            {
+                return;
+            }
+
+            DrawShapeGizmos(selected: false);
         }
 
         private void OnDrawGizmosSelected()
@@ -234,31 +268,61 @@ namespace SwingingPaintBucket.Scene
                 return;
             }
 
+            DrawShapeGizmos(selected: true);
+        }
+
+        private void DrawShapeGizmos(bool selected)
+        {
             Transform src = shapeSource != null ? shapeSource : transform;
-            Gizmos.color = gizmoColor;
+            Color fill = spawnColor;
+            fill.a = selected ? 0.2f : 0.08f;
+            Gizmos.color = fill;
             Gizmos.matrix = Matrix4x4.TRS(src.position, src.rotation, src.lossyScale);
 
             switch (shapeType)
             {
                 case ShapeVolumeType.Box:
+                    Gizmos.DrawCube(Vector3.zero, boxSize);
+                    Gizmos.color = spawnColor;
                     Gizmos.DrawWireCube(Vector3.zero, boxSize);
                     break;
                 case ShapeVolumeType.Sphere:
+                    Gizmos.DrawSphere(Vector3.zero, sphereRadius);
+                    Gizmos.color = spawnColor;
                     Gizmos.DrawWireSphere(Vector3.zero, sphereRadius);
                     break;
                 case ShapeVolumeType.Capsule:
-                    Gizmos.DrawWireSphere(new Vector3(0f, (capsuleHeight * 0.5f) - capsuleRadius, 0f), capsuleRadius);
-                    Gizmos.DrawWireSphere(new Vector3(0f, -(capsuleHeight * 0.5f) + capsuleRadius, 0f), capsuleRadius);
+                    DrawWireCapsuleGizmo(capsuleRadius, capsuleHeight, spawnColor);
+                    break;
+                case ShapeVolumeType.Cylinder:
+                    DrawWireCylinderGizmo(cylinderRadius, cylinderHeight, spawnColor);
                     break;
                 case ShapeVolumeType.Mesh:
                     if (meshFilter != null && meshFilter.sharedMesh != null)
                     {
                         Gizmos.matrix = meshFilter.transform.localToWorldMatrix;
+                        Gizmos.color = spawnColor;
                         Gizmos.DrawWireMesh(meshFilter.sharedMesh);
                     }
 
                     break;
             }
+        }
+
+        private static void DrawWireCapsuleGizmo(float radius, float height, Color color)
+        {
+            Gizmos.color = color;
+            float half = height * 0.5f - radius;
+            Gizmos.DrawWireSphere(new Vector3(0f, half, 0f), radius);
+            Gizmos.DrawWireSphere(new Vector3(0f, -half, 0f), radius);
+        }
+
+        private static void DrawWireCylinderGizmo(float radius, float height, Color color)
+        {
+            Gizmos.color = color;
+            float half = height * 0.5f;
+            Gizmos.DrawWireSphere(new Vector3(0f, half, 0f), radius);
+            Gizmos.DrawWireSphere(new Vector3(0f, -half, 0f), radius);
         }
     }
 }

@@ -20,6 +20,7 @@ float _CellSize;
 float _SmoothingRadius;
 float _ParticleMass;
 float _GasConstantK;
+float _StiffnessB;
 float _RestDensity;
 float _Viscosity;
 float3 _Gravity;
@@ -85,7 +86,9 @@ void ExecuteSphDensityPass(uint3 id : SV_DispatchThreadID)
     ForEachNeighbor(particleIndex, particle, false, density, pressureGrad, viscosityForce, colorLaplacian);
 
     particle.Density = max(density, _RestDensity * 0.01);
-    particle.Pressure = _GasConstantK * (particle.Density - _RestDensity);
+    float ratio = particle.Density / _RestDensity;
+    float p = _StiffnessB * (pow(max(ratio, 1.0), 7.0) - 1.0);
+    particle.Pressure = max(p, 0.0);
     _DensityWritableCache[particleIndex] = particle;
 }
 
@@ -130,11 +133,8 @@ void ExecuteInternalFluidIntegration(uint3 id : SV_DispatchThreadID)
     }
 }
 
-// Integrator stability clamp for the world-space container SPH pass.
-static const float kMaxContainerAccel = 600.0;
-
 // Hard cylinder boundary: clamp position back inside and reflect/damp velocity.
-// Open top: no ceiling clamp.
+// Open top with soft ceiling at rim + 0.3m (see ProjectIntoContainer).
 void ProjectIntoContainer(inout float3 pos, inout float3 vel)
 {
     if (pos.y < _ContainerFloorY)
@@ -161,6 +161,17 @@ void ProjectIntoContainer(inout float3 pos, inout float3 vel)
             float2 vNormal = vn * n;
             float2 vTangent = vel.xz - vNormal;
             vel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
+        }
+    }
+
+    // Soft ceiling: allow sloshing above rim, hard-clamp beyond 0.3m
+    float ceilingY = _ContainerRimY + 0.3;
+    if (pos.y > ceilingY)
+    {
+        pos.y = ceilingY;
+        if (vel.y > 0.0)
+        {
+            vel.y = -vel.y * 0.3;
         }
     }
 }
@@ -190,28 +201,25 @@ void ExecuteContainerFluidIntegration(uint3 id : SV_DispatchThreadID)
     float3 mixedColor = saturate(UnpackUintToFloat3(particle.PackedColorRGBA) + _ColorDiffusionRate * colorLaplacian * _DeltaTime);
     particle.PackedColorRGBA = PackFloat3ToUint(mixedColor);
 
-    // Stability clamp: keep stiff SPH pressure spikes from exploding the integrator.
-    float accelMag = length(acceleration);
-    if (accelMag > kMaxContainerAccel)
-    {
-        acceleration *= kMaxContainerAccel / accelMag;
-    }
-
     particle.Velocity += acceleration * _DeltaTime;
-
-    // Per-step velocity bleed dissipates excess energy so the pool settles.
-    particle.Velocity *= max(0.0, 1.0 - _ContainerDamping);
-
-    float speed = length(particle.Velocity);
-    if (speed > _ContainerMaxSpeed)
-    {
-        particle.Velocity *= _ContainerMaxSpeed / speed;
-    }
-
     particle.Position += particle.Velocity * _DeltaTime;
 
     // Hard cylinder boundary keeps particles confined; provides the wall response.
     ProjectIntoContainer(particle.Position, particle.Velocity);
+
+    // Particles that escaped despite the clamp are pushed to a dead zone.
+    float escapeY = _ContainerRimY + 1.0;
+    float escapeR = _ContainerRadius + 1.0;
+    float2 horizontalOffset = particle.Position.xz - _ContainerCenter.xz;
+    if (particle.Position.y > escapeY
+        || length(horizontalOffset) > escapeR
+        || particle.Position.y < _ContainerFloorY - 10.0)
+    {
+        particle.Position = float3(99999.0, 99999.0, 99999.0);
+        particle.Velocity = float3(0.0, 0.0, 0.0);
+        particle.Density = 0.0;
+        particle.Pressure = 0.0;
+    }
 
     _InternalAppend.Append(particle);
 }

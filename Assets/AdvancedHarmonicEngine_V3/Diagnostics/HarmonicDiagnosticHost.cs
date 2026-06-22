@@ -1,34 +1,68 @@
 using HarmonicEngine.Diagnostics.Aspects;
 using HarmonicEngine.Infrastructure.Management;
+using System.Collections;
 using UnityEngine;
 
 namespace HarmonicEngine.Diagnostics
 {
     /// <summary>
     /// Scene component: boots the diagnostic hub and registers default AOP aspects.
+    /// Configuration is applied via <see cref="Bootstrap"/> from
+    /// <see cref="HarmonicPipelineDiagnosticsController"/>.
     /// </summary>
     [DefaultExecutionOrder(-500)]
     public class HarmonicDiagnosticHost : MonoBehaviour
     {
         public static HarmonicDiagnosticHost Instance { get; private set; }
 
-        [SerializeField] private PipelineExecutionController pipeline;
-        [SerializeField] private bool enableDiagnostics = true;
-        [SerializeField] private bool enableFileLog = true;
-        [SerializeField] private bool enableOverlay = true;
-        [SerializeField] private bool logToUnityConsole = true;
-        [SerializeField, Min(0.05f)] private float telemetrySampleInterval = 0.25f;
-        [SerializeField] private int overlayFontSize = 14;
+        private const float DefaultTelemetrySampleInterval = 0.25f;
 
-        private FileLogDiagnosticAspect _fileLog;
-        private OverlayDiagnosticAspect _overlay;
+        private PipelineExecutionController _pipeline;
+        private bool _bootstrapped;
+
+        private MultiChannelFileLogAspect _fileLog;
+        private UnifiedProfileOverlayAspect _unifiedOverlay;
         private ParticleTelemetryAspect _telemetry;
+        private PerformanceTelemetryAspect _performanceTelemetry;
 
-        public string LogFilePath => _fileLog?.LogFilePath ?? string.Empty;
+        public string RunDirectory => _fileLog?.RunDirectory ?? HarmonicDiagnosticHub.Session?.RunDirectory ?? string.Empty;
 
-        public bool IsOverlayVisible => _overlay?.IsVisible ?? false;
+        public string LogFilePath => RunDirectory;
 
-        public void SetOverlayVisible(bool visible) => _overlay?.SetVisible(visible);
+        public string GetChannelLogPath(HarmonicLogChannel channel) =>
+            _fileLog?.GetChannelLogPath(channel) ?? string.Empty;
+
+        public bool IsOverlayVisible => _unifiedOverlay?.IsVisible ?? false;
+
+        public void SetOverlayVisible(bool visible) => _unifiedOverlay?.SetVisible(visible);
+
+        public void ApplySettings(
+            HarmonicPipelineDiagnosticsSettings settings,
+            PipelineExecutionController pipelineController) =>
+            Bootstrap(settings, pipelineController);
+
+        public void Bootstrap(HarmonicPipelineDiagnosticsSettings settings, PipelineExecutionController pipelineController)
+        {
+            if (_bootstrapped)
+            {
+                return;
+            }
+
+            _pipeline = pipelineController;
+            HarmonicDiagnosticHub.Enabled = settings.enableDiagnostics;
+
+            RegisterAspects(settings);
+            HarmonicDiagnosticHub.Initialize(_pipeline, settings);
+            _unifiedOverlay?.SetLogFilePath(RunDirectory);
+            StartCoroutine(EnsureManifestInitSnapshotFallback());
+
+            if (settings.logToUnityConsole)
+            {
+                Debug.Log($"[HarmonicDiagnosticHost] AOP session started. Run directory: {RunDirectory}");
+            }
+
+            _bootstrapped = true;
+        }
 
         private void Awake()
         {
@@ -39,20 +73,11 @@ namespace HarmonicEngine.Diagnostics
             }
 
             Instance = this;
-            HarmonicDiagnosticHub.Enabled = enableDiagnostics;
 
-            if (pipeline == null)
+            if (GetComponent<HarmonicPipelineDiagnosticsController>() == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
-            }
-
-            RegisterDefaultAspects();
-            HarmonicDiagnosticHub.Initialize(pipeline);
-            _overlay?.SetLogFilePath(LogFilePath);
-
-            if (logToUnityConsole)
-            {
-                Debug.Log($"[HarmonicDiagnosticHost] AOP session started. Log: {LogFilePath}");
+                _pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                Bootstrap(HarmonicPipelineDiagnosticsSettings.CreateDefault(), _pipeline);
             }
         }
 
@@ -63,11 +88,12 @@ namespace HarmonicEngine.Diagnostics
 
         private void OnGUI()
         {
-            _overlay?.DrawGui();
+            _unifiedOverlay?.DrawGui();
         }
 
         private void OnDestroy()
         {
+            UnregisterOwnedAspects();
             HarmonicDiagnosticHub.Shutdown();
             if (Instance == this)
             {
@@ -77,29 +103,82 @@ namespace HarmonicEngine.Diagnostics
 
         private void OnApplicationQuit()
         {
+            UnregisterOwnedAspects();
             HarmonicDiagnosticHub.Shutdown();
         }
 
-        private void RegisterDefaultAspects()
+        private void UnregisterOwnedAspects()
         {
-            if (enableFileLog)
+            if (_fileLog != null)
             {
-                _fileLog = new FileLogDiagnosticAspect();
+                HarmonicDiagnosticHub.Unregister(_fileLog);
+                _fileLog = null;
+            }
+
+            if (_unifiedOverlay != null)
+            {
+                HarmonicDiagnosticHub.Unregister(_unifiedOverlay);
+                _unifiedOverlay = null;
+            }
+
+            if (_telemetry != null)
+            {
+                HarmonicDiagnosticHub.Unregister(_telemetry);
+                _telemetry = null;
+            }
+
+            if (_performanceTelemetry != null)
+            {
+                HarmonicDiagnosticHub.Unregister(_performanceTelemetry);
+                _performanceTelemetry = null;
+            }
+        }
+
+        private void RegisterAspects(HarmonicPipelineDiagnosticsSettings settings)
+        {
+            if (settings.enableFileLog && _fileLog == null)
+            {
+                _fileLog = new MultiChannelFileLogAspect();
                 HarmonicDiagnosticHub.Register(_fileLog);
             }
 
-            if (enableOverlay)
+            if (settings.showOverlay && _unifiedOverlay == null)
             {
-                _overlay = new OverlayDiagnosticAspect();
-                _overlay.Configure(overlayFontSize, false);
-                HarmonicDiagnosticHub.Register(_overlay);
+                _unifiedOverlay = new UnifiedProfileOverlayAspect();
+                _unifiedOverlay.Configure(
+                    settings.overlayFontSize,
+                    true,
+                    settings.smoothingFrames,
+                    settings.spikeThresholdMs,
+                    settings.enableFrameTimingStats);
+                HarmonicDiagnosticHub.Register(_unifiedOverlay);
             }
 
-            _telemetry = new ParticleTelemetryAspect();
-            _telemetry.Configure(telemetrySampleInterval, logToUnityConsole, _overlay);
-            HarmonicDiagnosticHub.Register(_telemetry);
+            if (settings.enableTelemetry && _telemetry == null)
+            {
+                _telemetry = new ParticleTelemetryAspect();
+                _telemetry.Configure(DefaultTelemetrySampleInterval, settings.logToUnityConsole, _unifiedOverlay);
+                HarmonicDiagnosticHub.Register(_telemetry);
+            }
+
+            if (settings.enableProfileTelemetry && _performanceTelemetry == null)
+            {
+                _performanceTelemetry = new PerformanceTelemetryAspect();
+                _performanceTelemetry.Configure(settings);
+                HarmonicDiagnosticHub.Register(_performanceTelemetry);
+            }
         }
 
         public static void Publish(in HarmonicDiagnosticEvent evt) => HarmonicDiagnosticHub.Publish(evt);
+
+        private IEnumerator EnsureManifestInitSnapshotFallback()
+        {
+            yield return null;
+
+            if (!HarmonicDiagnosticHub.InitSnapshotWritten)
+            {
+                HarmonicDiagnosticHub.RefreshManifestInit();
+            }
+        }
     }
 }

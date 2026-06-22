@@ -31,7 +31,7 @@ Material:
     - _NormalScale: 100
     - _SpecularIntensity: 1.5
     - _SpecularPower: 250
-    - _SplatRadius: 0.020999998
+    - _SplatRadius: 0.0525
     - _ThicknessAbsorption: 8
     - _ThicknessWeight: 0.035
     - _UseParticleColor: 1

@@ -9,8 +9,8 @@ namespace HarmonicEngine.Tests
         [Test]
         public void SphFluidSolverCore_SmoothingRadius_ScalesWithCellSize()
         {
-            var solver = new SphFluidSolverCore { SmoothingRadiusMultiplier = 2f };
-            Assert.AreEqual(0.5f, solver.SmoothingRadius(0.25f), 1e-5f);
+            var solver = new SphFluidSolverCore { SmoothingRadiusMultiplier = 1f };
+            Assert.AreEqual(0.25f, solver.SmoothingRadius(0.25f), 1e-5f);
         }
 
         [Test]

@@ -232,6 +232,7 @@ GameObject:
   - component: {fileID: 539074082}
   - component: {fileID: 539074085}
   - component: {fileID: 539074086}
+  - component: {fileID: 539074088}
   m_Layer: 0
   m_Name: HarmonicPipelineRoot
   m_TagString: Untagged
@@ -288,10 +289,6 @@ MonoBehaviour:
   seedTestParticlesOnStart: 0
   testParticleCount: 2048
   testSpawnRadius: 0.2
-  verbosePipelineDiagnostics: 1
-  frameDiagnosticInterval: 15
-  positionSampleInterval: 30
-  positionSampleCount: 16
 --- !u!4 &539074083
 Transform:
   m_ObjectHideFlags: 0
@@ -338,13 +335,38 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 17c35607319ea68489994b10b04c2109, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Diagnostics.HarmonicDiagnosticHost
-  pipeline: {fileID: 539074082}
-  enableDiagnostics: 1
-  enableFileLog: 1
-  enableOverlay: 1
-  logToUnityConsole: 1
-  telemetrySampleInterval: 0.25
-  overlayFontSize: 14
+--- !u!114 &539074088
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Diagnostics.HarmonicPipelineDiagnosticsController
+  settings:
+    enableDiagnostics: 1
+    enableFileLog: 1
+    enableTelemetry: 1
+    logToUnityConsole: 1
+    logSphToConsole: 1
+    muteSphTelemetry: 0
+    verbosePipelineDiagnostics: 1
+    frameDiagnosticInterval: 15
+    positionSampleInterval: 30
+    positionSampleCount: 16
+    logStencilNeighborCount: 0
+    perfDiagnosticsMuted: 0
+    enableProfileTelemetry: 1
+    profileLogInterval: 15
+    enableFrameTimingStats: 1
+    spikeThresholdMs: 22
+    showOverlay: 1
+    overlayFontSize: 14
+    smoothingFrames: 30
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -607,9 +629,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 1863052269}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 756e629627cc9c1458c74bb7b9073c8e, type: 3}
+  m_Script: {fileID: 11500000, guid: f8e3a1b2c4d5678901234abcdef56789, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Scene.ShapeVolumeEmitter
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Management.ParticleSpawnVolume
   pipeline: {fileID: 539074082}
   shapeType: 0
   shapeSource: {fileID: 0}
@@ -618,15 +640,19 @@ MonoBehaviour:
   sphereRadius: 1.5
   capsuleRadius: 0.5
   capsuleHeight: 2
+  cylinderRadius: 0.5
+  cylinderHeight: 2
   particleCount: 4096
   restDensity: 1000
+  initialVelocity: {x: 0, y: 0, z: 0}
+  spawnPriority: 0
+  spawnColor: {r: 1, g: 1, b: 1, a: 1}
   seed: 12345
   meshMaxAttemptsPerPoint: 32
   emitOnStart: 0
   clearBeforeEmit: 1
   activateSimulationOnEmit: 1
   drawGizmo: 1
-  gizmoColor: {r: 0.2, g: 0.8, b: 1, a: 0.25}
 --- !u!4 &1863052271
 Transform:
   m_ObjectHideFlags: 0

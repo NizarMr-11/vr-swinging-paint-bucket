@@ -3,7 +3,6 @@ using HarmonicEngine.Domain.Adapters;
 using HarmonicEngine.Domain.Models;
 using HarmonicEngine.Infrastructure.Management;
 using HarmonicEngine.Infrastructure.PlaybackStreaming;
-using SwingingPaintBucket.Scene;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -31,7 +30,9 @@ namespace SwingingPaintBucket.Simulation
 
         [Header("Engine references")]
         [SerializeField] private PipelineExecutionController pipeline;
-        [SerializeField] private ShapeVolumeEmitter shapeEmitter;
+        [SerializeField] private ParticleSpawnVolume shapeEmitter;
+        [Tooltip("When enabled, every ParticleSpawnVolume in the scene is spawned (priority order) when a run starts.")]
+        [SerializeField] private bool spawnAllSceneVolumes = true;
         [SerializeField] private SimulationTimelineRenderer timelineRenderer;
         [SerializeField] private HarmonicParticleDebugRenderer liveDebugRenderer;
 
@@ -84,7 +85,7 @@ namespace SwingingPaintBucket.Simulation
 
             if (shapeEmitter == null)
             {
-                shapeEmitter = FindFirstObjectByType<ShapeVolumeEmitter>();
+                shapeEmitter = FindFirstObjectByType<ParticleSpawnVolume>();
             }
 
             if (timelineRenderer == null)
@@ -171,6 +172,17 @@ namespace SwingingPaintBucket.Simulation
             if (shapeEmitter != null)
             {
                 shapeEmitter.PrepareRun(_requestedParticles);
+            }
+
+            if (spawnAllSceneVolumes)
+            {
+                HarmonicParticleSpawnCoordinator.SpawnAll(
+                    pipeline,
+                    clearFirst: false,
+                    activateSimulation: true);
+            }
+            else if (shapeEmitter != null)
+            {
                 shapeEmitter.Emit();
             }
             else

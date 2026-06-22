@@ -24,6 +24,8 @@ namespace HarmonicEngine.Infrastructure.Management
         public float sphereRadius = 0.5f;
         public float capsuleRadius = 0.5f;
         public float capsuleHeight = 2f;
+        public float cylinderRadius = 0.5f;
+        public float cylinderHeight = 2f;
 
         [Header("Mesh volume (shape == Mesh)")]
         public Mesh mesh;
@@ -35,6 +37,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public float restDensity = 1000f;
         public Vector3 initialVelocity = Vector3.zero;
         public Color spawnColor = Color.white;
+        public int spawnPriority;
         public uint seed = 12345u;
 
         /// <summary>Samples up to <paramref name="count"/> world-space positions into the buffer; returns the number written.</summary>
@@ -53,6 +56,8 @@ namespace HarmonicEngine.Infrastructure.Management
                     return ShapeVolumeSampler.SampleSphere(center, sphereRadius, count, seed, outPositions);
                 case ShapeVolumeType.Capsule:
                     return ShapeVolumeSampler.SampleCapsule(center, capsuleRadius, capsuleHeight, rotation, count, seed, outPositions);
+                case ShapeVolumeType.Cylinder:
+                    return ShapeVolumeSampler.SampleCylinder(center, cylinderRadius, cylinderHeight, rotation, count, seed, outPositions);
                 case ShapeVolumeType.Mesh:
                     return SampleMesh(outPositions, count);
                 default:

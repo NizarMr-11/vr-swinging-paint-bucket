@@ -8,7 +8,7 @@ namespace HarmonicEngine.Infrastructure.Management
     /// <summary>
     /// Engine-level spawn facade: samples a <see cref="HarmonicSpawnRegion"/> and appends the
     /// colored particles to the pipeline. This is the single place that turns a declarative
-    /// region into GPU particles, so emitters (ParticleRainDirector, ShapeVolumeEmitter, ...)
+    /// region into GPU particles, so emitters (ParticleRainDirector, ParticleSpawnVolume, ...)
     /// and direct engine callers all behave consistently.
     /// </summary>
     public static class HarmonicParticleSpawner

@@ -58,5 +58,76 @@ namespace HarmonicEngine.Infrastructure.Management
 
             return pipeline.AppendParticles(particles, written);
         }
+
+        /// <summary>
+        /// Uniform lattice inside an open-top cylinder: floorY to fillTopY, horizontal radius limit.
+        /// </summary>
+        public static int SpawnContainerCylinderFill(
+            PipelineExecutionController pipeline,
+            Vector3 center,
+            float floorY,
+            float fillTopY,
+            float radius,
+            float spacing,
+            float restDensity,
+            Color spawnColor,
+            Vector3 initialVelocity)
+        {
+            if (pipeline == null || radius <= 0f || spacing <= 0f || fillTopY <= floorY)
+            {
+                return 0;
+            }
+
+            float radiusSq = radius * radius;
+            float3 center3 = center;
+            uint packedColor = FluidParticleFactory.PackColor(spawnColor);
+            int remaining = pipeline.MaxCapacity - (int)pipeline.GetActiveParticleCount();
+            if (remaining <= 0)
+            {
+                return 0;
+            }
+
+            int ySteps = Mathf.Max(1, Mathf.FloorToInt((fillTopY - floorY) / spacing) + 1);
+            int radialSteps = Mathf.Max(1, Mathf.FloorToInt((2f * radius) / spacing) + 1);
+            int capacityGuess = ySteps * radialSteps * radialSteps;
+            var particles = new FluidParticle[Mathf.Min(capacityGuess, remaining)];
+
+            int written = 0;
+            for (int iy = 0; iy < ySteps && written < remaining; iy++)
+            {
+                float y = floorY + iy * spacing;
+                if (y > fillTopY + spacing * 0.5f)
+                {
+                    break;
+                }
+
+                for (int ix = 0; ix < radialSteps && written < remaining; ix++)
+                {
+                    float x = center.x - radius + ix * spacing;
+                    for (int iz = 0; iz < radialSteps && written < remaining; iz++)
+                    {
+                        float z = center.z - radius + iz * spacing;
+                        float2 offset = new float2(x - center.x, z - center.z);
+                        if (math.lengthsq(offset) > radiusSq)
+                        {
+                            continue;
+                        }
+
+                        particles[written++] = FluidParticleFactory.FromWorldPosition(
+                            new Vector3(x, y, z),
+                            initialVelocity,
+                            restDensity,
+                            packedColor);
+                    }
+                }
+            }
+
+            if (written == 0)
+            {
+                return 0;
+            }
+
+            return pipeline.AppendParticles(particles, written);
+        }
     }
 }

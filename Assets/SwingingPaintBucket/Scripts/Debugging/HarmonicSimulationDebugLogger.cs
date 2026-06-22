@@ -24,11 +24,18 @@ namespace SwingingPaintBucket.Debugging
 
             Instance = this;
 
-            if (ensureDiagnosticHost && FindFirstObjectByType<HarmonicDiagnosticHost>() == null)
+            if (!ensureDiagnosticHost)
             {
-                var pipeline = FindFirstObjectByType<PipelineExecutionController>();
-                var hostGo = pipeline != null ? pipeline.gameObject : gameObject;
-                hostGo.AddComponent<HarmonicDiagnosticHost>();
+                return;
+            }
+
+            var pipeline = FindFirstObjectByType<PipelineExecutionController>();
+            var hostGo = pipeline != null ? pipeline.gameObject : gameObject;
+
+            if (hostGo.GetComponent<HarmonicPipelineDiagnosticsController>() == null
+                && hostGo.GetComponent<HarmonicDiagnosticHost>() == null)
+            {
+                hostGo.AddComponent<HarmonicPipelineDiagnosticsController>();
             }
         }
 
