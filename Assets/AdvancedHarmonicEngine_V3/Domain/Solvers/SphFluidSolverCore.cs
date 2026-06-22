@@ -14,6 +14,6 @@ namespace HarmonicEngine.Domain.Solvers
 
         public float SmoothingRadius(float cellSize) => cellSize * SmoothingRadiusMultiplier;
 
-        public float StiffnessB => SpeedOfSound * SpeedOfSound * RestDensity / 7f;
+        public float StiffnessB => SpeedOfSound * SpeedOfSound * RestDensity / 3f;
     }
 }

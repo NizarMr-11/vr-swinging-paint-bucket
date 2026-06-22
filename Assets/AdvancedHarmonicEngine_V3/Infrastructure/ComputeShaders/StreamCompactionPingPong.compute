@@ -87,7 +87,7 @@ void ExecuteSphDensityPass(uint3 id : SV_DispatchThreadID)
 
     particle.Density = max(density, _RestDensity * 0.01);
     float ratio = particle.Density / _RestDensity;
-    float p = _StiffnessB * (pow(max(ratio, 1.0), 7.0) - 1.0);
+    float p = _StiffnessB * (pow(max(ratio, 1.0), 3.0) - 1.0);
     particle.Pressure = max(p, 0.0);
     _DensityWritableCache[particleIndex] = particle;
 }

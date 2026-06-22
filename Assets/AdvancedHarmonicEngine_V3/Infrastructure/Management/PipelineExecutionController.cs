@@ -106,6 +106,8 @@ namespace HarmonicEngine.Infrastructure.Management
         [SerializeField] private bool seedTestParticlesOnStart = true;
         [Tooltip("When true, fills the container with a uniform lattice on Start instead of scene spawn volumes.")]
         [SerializeField] private bool useLatticeSpawn;
+        [Tooltip("Max particles for container lattice fill (prevents over-packing the fill region).")]
+        [SerializeField, Min(1)] private int latticeSpawnMaxCount = 3000;
         [SerializeField] private int testParticleCount = 2048;
         [SerializeField] private float testSpawnRadius = 0.2f;
 

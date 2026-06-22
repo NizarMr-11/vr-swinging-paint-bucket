@@ -71,7 +71,8 @@ namespace HarmonicEngine.Infrastructure.Management
             float spacing,
             float restDensity,
             Color spawnColor,
-            Vector3 initialVelocity)
+            Vector3 initialVelocity,
+            int maxSpawnCount = int.MaxValue)
         {
             if (pipeline == null || radius <= 0f || spacing <= 0f || fillTopY <= floorY)
             {
@@ -79,9 +80,13 @@ namespace HarmonicEngine.Infrastructure.Management
             }
 
             float radiusSq = radius * radius;
-            float3 center3 = center;
             uint packedColor = FluidParticleFactory.PackColor(spawnColor);
             int remaining = pipeline.MaxCapacity - (int)pipeline.GetActiveParticleCount();
+            if (maxSpawnCount > 0)
+            {
+                remaining = Mathf.Min(remaining, maxSpawnCount);
+            }
+
             if (remaining <= 0)
             {
                 return 0;

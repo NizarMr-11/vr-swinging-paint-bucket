@@ -228,7 +228,8 @@ namespace HarmonicEngine.Infrastructure.Management
                 spacing,
                 sphSolver.RestDensity,
                 new Color(0.2f, 0.55f, 1f),
-                Vector3.zero);
+                Vector3.zero,
+                latticeSpawnMaxCount);
 
             if (spawned > 0)
             {
