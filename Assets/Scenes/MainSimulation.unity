@@ -152,6 +152,7 @@ MonoBehaviour:
   argumentUtilityShader: {fileID: 7200000, guid: 1bfbaadec86da7c429b6aff88700106d, type: 3}
   spatialHashGridShader: {fileID: 7200000, guid: a7b835b402ccbfc4f8c2ca320d1b2344, type: 3}
   streamCompactionShader: {fileID: 7200000, guid: a740344fc9b94184fb233eeb5ad0a164, type: 3}
+  streamCompactionIntegrateShader: {fileID: 7200000, guid: b5e3c2d1a4f94870b6c1d9e8f7a65432, type: 3}
   dataCompactionShader: {fileID: 7200000, guid: 0234c310e8ef86a41a68df6481aefc77, type: 3}
   fallingFluidWorldShader: {fileID: 7200000, guid: ed4bddf61b02552409d2d4294da1cd19, type: 3}
   eulerianDragGridShader: {fileID: 7200000, guid: 46bfba10dfd6e754eafe9e006f7129a6, type: 3}

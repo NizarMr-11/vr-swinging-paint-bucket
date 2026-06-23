@@ -3,8 +3,8 @@
 #pragma kernel ScatterParticleToGridKernel
 #pragma kernel ApplyDragFromGridKernel
 
-// Shared 48-byte FluidParticle (single source of truth).
 #include "Include/SphCommon.hlsl"
+#include "Include/SphSoaAccess.hlsl"
 
 struct VoxelDragCell
 {
@@ -13,8 +13,11 @@ struct VoxelDragCell
 };
 
 RWStructuredBuffer<VoxelDragCell> _DragGrid;
-StructuredBuffer<FluidParticle> _ParticleSource;
-RWStructuredBuffer<FluidParticle> _ParticleTarget;
+
+RWStructuredBuffer<float4> _TargetBlock0;
+RWStructuredBuffer<float4> _TargetBlock1;
+RWStructuredBuffer<uint> _TargetPackedColors;
+RWStructuredBuffer<float> _TargetWetness;
 
 uint _GridVolume;
 uint _ActiveParticleCount;
@@ -22,6 +25,14 @@ float _DragStrength;
 float _DeltaTime;
 float _DragDecay;
 float _AmbientWindStrength;
+
+void StoreTarget(uint i, float3 pos, float3 vel, float density, float pressure, uint packedColor, float wetness)
+{
+    _TargetBlock0[i] = float4(pos, density);
+    _TargetBlock1[i] = float4(vel, pressure);
+    _TargetPackedColors[i] = packedColor;
+    _TargetWetness[i] = wetness;
+}
 
 [numthreads(256, 1, 1)]
 void ClearDragGridKernel(uint3 id : SV_DispatchThreadID)
@@ -58,13 +69,14 @@ void ScatterParticleToGridKernel(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    FluidParticle particle = _ParticleSource[id.x];
-    uint cellHash = (uint)(abs(particle.Position.x) * 73856093.0
-        + abs(particle.Position.y) * 19349663.0
-        + abs(particle.Position.z) * 83492791.0) % max(_GridVolume, 1u);
+    float3 pos = SphLoadPosition(id.x);
+    float3 vel = SphLoadVelocity(id.x);
+    uint cellHash = (uint)(abs(pos.x) * 73856093.0
+        + abs(pos.y) * 19349663.0
+        + abs(pos.z) * 83492791.0) % max(_GridVolume, 1u);
 
     VoxelDragCell cell = _DragGrid[cellHash];
-    cell.Velocity += particle.Velocity;
+    cell.Velocity += vel;
     cell.Drag += 1.0;
     _DragGrid[cellHash] = cell;
 }
@@ -77,14 +89,20 @@ void ApplyDragFromGridKernel(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    FluidParticle particle = _ParticleSource[id.x];
-    uint cellHash = (uint)(abs(particle.Position.x) * 73856093.0
-        + abs(particle.Position.y) * 19349663.0
-        + abs(particle.Position.z) * 83492791.0) % max(_GridVolume, 1u);
+    float3 pos = SphLoadPosition(id.x);
+    float3 vel = SphLoadVelocity(id.x);
+    float density = SphLoadDensity(id.x);
+    float pressure = SphLoadPressure(id.x);
+    uint packedColor = SphLoadPackedColor(id.x);
+    float wetness = SphLoadWetness(id.x);
+
+    uint cellHash = (uint)(abs(pos.x) * 73856093.0
+        + abs(pos.y) * 19349663.0
+        + abs(pos.z) * 83492791.0) % max(_GridVolume, 1u);
     VoxelDragCell cell = _DragGrid[cellHash];
     float invWeight = 1.0 / max(cell.Drag, 1.0);
     float3 ambientVelocity = cell.Velocity * invWeight;
-    float3 dragForce = (ambientVelocity - particle.Velocity) * cell.Drag * invWeight * _DragStrength;
-    particle.Velocity += dragForce * _DeltaTime;
-    _ParticleTarget[id.x] = particle;
+    float3 dragForce = (ambientVelocity - vel) * cell.Drag * invWeight * _DragStrength;
+    vel += dragForce * _DeltaTime;
+    StoreTarget(id.x, pos, vel, density, pressure, packedColor, wetness);
 }

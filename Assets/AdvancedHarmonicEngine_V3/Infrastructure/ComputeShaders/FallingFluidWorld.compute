@@ -10,8 +10,15 @@ struct CanvasPaintHit
     float WetnessDeposit;
 };
 
-StructuredBuffer<FluidParticle> _FallingRead;
-AppendStructuredBuffer<FluidParticle> _FallingAppend;
+StructuredBuffer<float4> _FallingReadBlock0;
+StructuredBuffer<float4> _FallingReadBlock1;
+StructuredBuffer<uint> _FallingReadPackedColors;
+StructuredBuffer<float> _FallingReadWetness;
+
+AppendStructuredBuffer<float4> _FallingAppendBlock0;
+AppendStructuredBuffer<float4> _FallingAppendBlock1;
+AppendStructuredBuffer<uint> _FallingAppendPackedColors;
+AppendStructuredBuffer<float> _FallingAppendWetness;
 AppendStructuredBuffer<CanvasPaintHit> _CanvasHitAppend;
 
 uint _FallingCount;
@@ -25,6 +32,15 @@ float _CanvasAbsorbRate;
 float _CanvasAbsorbPaintWeightScale;
 float _FloorRestitution;
 float _FloorFriction;
+
+void AppendFallingParticle(
+    float3 pos, float3 vel, float density, float pressure, uint packedColor, float wetness)
+{
+    _FallingAppendBlock0.Append(float4(pos, density));
+    _FallingAppendBlock1.Append(float4(vel, pressure));
+    _FallingAppendPackedColors.Append(packedColor);
+    _FallingAppendWetness.Append(wetness);
+}
 
 void AppendCanvasHit(float3 worldPos, float weight, uint packedColor, float wetnessDeposit)
 {
@@ -44,22 +60,29 @@ void ExecuteFallingFluidIntegration(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    FluidParticle particle = _FallingRead[id.x];
-    particle.Velocity += _WorldGravity * _DeltaTime;
-    particle.Velocity *= max(0.0, 1.0 - _WorldDrag * _DeltaTime);
-    particle.Position += particle.Velocity * _DeltaTime;
+    uint i = id.x;
+    float4 b0 = _FallingReadBlock0[i];
+    float4 b1 = _FallingReadBlock1[i];
+    float3 pos = b0.xyz;
+    float3 vel = b1.xyz;
+    float density = b0.w;
+    float pressure = b1.w;
+    uint packedColor = _FallingReadPackedColors[i];
+    float wetness = _FallingReadWetness[i];
 
-    if (particle.Position.y <= _CanvasPlaneY)
+    vel += _WorldGravity * _DeltaTime;
+    vel *= max(0.0, 1.0 - _WorldDrag * _DeltaTime);
+    pos += vel * _DeltaTime;
+
+    if (pos.y <= _CanvasPlaneY)
     {
         if (_CanvasCullingEnabled != 0)
         {
             if (_CanvasPaintAbsorbEnabled != 0)
             {
-                // Rest on the plane and drain wetness into the canvas over time.
-                particle.Position.y = _CanvasPlaneY;
-                particle.Velocity = float3(0, 0, 0);
+                pos.y = _CanvasPlaneY;
+                vel = float3(0, 0, 0);
 
-                float wetness = particle._Padding.x;
                 if (wetness <= 0.0)
                 {
                     wetness = 1.0;
@@ -67,39 +90,37 @@ void ExecuteFallingFluidIntegration(uint3 id : SV_DispatchThreadID)
 
                 float absorbed = min(wetness, _CanvasAbsorbRate * _DeltaTime);
                 wetness -= absorbed;
-                particle._Padding.x = wetness;
 
                 if (absorbed > 0.0)
                 {
                     AppendCanvasHit(
-                        particle.Position,
+                        pos,
                         absorbed * _CanvasAbsorbPaintWeightScale,
-                        particle.PackedColorRGBA,
+                        packedColor,
                         absorbed);
                 }
 
                 if (wetness > 0.0)
                 {
-                    _FallingAppend.Append(particle);
+                    AppendFallingParticle(pos, vel, density, pressure, packedColor, wetness);
                 }
 
                 return;
             }
 
-            // Instant paint hit (legacy): record once and remove.
             AppendCanvasHit(
-                particle.Position,
-                length(particle.Velocity),
-                particle.PackedColorRGBA,
+                pos,
+                length(vel),
+                packedColor,
                 1.0);
             return;
         }
 
-        particle.Position.y = _CanvasPlaneY;
-        particle.Velocity.y = -particle.Velocity.y * _FloorRestitution;
-        particle.Velocity.x *= _FloorFriction;
-        particle.Velocity.z *= _FloorFriction;
+        pos.y = _CanvasPlaneY;
+        vel.y = -vel.y * _FloorRestitution;
+        vel.x *= _FloorFriction;
+        vel.z *= _FloorFriction;
     }
 
-    _FallingAppend.Append(particle);
+    AppendFallingParticle(pos, vel, density, pressure, packedColor, wetness);
 }

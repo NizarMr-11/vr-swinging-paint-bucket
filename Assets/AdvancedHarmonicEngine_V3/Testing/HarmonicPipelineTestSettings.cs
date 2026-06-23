@@ -8,6 +8,7 @@ namespace HarmonicEngine.Testing
         public ComputeShader argumentUtilityShader;
         public ComputeShader spatialHashGridShader;
         public ComputeShader streamCompactionShader;
+        public ComputeShader streamCompactionIntegrateShader;
         public ComputeShader dataCompactionShader;
         public ComputeShader fallingFluidWorldShader;
         public ComputeShader eulerianDragGridShader;

@@ -65,8 +65,8 @@ namespace HarmonicEngine.Tests.PlayMode
             pipeline.ExecuteContainerSphDensityForVerification();
             yield return null;
 
-            Assert.IsTrue(pipeline.TryGetDensityCacheBuffer(out ComputeBuffer buffer, out uint count));
-            FluidParticle[] particles = GpuParticleReadbackUtility.ReadParticles(buffer, (int)count);
+            Assert.IsTrue(pipeline.TryGetDensityCacheBuffers(out ComputeBuffer densities, out ComputeBuffer pressures, out uint count));
+            FluidParticle[] particles = GpuParticleReadbackUtility.ReadDensityCache(densities, pressures, (int)count);
             Debug.Log($"[SPH smoking-gun] particle=0 density={particles[0].Density:F1} rest={pipeline.RestDensity:F1}");
             Assert.IsTrue(
                 GpuParticleReadbackUtility.IsNearRestDensity(particles[0], pipeline.RestDensity, 0.15f),

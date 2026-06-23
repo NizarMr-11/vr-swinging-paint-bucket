@@ -1,4 +1,5 @@
 using System.IO;
+using HarmonicEngine.Diagnostics;
 using HarmonicEngine.Domain.Adapters;
 using HarmonicEngine.Domain.Models;
 using HarmonicEngine.Infrastructure.Management;
@@ -304,7 +305,7 @@ namespace SwingingPaintBucket.Simulation
 
         private void CaptureFrame()
         {
-            if (!pipeline.TryGetFallingParticleBuffer(out ComputeBuffer buffer, out uint count) || buffer == null)
+            if (!pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers soa, out uint count) || soa == null)
             {
                 _store.AddFrame(System.Array.Empty<float3>(), 0, _recordElapsed);
                 return;
@@ -317,20 +318,15 @@ namespace SwingingPaintBucket.Simulation
                 return;
             }
 
-            if (_readback == null || _readback.Length < n)
-            {
-                _readback = new FluidParticle[Mathf.NextPowerOfTwo(n)];
-            }
-
             if (_positionScratch == null || _positionScratch.Length < n)
             {
                 _positionScratch = new float3[Mathf.NextPowerOfTwo(n)];
             }
 
-            buffer.GetData(_readback, 0, 0, n);
+            var particles = HarmonicEngine.Diagnostics.GpuParticleReadbackUtility.ReadParticles(soa, n);
             for (int i = 0; i < n; i++)
             {
-                _positionScratch[i] = _readback[i].Position;
+                _positionScratch[i] = particles[i].Position;
             }
 
             _store.AddFrame(_positionScratch, n, _recordElapsed);

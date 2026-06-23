@@ -1,0 +1,198 @@
+#pragma kernel ExecuteInternalFluidIntegration
+#pragma kernel ExecuteContainerFluidIntegration
+
+#include "Include/SphCommon.hlsl"
+#include "Include/SphSoaAccess.hlsl"
+
+StructuredBuffer<GridKeyPair> _SortedGridKeyValueBuffer;
+StructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
+StructuredBuffer<float> _DensityCacheDensities;
+StructuredBuffer<float> _DensityCachePressures;
+
+#include "Include/SphSoaStore.hlsl"
+
+float _DeltaTime;
+uint _ActiveParticleCount;
+uint _GridResolution;
+float _CellSize;
+float _SmoothingRadius;
+float _ParticleMass;
+float _GasConstantK;
+float _StiffnessB;
+float _RestDensity;
+float _Viscosity;
+float3 _Gravity;
+float3 _AngularVelocityWorld;
+float3 _AngularAccelerationWorld;
+float _NozzlePlaneLocalY;
+float _NozzleRadius;
+float _BucketRimLocalY;
+float4x4 _LocalToWorldMatrix;
+float3 _InstantaneousBucketGlobalVelocity;
+
+float3 _ContainerCenter;
+float _ContainerRadius;
+float _ContainerFloorY;
+float _ContainerRimY;
+float _ContainerRestitution;
+float _ContainerFriction;
+float _ContainerWallStiffness;
+float _ContainerDamping;
+float _ContainerMaxSpeed;
+
+float _ColorDiffusionRate;
+uint _MaxParticleCount;
+
+float3 ComputeNonInertialAcceleration(float3 localPosition, float3 localVelocity)
+{
+    float3 centrifugal = -cross(_AngularVelocityWorld, cross(_AngularVelocityWorld, localPosition));
+    float3 euler = -cross(_AngularAccelerationWorld, localPosition);
+    float3 coriolis = -2.0 * cross(_AngularVelocityWorld, localVelocity);
+    return centrifugal + euler + coriolis;
+}
+
+#include "Include/SphNeighborQuery.hlsl"
+
+bool EvaluateNozzleExitSDF(float3 localPosition)
+{
+    float2 xz = localPosition.xz;
+    float radiusSq = _NozzleRadius * _NozzleRadius;
+    bool exitsThroughNozzle = localPosition.y <= _NozzlePlaneLocalY && dot(xz, xz) <= radiusSq;
+    bool spillsOverRim = localPosition.y > _BucketRimLocalY;
+    return exitsThroughNozzle || spillsOverRim;
+}
+
+[numthreads(64, 1, 1)]
+void ExecuteInternalFluidIntegration(uint3 id : SV_DispatchThreadID)
+{
+    uint particleIndex = id.x;
+    if (particleIndex >= _ActiveParticleCount || particleIndex >= _MaxParticleCount)
+    {
+        return;
+    }
+
+    float3 pos = SphLoadPosition(particleIndex);
+    float3 vel = SphLoadVelocity(particleIndex);
+    float density = _DensityCacheDensities[particleIndex];
+    float pressure = _DensityCachePressures[particleIndex];
+    uint packedColor = SphLoadPackedColor(particleIndex);
+    float wetness = SphLoadWetness(particleIndex);
+
+    float densityOut;
+    float3 pressureGrad;
+    float3 viscosityForce;
+    float3 colorLaplacian;
+    ForEachNeighbor(particleIndex, true, densityOut, pressureGrad, viscosityForce, colorLaplacian);
+
+    float safeDensity = max(density, 1e-4);
+    float3 acceleration = pressureGrad / safeDensity + _Viscosity * viscosityForce / safeDensity;
+    acceleration += _Gravity;
+    acceleration += ComputeNonInertialAcceleration(pos, vel);
+
+    vel += acceleration * _DeltaTime;
+    pos += vel * _DeltaTime;
+
+    float3 mixedColor = saturate(UnpackUintToFloat3(packedColor) + _ColorDiffusionRate * colorLaplacian * _DeltaTime);
+    packedColor = PackFloat3ToUint(mixedColor);
+
+    if (EvaluateNozzleExitSDF(pos))
+    {
+        pos = mul(_LocalToWorldMatrix, float4(pos, 1.0)).xyz;
+        vel = _InstantaneousBucketGlobalVelocity + mul((float3x3)_LocalToWorldMatrix, vel);
+        SphAppendFalling(pos, vel, density, pressure, packedColor, wetness);
+    }
+    else
+    {
+        SphAppendInternal(pos, vel, density, pressure, packedColor, wetness);
+    }
+}
+
+void ProjectIntoContainer(inout float3 pos, inout float3 vel)
+{
+    if (pos.y < _ContainerFloorY)
+    {
+        pos.y = _ContainerFloorY;
+        if (vel.y < 0.0)
+        {
+            vel.y = -vel.y * _ContainerRestitution;
+        }
+        vel.x *= _ContainerFriction;
+        vel.z *= _ContainerFriction;
+    }
+
+    float2 rel = pos.xz - _ContainerCenter.xz;
+    float d = length(rel);
+    if (d > _ContainerRadius && d > 1e-5)
+    {
+        float2 n = rel / d;
+        pos.xz = _ContainerCenter.xz + n * _ContainerRadius;
+
+        float vn = dot(vel.xz, n);
+        if (vn > 0.0)
+        {
+            float2 vNormal = vn * n;
+            float2 vTangent = vel.xz - vNormal;
+            vel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
+        }
+    }
+
+    float ceilingY = _ContainerRimY + 0.3;
+    if (pos.y > ceilingY)
+    {
+        pos.y = ceilingY;
+        if (vel.y > 0.0)
+        {
+            vel.y = -vel.y * 0.3;
+        }
+    }
+}
+
+[numthreads(64, 1, 1)]
+void ExecuteContainerFluidIntegration(uint3 id : SV_DispatchThreadID)
+{
+    uint particleIndex = id.x;
+    if (particleIndex >= _ActiveParticleCount || particleIndex >= _MaxParticleCount)
+    {
+        return;
+    }
+
+    float3 pos = SphLoadPosition(particleIndex);
+    float3 vel = SphLoadVelocity(particleIndex);
+    float density = _DensityCacheDensities[particleIndex];
+    float pressure = _DensityCachePressures[particleIndex];
+    uint packedColor = SphLoadPackedColor(particleIndex);
+    float wetness = SphLoadWetness(particleIndex);
+
+    float densityOut;
+    float3 pressureGrad;
+    float3 viscosityForce;
+    float3 colorLaplacian;
+    ForEachNeighbor(particleIndex, true, densityOut, pressureGrad, viscosityForce, colorLaplacian);
+
+    float safeDensity = max(density, 1e-4);
+    float3 acceleration = pressureGrad / safeDensity + _Viscosity * viscosityForce / safeDensity;
+    acceleration += _Gravity;
+
+    float3 mixedColor = saturate(UnpackUintToFloat3(packedColor) + _ColorDiffusionRate * colorLaplacian * _DeltaTime);
+    packedColor = PackFloat3ToUint(mixedColor);
+
+    vel += acceleration * _DeltaTime;
+    pos += vel * _DeltaTime;
+
+    ProjectIntoContainer(pos, vel);
+
+    float escapeY = _ContainerRimY + 1.0;
+    float escapeR = _ContainerRadius + 1.0;
+    float2 horizontalOffset = pos.xz - _ContainerCenter.xz;
+    if (pos.y > escapeY
+        || length(horizontalOffset) > escapeR
+        || pos.y < _ContainerFloorY - 10.0)
+    {
+        pos = float3(99999.0, 99999.0, 99999.0);
+        vel = float3(0.0, 0.0, 0.0);
+        density = 0.0;
+        pressure = 0.0;
+    }
+
+    SphStoreParticle(particleIndex, pos, vel, density, pressure, packedColor, wetness);
+}

@@ -4,43 +4,23 @@
 // =============================================================================
 //  SphNeighborQuery.hlsl - the canonical "get the nearest particles" routine.
 //
-//  This is the ONE place SPH neighbor iteration lives. Any kernel that needs a
-//  particle's neighbors (density, pressure, viscosity, color diffusion, ...)
-//  should call ForEachNeighbor instead of re-implementing the loop.
-//
-//  HOW NEIGHBOR QUERIES WORK (sorted spatial hash):
-//    1. Particles are hashed into a power-of-two bucket table by cell coord.
-//    2. The (hash, index) key buffer is bitonic-sorted so same-cell particles
-//       are contiguous (see SpatialHashGridIndirect.compute).
-//    3. _CellStartEndBuffer maps each hash to its [start,end] run in that sorted
-//       buffer.
-//    4. To find neighbors of a particle we visit the 3x3x3 = 27 cells around its
-//       own cell (kNeighborOffsets), read each cell's run, and iterate the
-//       particles in it, rejecting anything beyond the 2*h support radius.
-//
 //  REQUIRED before including this file the includer MUST declare:
-//      StructuredBuffer<FluidParticle>     _ReadOnlyParticleSource;
+//      SOA read buffers (_PositionsX/Y/Z, _VelocitiesX/Y/Z, _Densities,
+//      _Pressures, _PackedColors) via SphSoaAccess.hlsl
 //      StructuredBuffer<GridKeyPair>       _SortedGridKeyValueBuffer;
 //      StructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
-//      RWStructuredBuffer<FluidParticle>   _DensityWritableCache;
+//      RWStructuredBuffer<float>           _DensityCacheDensities;
+//      RWStructuredBuffer<float>           _DensityCachePressures;
 //      uint  _ActiveParticleCount;
 //      uint  _GridResolution;
 //      float _CellSize;
 //      float _SmoothingRadius;
 //      float _ParticleMass;
-//  and must have included SphCommon.hlsl first (structs + helpers + kernels).
+//  and must have included SphCommon.hlsl first.
 // =============================================================================
 
-// Accumulates SPH fields over the 27-cell neighborhood of `self`.
-//   useDensityCache = false : density-only pass (reads _ReadOnlyParticleSource).
-//   useDensityCache = true  : force pass (reads _DensityWritableCache for the
-//                             neighbor's resolved density/pressure).
-// colorLaplacian accumulates sum_j (m_j/rho_j)(c_j - c_i) * Laplacian(r,h), the
-// SPH color-diffusion term (only meaningful in the force pass); callers scale it
-// by the diffusion coefficient and dt to mix colors between touching fluids.
 void ForEachNeighbor(
     uint particleIndex,
-    FluidParticle self,
     bool useDensityCache,
     out float density,
     out float3 pressureGrad,
@@ -52,11 +32,22 @@ void ForEachNeighbor(
     viscosityForce = float3(0, 0, 0);
     colorLaplacian = float3(0, 0, 0);
 
-    int3 baseCell = SphCellFromPosition(self.Position, _CellSize);
+    float3 selfPos = SphLoadPosition(particleIndex);
+    int3 baseCell = SphCellFromPosition(selfPos, _CellSize);
     float h = _SmoothingRadius;
-    float selfDensity = max(self.Density, 1e-4);
-    float selfPressure = self.Pressure;
-    float3 selfColor = UnpackUintToFloat3(self.PackedColorRGBA);
+
+    float selfDensity = 1e-4;
+    float selfPressure = 0.0;
+    float3 selfVel = float3(0, 0, 0);
+    float3 selfColor = float3(0, 0, 0);
+
+    if (useDensityCache)
+    {
+        selfDensity = max(_DensityCacheDensities[particleIndex], 1e-4);
+        selfPressure = _DensityCachePressures[particleIndex];
+        selfVel = SphLoadVelocity(particleIndex);
+        selfColor = UnpackUintToFloat3(SphLoadPackedColor(particleIndex));
+    }
 
     [loop]
     for (int n = 0; n < 27; n++)
@@ -82,17 +73,8 @@ void ForEachNeighbor(
                 continue;
             }
 
-            FluidParticle neighbor;
-            if (useDensityCache)
-            {
-                neighbor = _DensityWritableCache[neighborIndex];
-            }
-            else
-            {
-                neighbor = _ReadOnlyParticleSource[neighborIndex];
-            }
-
-            float3 diff = self.Position - neighbor.Position;
+            float3 neighborPos = SphLoadPosition(neighborIndex);
+            float3 diff = selfPos - neighborPos;
             float r = length(diff);
             if (r > 2.0 * h)
             {
@@ -107,16 +89,18 @@ void ForEachNeighbor(
                 continue;
             }
 
-            float neighborDensity = max(neighbor.Density, 1e-4);
+            float neighborDensity = max(_DensityCacheDensities[neighborIndex], 1e-4);
             float3 gradW = CubicSplineGradient(diff, r, h);
-            float pressureTerm = (selfPressure / (selfDensity * selfDensity) + neighbor.Pressure / (neighborDensity * neighborDensity));
+            float neighborPressure = _DensityCachePressures[neighborIndex];
+            float pressureTerm = (selfPressure / (selfDensity * selfDensity) + neighborPressure / (neighborDensity * neighborDensity));
             pressureGrad += -_ParticleMass * pressureTerm * gradW;
 
             float lap = CubicSplineLaplacian(r, h);
-            float3 relVel = neighbor.Velocity - self.Velocity;
+            float3 neighborVel = SphLoadVelocity(neighborIndex);
+            float3 relVel = neighborVel - selfVel;
             viscosityForce += _ParticleMass * relVel / neighborDensity * lap;
 
-            float3 neighborColor = UnpackUintToFloat3(neighbor.PackedColorRGBA);
+            float3 neighborColor = UnpackUintToFloat3(SphLoadPackedColor(neighborIndex));
             colorLaplacian += (_ParticleMass / neighborDensity) * (neighborColor - selfColor) * lap;
         }
     }

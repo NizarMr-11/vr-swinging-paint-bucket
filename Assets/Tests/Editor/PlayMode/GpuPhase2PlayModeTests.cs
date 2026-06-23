@@ -51,14 +51,14 @@ namespace HarmonicEngine.Tests.PlayMode
             pipeline.RebuildSpatialHashForVerification();
 
             Assert.IsTrue(
-                pipeline.TryGetInternalParticleBuffer(out ComputeBuffer particleBuffer, out uint activeCount));
+                pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers particleSoa, out uint activeCount));
             Assert.AreEqual(8u, activeCount);
 
             Assert.IsTrue(
                 pipeline.TryGetSpatialHashBuffers(out ComputeBuffer gridKeys, out ComputeBuffer cellRanges, out int sortSize));
             Assert.Greater(sortSize, 0);
 
-            var particles = GpuParticleReadbackUtility.ReadParticles(particleBuffer, (int)activeCount);
+            var particles = GpuParticleReadbackUtility.ReadParticles(particleSoa, (int)activeCount);
             uint referenceHash = SphHashCpuMirror.HashPosition(particles[0].Position, pipeline.CellSize, sortSize);
 
             for (int i = 1; i < particles.Length; i++)
@@ -109,7 +109,7 @@ namespace HarmonicEngine.Tests.PlayMode
             pipeline.RebuildSpatialHashForVerification();
 
             Assert.IsTrue(
-                pipeline.TryGetInternalParticleBuffer(out ComputeBuffer particleBuffer, out uint activeCount));
+                pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers particleSoa, out uint activeCount));
             Assert.IsTrue(
                 pipeline.TryGetSpatialHashBuffers(out ComputeBuffer gridKeys, out ComputeBuffer cellRanges, out int sortSize));
 
@@ -126,7 +126,7 @@ namespace HarmonicEngine.Tests.PlayMode
                 Assert.LessOrEqual(keys[i - 1].CellHash, keys[i].CellHash, $"Keys not sorted at {i}");
             }
 
-            var particles = GpuParticleReadbackUtility.ReadParticles(particleBuffer, (int)activeCount);
+            var particles = GpuParticleReadbackUtility.ReadParticles(particleSoa, (int)activeCount);
             uint bucketHash = SphHashCpuMirror.HashPosition(particles[0].Position, pipeline.CellSize, sortSize);
 
             var ranges = new HashCellGridRange[sortSize];

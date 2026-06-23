@@ -4,31 +4,10 @@
 // =============================================================================
 //  SphCommon.hlsl - single source of truth for the GPU SPH data layout + math.
 //
-//  Included by every compute shader that touches particles or the spatial hash
-//  (StreamCompactionPingPong.compute, SpatialHashGridIndirect.compute, ...).
-//  Contains ONLY buffer-independent declarations (structs, constants, pure
-//  functions) so it can be shared without resource-binding conflicts. Buffer-
-//  bound neighbor iteration lives in SphNeighborQuery.hlsl.
-//
-//  IMPORTANT: the structs below are the GPU mirror of the C# blittable structs
-//  in HarmonicEngine.Domain.Models. If you change a layout here you MUST change
-//  the matching C# struct and the ComputeBuffer stride in
-//  PipelineExecutionController, or the GPU buffers silently corrupt.
+//  GPU particles are stored SOA (separate float/uint buffers per field).
+//  See SphSoaAccess.hlsl for load/store/append helpers.
+//  CPU mirror: HarmonicEngine.Domain.Models.FluidParticle (diagnostic DTO only).
 // =============================================================================
-
-// 48-byte particle (3x 16-byte float4 blocks) - matches FluidParticle.cs.
-//   Block 1: Position (12) + Density (4)
-//   Block 2: Velocity (12) + Pressure (4)
-//   Block 3: PackedColorRGBA (4) + _Padding (12, reserved for mass/viscosity)
-struct FluidParticle
-{
-    float3 Position;
-    float Density;
-    float3 Velocity;
-    float Pressure;
-    uint PackedColorRGBA;
-    float3 _Padding;
-};
 
 struct HashCellGridRange
 {
@@ -80,8 +59,8 @@ uint SphHashPosition(float3 position, float cellSize, uint gridResolution)
 }
 
 // -----------------------------------------------------------------------------
-//  RGBA8 color packing. Color rides inside FluidParticle (one uint) so stream
-//  compaction never separates it from its particle. Unpack to float3 for
+//  RGBA8 color packing. Color rides in _PackedColors (one uint per particle) so
+//  stream compaction never separates it from its particle. Unpack to float3 for
 //  arithmetic (e.g. SPH color diffusion), then repack.
 // -----------------------------------------------------------------------------
 float3 UnpackUintToFloat3(uint packed)

@@ -20,16 +20,16 @@ namespace HarmonicEngine.Tests
 
             public uint GetActiveParticleCount() => 0;
 
-            public bool TryGetInternalParticleBuffer(out ComputeBuffer buffer, out uint count)
+            public bool TryGetInternalParticleSoa(out ParticleSoaBuffers soa, out uint count)
             {
-                buffer = null;
+                soa = null;
                 count = 0;
                 return false;
             }
 
-            public bool TryGetFallingParticleBuffer(out ComputeBuffer buffer, out uint count)
+            public bool TryGetFallingParticleSoa(out ParticleSoaBuffers soa, out uint count)
             {
-                buffer = null;
+                soa = null;
                 count = 0;
                 return false;
             }

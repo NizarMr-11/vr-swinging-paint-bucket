@@ -4,27 +4,27 @@ using UnityEngine;
 namespace HarmonicEngine.Infrastructure.Management
 {
     /// <summary>
-    /// CPU-side ingestion for external emitters (e.g. ParticleEmitter) into append buffers.
+    /// CPU-side ingestion for external emitters into append SOA buffers.
     /// </summary>
     public sealed class HarmonicParticleBufferService
     {
-        private readonly ComputeBuffer _bufferA;
-        private readonly ComputeBuffer _bufferB;
-        private readonly PingPongCounterManager _pingPong;
+        private readonly ParticleSoaBuffers _setA;
+        private readonly ParticleSoaBuffers _setB;
+        private readonly PingPongSoaManager _pingPong;
         private readonly int _maxCapacity;
         private readonly ComputeBuffer _counterReadback;
         private readonly uint[] _counterScratch = new uint[1];
         private FluidParticle[] _ingestScratch;
 
         public HarmonicParticleBufferService(
-            ComputeBuffer bufferA,
-            ComputeBuffer bufferB,
-            PingPongCounterManager pingPong,
+            ParticleSoaBuffers setA,
+            ParticleSoaBuffers setB,
+            PingPongSoaManager pingPong,
             int maxCapacity,
             ComputeBuffer counterReadback)
         {
-            _bufferA = bufferA;
-            _bufferB = bufferB;
+            _setA = setA;
+            _setB = setB;
             _pingPong = pingPong;
             _maxCapacity = maxCapacity;
             _counterReadback = counterReadback;
@@ -32,7 +32,7 @@ namespace HarmonicEngine.Infrastructure.Management
 
         public uint GetActiveCount()
         {
-            ComputeBuffer source = _pingPong.ReadBuffer;
+            ComputeBuffer source = _pingPong.ReadSet.CounterBuffer;
             ComputeBuffer.CopyCount(source, _counterReadback, 0);
             _counterReadback.GetData(_counterScratch);
             return _counterScratch[0];
@@ -48,7 +48,7 @@ namespace HarmonicEngine.Infrastructure.Management
             uint current = GetActiveCount();
             if (current > _maxCapacity)
             {
-                _pingPong.ReadBuffer.SetCounterValue((uint)_maxCapacity);
+                _pingPong.ReadSet.SetCounterValue((uint)_maxCapacity);
                 current = (uint)_maxCapacity;
             }
 
@@ -58,8 +58,8 @@ namespace HarmonicEngine.Infrastructure.Management
             }
 
             int writable = Mathf.Min(count, _maxCapacity - (int)current);
-            ComputeBuffer target = _pingPong.ReadBuffer;
-            target.SetData(particles, 0, (int)current, writable);
+            ParticleSoaBuffers target = _pingPong.ReadSet;
+            ParticleSoaWriteUtility.WriteParticles(target, particles, 0, (int)current, writable);
             target.SetCounterValue(current + (uint)writable);
             return writable;
         }
@@ -76,8 +76,8 @@ namespace HarmonicEngine.Infrastructure.Management
 
         public void ClearAll()
         {
-            _bufferA.SetCounterValue(0);
-            _bufferB.SetCounterValue(0);
+            _setA.SetCounterValue(0);
+            _setB.SetCounterValue(0);
         }
     }
 }

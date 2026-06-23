@@ -37,17 +37,9 @@ Shader "HarmonicEngine/SSFluidRender"
             #pragma target 4.5
             #include "UnityCG.cginc"
 
-            struct FluidParticle
-            {
-                float3 Position;
-                float Density;
-                float3 Velocity;
-                float Pressure;
-                uint PackedColorRGBA;
-                float3 _Padding;
-            };
-
-            StructuredBuffer<FluidParticle> _Particles;
+            // SOA position/color buffers bound from C#.
+            StructuredBuffer<float4> _Block0;
+            StructuredBuffer<uint> _PackedColors;
             uint _ParticleCount;
             float _SplatRadius;
             float4 _FluidColor;
@@ -86,9 +78,9 @@ Shader "HarmonicEngine/SSFluidRender"
             v2g vert(uint id : SV_VertexID)
             {
                 v2g o;
-                FluidParticle p = _Particles[id];
-                o.worldCenter = p.Position;
-                o.particleRgb = UnpackUintToFloat3(p.PackedColorRGBA);
+                float4 b0 = _Block0[id];
+                o.worldCenter = b0.xyz;
+                o.particleRgb = UnpackUintToFloat3(_PackedColors[id]);
                 return o;
             }
 

@@ -1,7 +1,7 @@
 #pragma kernel QuantizeFallingParticlesKernel
 
-// Shared 48-byte FluidParticle (single source of truth).
 #include "Include/SphCommon.hlsl"
+#include "Include/SphSoaAccess.hlsl"
 
 struct QuantizedBakeParticle
 {
@@ -9,7 +9,6 @@ struct QuantizedBakeParticle
     uint2 Packed1;
 };
 
-StructuredBuffer<FluidParticle> _SourceParticleBuffer;
 RWStructuredBuffer<QuantizedBakeParticle> _QuantizedOutputBuffer;
 uint _QuantizedCount;
 float3 _QuantizationOrigin;
@@ -22,17 +21,20 @@ void QuantizeFallingParticlesKernel(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    FluidParticle p = _SourceParticleBuffer[id.x];
-    float3 localPos = p.Position - _QuantizationOrigin;
+    uint i = id.x;
+    float3 localPos = SphLoadPosition(i) - _QuantizationOrigin;
+    float3 vel = SphLoadVelocity(i);
+    float density = SphLoadDensity(i);
+    float pressure = SphLoadPressure(i);
 
     uint px = f32tof16(localPos.x);
     uint py = f32tof16(localPos.y);
     uint pz = f32tof16(localPos.z);
-    uint vx = f32tof16(p.Velocity.x);
-    uint vy = f32tof16(p.Velocity.y);
-    uint vz = f32tof16(p.Velocity.z);
-    uint d = f32tof16(p.Density);
-    uint pr = f32tof16(p.Pressure);
+    uint vx = f32tof16(vel.x);
+    uint vy = f32tof16(vel.y);
+    uint vz = f32tof16(vel.z);
+    uint d = f32tof16(density);
+    uint pr = f32tof16(pressure);
 
     QuantizedBakeParticle q;
     q.Packed0 = uint2((py << 16) | px, (vx << 16) | pz);

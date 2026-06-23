@@ -48,10 +48,10 @@ namespace HarmonicEngine.Tests.PlayMode
             Assert.AreEqual(1000, spawned);
 
             Assert.IsTrue(
-                pipeline.TryGetInternalParticleBuffer(out ComputeBuffer buffer, out uint count));
+                pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers soa, out uint count));
             Assert.AreEqual(1000u, count);
 
-            FluidParticle[] particles = GpuParticleReadbackUtility.ReadParticles(buffer, (int)count);
+            FluidParticle[] particles = GpuParticleReadbackUtility.ReadParticles(soa, (int)count);
             Assert.AreEqual(1000, particles.Length);
 
             for (int i = 0; i < particles.Length; i++)
@@ -66,10 +66,11 @@ namespace HarmonicEngine.Tests.PlayMode
         }
 
         [Test]
-        public void BufferStride_MatchesFluidParticleSize()
+        public void SoaFieldStride_IsFourBytesPerComponent()
         {
             Assert.AreEqual(48, Marshal.SizeOf<FluidParticle>());
-            Assert.AreEqual(48, sizeof(float) * 12);
+            Assert.AreEqual(4, sizeof(float));
+            Assert.AreEqual(4, sizeof(uint));
         }
     }
 }

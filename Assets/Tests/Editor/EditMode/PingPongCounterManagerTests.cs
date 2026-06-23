@@ -4,28 +4,28 @@ using UnityEngine;
 
 namespace HarmonicEngine.Tests
 {
-    public class PingPongCounterManagerTests
+    public class PingPongSoaManagerTests
     {
         [Test]
-        public void Swap_TogglesReadWriteBuffers()
+        public void Swap_TogglesReadWriteSets()
         {
             if (!SystemInfo.supportsComputeShaders)
             {
                 Assert.Ignore("Compute shaders not supported on this machine.");
             }
 
-            var a = new ComputeBuffer(16, 32, ComputeBufferType.Append);
-            var b = new ComputeBuffer(16, 32, ComputeBufferType.Append);
-            var manager = new PingPongCounterManager(a, b);
+            var a = ParticleSoaBuffers.Create(16, ComputeBufferType.Append);
+            var b = ParticleSoaBuffers.Create(16, ComputeBufferType.Append);
+            var manager = new PingPongSoaManager(a, b);
 
-            ComputeBuffer firstRead = manager.ReadBuffer;
-            ComputeBuffer firstWrite = manager.WriteBuffer;
+            ParticleSoaBuffers firstRead = manager.ReadSet;
+            ParticleSoaBuffers firstWrite = manager.WriteSet;
             manager.Swap();
 
-            Assert.AreNotSame(firstRead, manager.ReadBuffer);
-            Assert.AreNotSame(firstWrite, manager.WriteBuffer);
-            Assert.AreSame(firstRead, manager.WriteBuffer);
-            Assert.AreSame(firstWrite, manager.ReadBuffer);
+            Assert.AreNotSame(firstRead, manager.ReadSet);
+            Assert.AreNotSame(firstWrite, manager.WriteSet);
+            Assert.AreSame(firstRead, manager.WriteSet);
+            Assert.AreSame(firstWrite, manager.ReadSet);
 
             a.Release();
             b.Release();

@@ -15,10 +15,10 @@ namespace HarmonicEngine.Tests
                 Assert.Ignore("Compute shaders not supported.");
             }
 
-            var a = new ComputeBuffer(8, 32, ComputeBufferType.Append);
-            var b = new ComputeBuffer(8, 32, ComputeBufferType.Append);
+            var a = ParticleSoaBuffers.Create(8, ComputeBufferType.Append);
+            var b = ParticleSoaBuffers.Create(8, ComputeBufferType.Append);
             var counter = new ComputeBuffer(1, 4, ComputeBufferType.Raw);
-            var pingPong = new PingPongCounterManager(a, b);
+            var pingPong = new PingPongSoaManager(a, b);
             var service = new HarmonicParticleBufferService(a, b, pingPong, maxCapacity: 4, counter);
 
             var batch = new[]

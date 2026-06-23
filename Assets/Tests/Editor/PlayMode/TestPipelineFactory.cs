@@ -22,7 +22,8 @@ namespace HarmonicEngine.Tests.PlayMode
                 externalIngestion: true,
                 autoRun: autoRun,
                 fallingShader: settings.fallingFluidWorldShader,
-                eulerianShader: settings.eulerianDragGridShader);
+                eulerianShader: settings.eulerianDragGridShader,
+                integrateShader: settings.streamCompactionIntegrateShader);
             return pipeline;
         }
 
@@ -32,6 +33,7 @@ namespace HarmonicEngine.Tests.PlayMode
                 || settings.argumentUtilityShader == null
                 || settings.spatialHashGridShader == null
                 || settings.streamCompactionShader == null
+                || settings.streamCompactionIntegrateShader == null
                 || settings.dataCompactionShader == null)
             {
                 throw new MissingReferenceException(

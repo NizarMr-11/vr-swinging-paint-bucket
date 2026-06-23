@@ -1,3 +1,4 @@
+using HarmonicEngine.Diagnostics;
 using HarmonicEngine.Domain.Adapters;
 using HarmonicEngine.Domain.Models;
 using HarmonicEngine.Infrastructure.Management;
@@ -93,11 +94,10 @@ namespace HarmonicEngine.Tests.PlayMode
             }
 
             Assert.IsTrue(
-                pipeline.TryGetInternalParticleBuffer(out ComputeBuffer buffer, out uint count));
+                pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers soa, out uint count));
             Assert.Greater(count, 0u);
 
-            var particles = new FluidParticle[count];
-            buffer.GetData(particles, 0, 0, (int)count);
+            FluidParticle[] particles = GpuParticleReadbackUtility.ReadParticles(soa, (int)count);
 
             var averages = new ClusterAverages();
             int leftCount = 0;

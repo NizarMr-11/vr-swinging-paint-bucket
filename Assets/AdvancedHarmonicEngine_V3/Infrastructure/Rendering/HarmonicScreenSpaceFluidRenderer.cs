@@ -40,7 +40,8 @@ namespace HarmonicEngine.Infrastructure.Rendering
         private int _lastWidth;
         private int _lastHeight;
 
-        private static readonly int ParticlesId = Shader.PropertyToID("_Particles");
+        private static readonly int Block0Id = Shader.PropertyToID("_Block0");
+        private static readonly int PackedColorsId = Shader.PropertyToID("_PackedColors");
         private static readonly int ParticleCountId = Shader.PropertyToID("_ParticleCount");
         private static readonly int SplatRadiusId = Shader.PropertyToID("_SplatRadius");
         private static readonly int FluidColorId = Shader.PropertyToID("_FluidColor");
@@ -295,10 +296,10 @@ namespace HarmonicEngine.Infrastructure.Rendering
             if (pipeline.WorldFallingOnly)
             {
                 if (drawFallingParticles
-                    && pipeline.TryGetFallingParticleBuffer(out ComputeBuffer worldBuffer, out uint worldCount)
+                    && pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers worldSoa, out uint worldCount)
                     && worldCount > 0)
                 {
-                    DrawBuffer(worldBuffer, worldCount);
+                    DrawSoa(worldSoa, worldCount);
                 }
 
                 return;
@@ -307,33 +308,34 @@ namespace HarmonicEngine.Infrastructure.Rendering
             if (pipeline.ContainerFluidEnabled)
             {
                 if (drawInternalParticles
-                    && pipeline.TryGetInternalParticleBuffer(out ComputeBuffer containerBuffer, out uint containerCount)
+                    && pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers containerSoa, out uint containerCount)
                     && containerCount > 0)
                 {
-                    DrawBuffer(containerBuffer, containerCount);
+                    DrawSoa(containerSoa, containerCount);
                 }
 
                 return;
             }
 
             if (drawInternalParticles
-                && pipeline.TryGetInternalParticleBuffer(out ComputeBuffer internalBuffer, out uint internalCount)
+                && pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers internalSoa, out uint internalCount)
                 && internalCount > 0)
             {
-                DrawBuffer(internalBuffer, internalCount);
+                DrawSoa(internalSoa, internalCount);
             }
 
             if (drawFallingParticles
-                && pipeline.TryGetFallingParticleBuffer(out ComputeBuffer fallingBuffer, out uint fallingCount)
+                && pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers fallingSoa, out uint fallingCount)
                 && fallingCount > 0)
             {
-                DrawBuffer(fallingBuffer, fallingCount);
+                DrawSoa(fallingSoa, fallingCount);
             }
         }
 
-        private void DrawBuffer(ComputeBuffer buffer, uint count)
+        private void DrawSoa(ParticleSoaBuffers soa, uint count)
         {
-            fluidMaterial.SetBuffer(ParticlesId, buffer);
+            fluidMaterial.SetBuffer(Block0Id, soa.Block0);
+            fluidMaterial.SetBuffer(PackedColorsId, soa.PackedColors);
             fluidMaterial.SetInt(ParticleCountId, (int)count);
             _commandBuffer.DrawProcedural(
                 Matrix4x4.identity,

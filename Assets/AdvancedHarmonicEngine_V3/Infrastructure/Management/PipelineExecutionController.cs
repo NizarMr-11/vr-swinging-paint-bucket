@@ -14,9 +14,10 @@ namespace HarmonicEngine.Infrastructure.Management
     /// The reusable iterator lives in
     /// <c>Infrastructure/ComputeShaders/Include/SphNeighborQuery.hlsl</c> (call
     /// <c>ForEachNeighbor</c>); shared structs/hash/kernels live in <c>SphCommon.hlsl</c>.
-    /// Steps: (1) <c>BuildSpatialHashGrid(readBuffer, activeCount)</c>; (2) bind
-    /// <c>_SortedGridKeyValueBuffer</c>, <c>_CellStartEndBuffer</c>, <c>_ReadOnlyParticleSource</c>,
-    /// <c>_DensityWritableCache</c> + the SPH uniforms; (3) <c>#include</c> the query header;
+    /// Steps: (1) <c>BuildSpatialHashGrid(readSoa, activeCount)</c>; (2) bind
+    /// <c>_SortedGridKeyValueBuffer</c>, <c>_CellStartEndBuffer</c>, SOA read buffers
+    /// (<c>_Block0</c>, <c>_Block1</c>, …), <c>_DensityCacheDensities</c>/<c>_DensityCachePressures</c>
+    /// + the SPH uniforms; (3) <c>#include</c> the query header;
     /// (4) <c>DispatchIndirect</c> with <c>_indirectArgsBuffer</c>.
     ///
     /// Communication: pull (the <c>TryGet*</c> buffer accessors / <see cref="IHarmonicParticleSource"/>)
@@ -34,6 +35,7 @@ namespace HarmonicEngine.Infrastructure.Management
         [SerializeField] private ComputeShader argumentUtilityShader;
         [SerializeField] private ComputeShader spatialHashGridShader;
         [SerializeField] private ComputeShader streamCompactionShader;
+        [SerializeField] private ComputeShader streamCompactionIntegrateShader;
         [SerializeField] private ComputeShader dataCompactionShader;
         [SerializeField] private ComputeShader fallingFluidWorldShader;
         [SerializeField] private ComputeShader eulerianDragGridShader;
@@ -148,9 +150,29 @@ namespace HarmonicEngine.Infrastructure.Management
         private void Awake()
         {
             SyncSpeedOfSoundToSolver();
+            ResolveIntegrateShader();
             InitializeBuffers();
             CacheKernels();
             _lastBucketPosition = GetBucketPosition();
+        }
+
+        private void ResolveIntegrateShader()
+        {
+            if (streamCompactionIntegrateShader != null)
+            {
+                return;
+            }
+
+#if UNITY_EDITOR
+            streamCompactionIntegrateShader = UnityEditor.AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/StreamCompactionIntegrate.compute");
+#endif
+            if (streamCompactionIntegrateShader == null)
+            {
+                Debug.LogError(
+                    "[HarmonicPipeline] streamCompactionIntegrateShader is not assigned. "
+                    + "Assign StreamCompactionIntegrate.compute on the pipeline controller.");
+            }
         }
 
         private void Start()

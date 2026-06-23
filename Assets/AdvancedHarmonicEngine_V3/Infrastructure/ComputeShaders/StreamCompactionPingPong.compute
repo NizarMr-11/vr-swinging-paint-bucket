@@ -1,73 +1,23 @@
 #pragma kernel ExecuteSphDensityPass
-#pragma kernel ExecuteInternalFluidIntegration
-#pragma kernel ExecuteContainerFluidIntegration
 
-// Shared particle/grid structs, hash + cell helpers, and SPH smoothing kernels.
 #include "Include/SphCommon.hlsl"
+#include "Include/SphSoaAccess.hlsl"
 
-StructuredBuffer<FluidParticle> _ReadOnlyParticleSource;
 StructuredBuffer<GridKeyPair> _SortedGridKeyValueBuffer;
 StructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
-RWStructuredBuffer<FluidParticle> _DensityWritableCache;
+RWStructuredBuffer<float> _DensityCacheDensities;
+RWStructuredBuffer<float> _DensityCachePressures;
 
-AppendStructuredBuffer<FluidParticle> _InternalAppend;
-AppendStructuredBuffer<FluidParticle> _FallingAppend;
-
-float _DeltaTime;
 uint _ActiveParticleCount;
 uint _GridResolution;
 float _CellSize;
 float _SmoothingRadius;
 float _ParticleMass;
-float _GasConstantK;
 float _StiffnessB;
 float _RestDensity;
-float _Viscosity;
-float3 _Gravity;
-float3 _AngularVelocityWorld;
-float3 _AngularAccelerationWorld;
-float _NozzlePlaneLocalY;
-float _NozzleRadius;
-float _BucketRimLocalY;
-float4x4 _LocalToWorldMatrix;
-float3 _InstantaneousBucketGlobalVelocity;
-
-// World-space cylindrical container (open top). Used by ExecuteContainerFluidIntegration.
-float3 _ContainerCenter;
-float _ContainerRadius;
-float _ContainerFloorY;
-float _ContainerRimY;
-float _ContainerRestitution;
-float _ContainerFriction;
-float _ContainerWallStiffness;
-float _ContainerDamping;
-float _ContainerMaxSpeed;
-
-// SPH color diffusion coefficient (sigma). 0 = colors stay perfectly distinct;
-// higher = neighbors blend faster (marbling -> uniform mix).
-float _ColorDiffusionRate;
 uint _MaxParticleCount;
 
-float3 ComputeNonInertialAcceleration(float3 localPosition, float3 localVelocity)
-{
-    float3 centrifugal = -cross(_AngularVelocityWorld, cross(_AngularVelocityWorld, localPosition));
-    float3 euler = -cross(_AngularAccelerationWorld, localPosition);
-    float3 coriolis = -2.0 * cross(_AngularVelocityWorld, localVelocity);
-    return centrifugal + euler + coriolis;
-}
-
-// Buffer-bound neighbor iteration (ForEachNeighbor). Requires the buffers and
-// uniforms declared above; see the include header for the full contract.
 #include "Include/SphNeighborQuery.hlsl"
-
-bool EvaluateNozzleExitSDF(float3 localPosition)
-{
-    float2 xz = localPosition.xz;
-    float radiusSq = _NozzleRadius * _NozzleRadius;
-    bool exitsThroughNozzle = localPosition.y <= _NozzlePlaneLocalY && dot(xz, xz) <= radiusSq;
-    bool spillsOverRim = localPosition.y > _BucketRimLocalY;
-    return exitsThroughNozzle || spillsOverRim;
-}
 
 [numthreads(64, 1, 1)]
 void ExecuteSphDensityPass(uint3 id : SV_DispatchThreadID)
@@ -78,148 +28,17 @@ void ExecuteSphDensityPass(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    FluidParticle particle = _ReadOnlyParticleSource[particleIndex];
     float density;
     float3 pressureGrad;
     float3 viscosityForce;
     float3 colorLaplacian;
-    ForEachNeighbor(particleIndex, particle, false, density, pressureGrad, viscosityForce, colorLaplacian);
+    ForEachNeighbor(particleIndex, false, density, pressureGrad, viscosityForce, colorLaplacian);
 
-    particle.Density = max(density, _RestDensity * 0.01);
-    float ratio = particle.Density / _RestDensity;
+    density = max(density, _RestDensity * 0.01);
+    float ratio = density / _RestDensity;
     float p = _StiffnessB * (pow(max(ratio, 1.0), 3.0) - 1.0);
-    particle.Pressure = max(p, 0.0);
-    _DensityWritableCache[particleIndex] = particle;
-}
+    float pressure = max(p, 0.0);
 
-[numthreads(64, 1, 1)]
-void ExecuteInternalFluidIntegration(uint3 id : SV_DispatchThreadID)
-{
-    uint particleIndex = id.x;
-    if (particleIndex >= _ActiveParticleCount || particleIndex >= _MaxParticleCount)
-    {
-        return;
-    }
-
-    FluidParticle particle = _DensityWritableCache[particleIndex];
-
-    float density;
-    float3 pressureGrad;
-    float3 viscosityForce;
-    float3 colorLaplacian;
-    ForEachNeighbor(particleIndex, particle, true, density, pressureGrad, viscosityForce, colorLaplacian);
-
-    float safeDensity = max(particle.Density, 1e-4);
-    float3 acceleration = pressureGrad / safeDensity + _Viscosity * viscosityForce / safeDensity;
-    acceleration += _Gravity;
-    acceleration += ComputeNonInertialAcceleration(particle.Position, particle.Velocity);
-
-    particle.Velocity += acceleration * _DeltaTime;
-    particle.Position += particle.Velocity * _DeltaTime;
-
-    // SPH color mixing: blend toward neighbors (no-op when _ColorDiffusionRate == 0).
-    float3 mixedColor = saturate(UnpackUintToFloat3(particle.PackedColorRGBA) + _ColorDiffusionRate * colorLaplacian * _DeltaTime);
-    particle.PackedColorRGBA = PackFloat3ToUint(mixedColor);
-
-    if (EvaluateNozzleExitSDF(particle.Position))
-    {
-        particle.Position = mul(_LocalToWorldMatrix, float4(particle.Position, 1.0)).xyz;
-        particle.Velocity = _InstantaneousBucketGlobalVelocity + mul((float3x3)_LocalToWorldMatrix, particle.Velocity);
-        _FallingAppend.Append(particle);
-    }
-    else
-    {
-        _InternalAppend.Append(particle);
-    }
-}
-
-// Hard cylinder boundary: clamp position back inside and reflect/damp velocity.
-// Open top with soft ceiling at rim + 0.3m (see ProjectIntoContainer).
-void ProjectIntoContainer(inout float3 pos, inout float3 vel)
-{
-    if (pos.y < _ContainerFloorY)
-    {
-        pos.y = _ContainerFloorY;
-        if (vel.y < 0.0)
-        {
-            vel.y = -vel.y * _ContainerRestitution;
-        }
-        vel.x *= _ContainerFriction;
-        vel.z *= _ContainerFriction;
-    }
-
-    float2 rel = pos.xz - _ContainerCenter.xz;
-    float d = length(rel);
-    if (d > _ContainerRadius && d > 1e-5)
-    {
-        float2 n = rel / d;
-        pos.xz = _ContainerCenter.xz + n * _ContainerRadius;
-
-        float vn = dot(vel.xz, n);
-        if (vn > 0.0)
-        {
-            float2 vNormal = vn * n;
-            float2 vTangent = vel.xz - vNormal;
-            vel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
-        }
-    }
-
-    // Soft ceiling: allow sloshing above rim, hard-clamp beyond 0.3m
-    float ceilingY = _ContainerRimY + 0.3;
-    if (pos.y > ceilingY)
-    {
-        pos.y = ceilingY;
-        if (vel.y > 0.0)
-        {
-            vel.y = -vel.y * 0.3;
-        }
-    }
-}
-
-[numthreads(64, 1, 1)]
-void ExecuteContainerFluidIntegration(uint3 id : SV_DispatchThreadID)
-{
-    uint particleIndex = id.x;
-    if (particleIndex >= _ActiveParticleCount || particleIndex >= _MaxParticleCount)
-    {
-        return;
-    }
-
-    FluidParticle particle = _DensityWritableCache[particleIndex];
-
-    float density;
-    float3 pressureGrad;
-    float3 viscosityForce;
-    float3 colorLaplacian;
-    ForEachNeighbor(particleIndex, particle, true, density, pressureGrad, viscosityForce, colorLaplacian);
-
-    float safeDensity = max(particle.Density, 1e-4);
-    float3 acceleration = pressureGrad / safeDensity + _Viscosity * viscosityForce / safeDensity;
-    acceleration += _Gravity;
-
-    // SPH color mixing: blend toward neighbors (no-op when _ColorDiffusionRate == 0).
-    float3 mixedColor = saturate(UnpackUintToFloat3(particle.PackedColorRGBA) + _ColorDiffusionRate * colorLaplacian * _DeltaTime);
-    particle.PackedColorRGBA = PackFloat3ToUint(mixedColor);
-
-    particle.Velocity += acceleration * _DeltaTime;
-    particle.Position += particle.Velocity * _DeltaTime;
-
-    // Hard cylinder boundary keeps particles confined; provides the wall response.
-    ProjectIntoContainer(particle.Position, particle.Velocity);
-
-    // Particles that escaped despite the clamp are pushed to a dead zone.
-    float escapeY = _ContainerRimY + 1.0;
-    float escapeR = _ContainerRadius + 1.0;
-    float2 horizontalOffset = particle.Position.xz - _ContainerCenter.xz;
-    if (particle.Position.y > escapeY
-        || length(horizontalOffset) > escapeR
-        || particle.Position.y < _ContainerFloorY - 10.0)
-    {
-        particle.Position = float3(99999.0, 99999.0, 99999.0);
-        particle.Velocity = float3(0.0, 0.0, 0.0);
-        particle.Density = 0.0;
-        particle.Pressure = 0.0;
-    }
-
-    _InternalAppend.Append(particle);
+    _DensityCacheDensities[particleIndex] = density;
+    _DensityCachePressures[particleIndex] = pressure;
 }

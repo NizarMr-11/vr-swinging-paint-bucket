@@ -51,10 +51,10 @@ namespace HarmonicEngine.Tests.PlayMode
             yield return null;
 
             Assert.IsTrue(
-                pipeline.TryGetDensityCacheBuffer(out ComputeBuffer buffer, out uint count));
+                pipeline.TryGetDensityCacheBuffers(out ComputeBuffer densities, out ComputeBuffer pressures, out uint count));
             Assert.AreEqual(1000u, count);
 
-            FluidParticle[] particles = GpuParticleReadbackUtility.ReadParticles(buffer, (int)count);
+            FluidParticle[] particles = GpuParticleReadbackUtility.ReadDensityCache(densities, pressures, (int)count);
             int3 dims = settings.gridDimensions;
             int coreMin = dims.x / 2 - 1;
             int coreMax = dims.x / 2;
@@ -151,10 +151,10 @@ namespace HarmonicEngine.Tests.PlayMode
             }
 
             Assert.IsTrue(
-                pipeline.TryGetInternalParticleBuffer(out ComputeBuffer buffer, out uint count));
+                pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers soa, out uint count));
             Assert.Greater(count, 0u);
 
-            FluidParticle[] particles = GpuParticleReadbackUtility.ReadParticles(buffer, (int)count);
+            FluidParticle[] particles = GpuParticleReadbackUtility.ReadParticles(soa, (int)count);
             float floorLimit = pipeline.ContainerFloorY - 0.001f;
             for (int i = 0; i < particles.Length; i++)
             {
@@ -228,11 +228,11 @@ namespace HarmonicEngine.Tests.PlayMode
             }
 
             Assert.IsTrue(
-                pipeline.TryGetFallingParticleBuffer(out ComputeBuffer fallingBuffer, out uint fallingCount));
+                pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers fallingSoa, out uint fallingCount));
             Assert.IsTrue(
-                pipeline.TryGetInternalParticleBuffer(out ComputeBuffer internalBuffer, out uint internalCount));
-            Assert.NotNull(fallingBuffer);
-            Assert.NotNull(internalBuffer);
+                pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers internalSoa, out uint internalCount));
+            Assert.NotNull(fallingSoa);
+            Assert.NotNull(internalSoa);
             Assert.Greater(fallingCount, 0u, "Expected particles routed to falling buffer through nozzle SDF");
             Assert.Less(internalCount, initialInternal, "Expected internal count to decrease as particles exit nozzle");
             Assert.LessOrEqual(fallingCount + internalCount, initialInternal);

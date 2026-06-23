@@ -15,10 +15,6 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private const int MaxSubstepsBetweenHashRebuilds = 64;
 
-        /// <summary>
-        /// Rebuilds the spatial hash for currently appended particles without SPH integration.
-        /// Used by GPU verification tests to validate hash/sort invariants at frame 0.
-        /// </summary>
         public void RebuildSpatialHashForVerification()
         {
             if (!AreShadersReady() || _pingPong == null)
@@ -26,7 +22,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 return;
             }
 
-            uint activeCount = SanitizeAndRepairCount(_pingPong.ReadBuffer);
+            uint activeCount = SanitizeAndRepairCount(_pingPong.ReadSet);
             _cachedInternalCount = activeCount;
             if (activeCount == 0)
             {
@@ -34,13 +30,9 @@ namespace HarmonicEngine.Infrastructure.Management
             }
 
             ComputeFrameSortSize(activeCount);
-            BuildSpatialHashGrid(_pingPong.ReadBuffer, activeCount);
+            BuildSpatialHashGrid(_pingPong.ReadSet, activeCount);
         }
 
-        /// <summary>
-        /// One-frame stencil probe: counts neighbors for <paramref name="particleIndex"/> using the
-        /// same 27-cell traversal as the GPU density pass. Logs once to the console.
-        /// </summary>
         public bool TryLogStencilNeighborCountOnce(int particleIndex = 0)
         {
             if (!TryCountStencilNeighbors(particleIndex, out int stencilCount, out int bruteForceCount))
@@ -64,7 +56,7 @@ namespace HarmonicEngine.Infrastructure.Management
             stencilCount = 0;
             bruteForceCount = 0;
 
-            if (!TryGetInternalParticleBuffer(out ComputeBuffer particleBuffer, out uint activeCount)
+            if (!TryGetInternalParticleSoa(out ParticleSoaBuffers particleSoa, out uint activeCount)
                 || !TryGetSpatialHashBuffers(out ComputeBuffer gridKeys, out ComputeBuffer cellRanges, out int sortSize)
                 || activeCount == 0
                 || sortSize <= 0)
@@ -72,9 +64,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 return false;
             }
 
-            var particles = GpuParticleReadbackUtility.ReadParticles(
-                particleBuffer,
-                (int)activeCount);
+            var particles = GpuParticleReadbackUtility.ReadParticles(particleSoa, (int)activeCount);
             var keys = new GridKeyPair[sortSize];
             var ranges = new HashCellGridRange[sortSize];
             gridKeys.GetData(keys);
@@ -98,9 +88,9 @@ namespace HarmonicEngine.Infrastructure.Management
             return true;
         }
 
-        private void BuildSpatialHashGrid(ComputeBuffer positions, uint activeCount)
+        private void BuildSpatialHashGrid(ParticleSoaBuffers read, uint activeCount)
         {
-            ComputeBuffer.CopyCount(positions, _indirectArgsBuffer, sizeof(int) * 3);
+            ComputeBuffer.CopyCount(read.CounterBuffer, _indirectArgsBuffer, sizeof(int) * 3);
             DispatchIndirectArgsSetup();
 
             using (MarkerGrid.Auto())
@@ -112,7 +102,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 spatialHashGridShader.Dispatch(_kernelGridClear, clearGroups, 1, 1);
 
                 spatialHashGridShader.SetBuffer(_kernelGridGenerate, GridKeyValueBufferId, _gridKeyValueBuffer);
-                spatialHashGridShader.SetBuffer(_kernelGridGenerate, ReadOnlyParticlePositionsId, positions);
+                BindPositionsOnly(spatialHashGridShader, _kernelGridGenerate, read);
                 spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
                 spatialHashGridShader.SetInt(ActiveParticleCountId, (int)activeCount);
                 spatialHashGridShader.SetInt(GridResolutionId, _frameSortSize);

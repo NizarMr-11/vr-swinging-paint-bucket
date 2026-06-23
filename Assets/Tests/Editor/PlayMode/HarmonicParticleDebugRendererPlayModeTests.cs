@@ -51,8 +51,8 @@ namespace HarmonicEngine.Tests.PlayMode
             Assert.IsTrue(pipeline.ContainerFluidEnabled);
             Assert.IsFalse(pipeline.WorldFallingOnly);
             Assert.IsTrue(
-                pipeline.TryGetInternalParticleBuffer(out ComputeBuffer internalBuffer, out uint internalCount));
-            Assert.NotNull(internalBuffer);
+                pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers internalSoa, out uint internalCount));
+            Assert.NotNull(internalSoa);
             Assert.Greater(internalCount, 0u);
 
             Object.DestroyImmediate(pipeline.gameObject);
@@ -87,8 +87,8 @@ namespace HarmonicEngine.Tests.PlayMode
 
             Assert.IsTrue(pipeline.WorldFallingOnly);
             Assert.IsTrue(
-                pipeline.TryGetFallingParticleBuffer(out ComputeBuffer fallingBuffer, out uint fallingCount));
-            Assert.NotNull(fallingBuffer);
+                pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers fallingSoa, out uint fallingCount));
+            Assert.NotNull(fallingSoa);
             Assert.Greater(fallingCount, 0u);
 
             Object.DestroyImmediate(pipeline.gameObject);

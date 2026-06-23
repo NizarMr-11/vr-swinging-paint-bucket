@@ -6,13 +6,16 @@ namespace HarmonicEngine.Infrastructure.Management
 {
     public partial class PipelineExecutionController
     {
-        private ComputeBuffer _bufferInternalA;
-        private ComputeBuffer _bufferInternalB;
+        private ParticleSoaBuffers _soaInternalA;
+        private ParticleSoaBuffers _soaInternalB;
+        private ParticleSoaBuffers _soaFalling;
+        private ParticleSoaBuffers _soaFallingWorld;
+        private ParticleSoaBuffers _soaDragScratch;
+        private ComputeBuffer _bufferDensityCacheDensities;
+        private ComputeBuffer _bufferDensityCachePressures;
         private ComputeBuffer _bufferFalling;
         private ComputeBuffer _bufferFallingWorld;
         private ComputeBuffer _bufferDragGrid;
-        private ComputeBuffer _bufferDragParticleScratch;
-        private ComputeBuffer _bufferDensityCache;
         private ComputeBuffer _gridKeyValueBuffer;
         private ComputeBuffer _cellStartEndBuffer;
         private ComputeBuffer _indirectArgsBuffer;
@@ -20,7 +23,7 @@ namespace HarmonicEngine.Infrastructure.Management
         private ComputeBuffer _counterReadbackBuffer;
         private ComputeBuffer _bufferCanvasHits;
 
-        private PingPongCounterManager _pingPong;
+        private PingPongSoaManager _pingPong;
         private HarmonicParticleBufferService _bufferService;
         private int _paddedSortSize;
         private int _frameSortSize;
@@ -52,17 +55,41 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int BitonicLevelMaskId = Shader.PropertyToID("_BitonicLevelMask");
         private static readonly int GridKeyValueBufferId = Shader.PropertyToID("_GridKeyValueBuffer");
         private static readonly int BitonicWidthId = Shader.PropertyToID("_BitonicWidth");
-        private static readonly int ReadOnlyParticleSourceId = Shader.PropertyToID("_ReadOnlyParticleSource");
         private static readonly int SortedGridKeyValueBufferId = Shader.PropertyToID("_SortedGridKeyValueBuffer");
-        private static readonly int DensityWritableCacheId = Shader.PropertyToID("_DensityWritableCache");
-        private static readonly int InternalAppendId = Shader.PropertyToID("_InternalAppend");
-        private static readonly int FallingAppendId = Shader.PropertyToID("_FallingAppend");
+        private static readonly int DensityCacheDensitiesId = Shader.PropertyToID("_DensityCacheDensities");
+        private static readonly int DensityCachePressuresId = Shader.PropertyToID("_DensityCachePressures");
+        private static readonly int Block0Id = Shader.PropertyToID("_Block0");
+        private static readonly int Block1Id = Shader.PropertyToID("_Block1");
+        private static readonly int PackedColorsId = Shader.PropertyToID("_PackedColors");
+        private static readonly int WetnessId = Shader.PropertyToID("_Wetness");
+        private static readonly int WriteBlock0Id = Shader.PropertyToID("_WriteBlock0");
+        private static readonly int WriteBlock1Id = Shader.PropertyToID("_WriteBlock1");
+        private static readonly int WritePackedColorsId = Shader.PropertyToID("_WritePackedColors");
+        private static readonly int WriteWetnessId = Shader.PropertyToID("_WriteWetness");
+        private static readonly int InternalBlock0Id = Shader.PropertyToID("_InternalBlock0");
+        private static readonly int InternalBlock1Id = Shader.PropertyToID("_InternalBlock1");
+        private static readonly int InternalPackedColorsId = Shader.PropertyToID("_InternalPackedColors");
+        private static readonly int InternalWetnessId = Shader.PropertyToID("_InternalWetness");
+        private static readonly int FallingBlock0Id = Shader.PropertyToID("_FallingBlock0");
+        private static readonly int FallingBlock1Id = Shader.PropertyToID("_FallingBlock1");
+        private static readonly int FallingPackedColorsId = Shader.PropertyToID("_FallingPackedColors");
+        private static readonly int FallingWetnessId = Shader.PropertyToID("_FallingWetness");
+        private static readonly int FallingReadBlock0Id = Shader.PropertyToID("_FallingReadBlock0");
+        private static readonly int FallingReadBlock1Id = Shader.PropertyToID("_FallingReadBlock1");
+        private static readonly int FallingReadPackedColorsId = Shader.PropertyToID("_FallingReadPackedColors");
+        private static readonly int FallingReadWetnessId = Shader.PropertyToID("_FallingReadWetness");
+        private static readonly int FallingAppendBlock0Id = Shader.PropertyToID("_FallingAppendBlock0");
+        private static readonly int FallingAppendBlock1Id = Shader.PropertyToID("_FallingAppendBlock1");
+        private static readonly int FallingAppendPackedColorsId = Shader.PropertyToID("_FallingAppendPackedColors");
+        private static readonly int FallingAppendWetnessId = Shader.PropertyToID("_FallingAppendWetness");
+        private static readonly int TargetBlock0Id = Shader.PropertyToID("_TargetBlock0");
+        private static readonly int TargetBlock1Id = Shader.PropertyToID("_TargetBlock1");
+        private static readonly int TargetPackedColorsId = Shader.PropertyToID("_TargetPackedColors");
+        private static readonly int TargetWetnessId = Shader.PropertyToID("_TargetWetness");
         private static readonly int DeltaTimeId = Shader.PropertyToID("_DeltaTime");
-        private static readonly int SourceParticleBufferId = Shader.PropertyToID("_SourceParticleBuffer");
         private static readonly int QuantizedOutputBufferId = Shader.PropertyToID("_QuantizedOutputBuffer");
         private static readonly int QuantizedCountId = Shader.PropertyToID("_QuantizedCount");
         private static readonly int QuantizationOriginId = Shader.PropertyToID("_QuantizationOrigin");
-        private static readonly int ReadOnlyParticlePositionsId = Shader.PropertyToID("_ReadOnlyParticlePositions");
         private static readonly int SmoothingRadiusId = Shader.PropertyToID("_SmoothingRadius");
         private static readonly int ParticleMassId = Shader.PropertyToID("_ParticleMass");
         private static readonly int GasConstantKId = Shader.PropertyToID("_GasConstantK");
@@ -77,7 +104,6 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int BucketRimLocalYId = Shader.PropertyToID("_BucketRimLocalY");
         private static readonly int LocalToWorldMatrixId = Shader.PropertyToID("_LocalToWorldMatrix");
         private static readonly int InstantaneousBucketGlobalVelocityId = Shader.PropertyToID("_InstantaneousBucketGlobalVelocity");
-        private static readonly int FallingReadId = Shader.PropertyToID("_FallingRead");
         private static readonly int FallingCountId = Shader.PropertyToID("_FallingCount");
         private static readonly int WorldGravityId = Shader.PropertyToID("_WorldGravity");
         private static readonly int WorldDragId = Shader.PropertyToID("_WorldDrag");
@@ -86,8 +112,6 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int FloorRestitutionId = Shader.PropertyToID("_FloorRestitution");
         private static readonly int FloorFrictionId = Shader.PropertyToID("_FloorFriction");
         private static readonly int DragGridId = Shader.PropertyToID("_DragGrid");
-        private static readonly int ParticleSourceId = Shader.PropertyToID("_ParticleSource");
-        private static readonly int ParticleTargetId = Shader.PropertyToID("_ParticleTarget");
         private static readonly int GridVolumeId = Shader.PropertyToID("_GridVolume");
         private static readonly int DragStrengthId = Shader.PropertyToID("_DragStrength");
         private static readonly int DragDecayId = Shader.PropertyToID("_DragDecay");
@@ -117,28 +141,30 @@ namespace HarmonicEngine.Infrastructure.Management
             return argumentUtilityShader != null
                 && spatialHashGridShader != null
                 && streamCompactionShader != null
+                && streamCompactionIntegrateShader != null
                 && dataCompactionShader != null;
         }
 
         private void InitializeBuffers()
         {
-            int particleStride = sizeof(float) * 12; // 48-byte FluidParticle (incl. packed color + padding)
             int keyStride = sizeof(uint) * 2;
             int cellStride = sizeof(int) * 2;
             int quantizedStride = sizeof(ushort) * 8;
 
-            _bufferInternalA = new ComputeBuffer(maxCapacity, particleStride, ComputeBufferType.Append);
-            _bufferInternalB = new ComputeBuffer(maxCapacity, particleStride, ComputeBufferType.Append);
-            _bufferFalling = new ComputeBuffer(maxCapacity, particleStride, ComputeBufferType.Append);
-            _bufferFallingWorld = new ComputeBuffer(maxCapacity, particleStride, ComputeBufferType.Append);
-            _bufferDensityCache = new ComputeBuffer(maxCapacity, particleStride, ComputeBufferType.Structured);
-            _bufferDragParticleScratch = new ComputeBuffer(maxCapacity, particleStride, ComputeBufferType.Structured);
+            _soaInternalA = ParticleSoaBuffers.Create(maxCapacity, ComputeBufferType.Append);
+            _soaInternalB = ParticleSoaBuffers.Create(maxCapacity, ComputeBufferType.Append);
+            _soaFalling = ParticleSoaBuffers.Create(maxCapacity, ComputeBufferType.Append);
+            _soaFallingWorld = ParticleSoaBuffers.Create(maxCapacity, ComputeBufferType.Append);
+            _soaDragScratch = ParticleSoaBuffers.Create(maxCapacity, ComputeBufferType.Structured);
+
+            _bufferDensityCacheDensities = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured);
+            _bufferDensityCachePressures = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured);
 
             int dragVolume = Mathf.Max(1, dragGridVolume);
             int dragStride = sizeof(float) * 4;
             _bufferDragGrid = new ComputeBuffer(dragVolume, dragStride, ComputeBufferType.Structured);
 
-            int canvasHitStride = sizeof(float) * 8; // 32-byte CanvasPaintHit
+            int canvasHitStride = sizeof(float) * 8;
             int canvasHitCapacity = Mathf.Max(1, maxCanvasHitsPerFrame);
             _bufferCanvasHits = new ComputeBuffer(canvasHitCapacity, canvasHitStride, ComputeBufferType.Append);
 
@@ -151,16 +177,19 @@ namespace HarmonicEngine.Infrastructure.Management
             _quantizedBakeBuffer = new ComputeBuffer(maxCapacity, quantizedStride, ComputeBufferType.Structured);
             _counterReadbackBuffer = new ComputeBuffer(1, sizeof(uint), ComputeBufferType.Raw);
 
-            _bufferInternalA.SetCounterValue(0);
-            _bufferInternalB.SetCounterValue(0);
-            _bufferFalling.SetCounterValue(0);
-            _bufferFallingWorld.SetCounterValue(0);
+            _soaInternalA.SetCounterValue(0);
+            _soaInternalB.SetCounterValue(0);
+            _soaFalling.SetCounterValue(0);
+            _soaFallingWorld.SetCounterValue(0);
             _bufferCanvasHits.SetCounterValue(0);
 
-            _pingPong = new PingPongCounterManager(_bufferInternalA, _bufferInternalB);
+            _bufferFalling = _soaFalling.CounterBuffer;
+            _bufferFallingWorld = _soaFallingWorld.CounterBuffer;
+
+            _pingPong = new PingPongSoaManager(_soaInternalA, _soaInternalB);
             _bufferService = new HarmonicParticleBufferService(
-                _bufferInternalA,
-                _bufferInternalB,
+                _soaInternalA,
+                _soaInternalB,
                 _pingPong,
                 maxCapacity,
                 _counterReadbackBuffer);
@@ -184,8 +213,12 @@ namespace HarmonicEngine.Infrastructure.Management
             if (streamCompactionShader != null)
             {
                 _kernelDensity = streamCompactionShader.FindKernel("ExecuteSphDensityPass");
-                _kernelIntegration = streamCompactionShader.FindKernel("ExecuteInternalFluidIntegration");
-                _kernelContainerIntegration = streamCompactionShader.FindKernel("ExecuteContainerFluidIntegration");
+            }
+
+            if (streamCompactionIntegrateShader != null)
+            {
+                _kernelIntegration = streamCompactionIntegrateShader.FindKernel("ExecuteInternalFluidIntegration");
+                _kernelContainerIntegration = streamCompactionIntegrateShader.FindKernel("ExecuteContainerFluidIntegration");
             }
 
             if (dataCompactionShader != null)
@@ -207,9 +240,6 @@ namespace HarmonicEngine.Infrastructure.Management
             }
         }
 
-        /// <summary>
-        /// Test/runtime bootstrap for Play Mode and integration tests.
-        /// </summary>
         public void ConfigureAndInitialize(
             ComputeShader argumentShader,
             ComputeShader spatialShader,
@@ -219,12 +249,14 @@ namespace HarmonicEngine.Infrastructure.Management
             bool externalIngestion = true,
             bool autoRun = false,
             ComputeShader fallingShader = null,
-            ComputeShader eulerianShader = null)
+            ComputeShader eulerianShader = null,
+            ComputeShader integrateShader = null)
         {
             ReleaseBuffers();
             argumentUtilityShader = argumentShader;
             spatialHashGridShader = spatialShader;
             streamCompactionShader = streamShader;
+            streamCompactionIntegrateShader = integrateShader ?? streamShader;
             dataCompactionShader = dataShader;
             fallingFluidWorldShader = fallingShader;
             eulerianDragGridShader = eulerianShader;
@@ -253,26 +285,30 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private void ReleaseBuffers()
         {
-            _bufferInternalA?.Release();
-            _bufferInternalB?.Release();
-            _bufferFalling?.Release();
-            _bufferFallingWorld?.Release();
+            _soaInternalA?.Release();
+            _soaInternalB?.Release();
+            _soaFalling?.Release();
+            _soaFallingWorld?.Release();
+            _soaDragScratch?.Release();
+            _bufferDensityCacheDensities?.Release();
+            _bufferDensityCachePressures?.Release();
             _bufferDragGrid?.Release();
-            _bufferDragParticleScratch?.Release();
-            _bufferDensityCache?.Release();
             _gridKeyValueBuffer?.Release();
             _cellStartEndBuffer?.Release();
             _indirectArgsBuffer?.Release();
             _quantizedBakeBuffer?.Release();
             _counterReadbackBuffer?.Release();
             _bufferCanvasHits?.Release();
-            _bufferInternalA = null;
-            _bufferInternalB = null;
+            _soaInternalA = null;
+            _soaInternalB = null;
+            _soaFalling = null;
+            _soaFallingWorld = null;
+            _soaDragScratch = null;
+            _bufferDensityCacheDensities = null;
+            _bufferDensityCachePressures = null;
             _bufferFalling = null;
             _bufferFallingWorld = null;
             _bufferDragGrid = null;
-            _bufferDragParticleScratch = null;
-            _bufferDensityCache = null;
             _gridKeyValueBuffer = null;
             _cellStartEndBuffer = null;
             _indirectArgsBuffer = null;
@@ -288,6 +324,8 @@ namespace HarmonicEngine.Infrastructure.Management
             return _activeCountCpu[0];
         }
 
+        private uint FetchActiveCount(ParticleSoaBuffers soa) => FetchActiveCount(soa.CounterBuffer);
+
         private void DispatchIndirectArgsSetup()
         {
             argumentUtilityShader.SetInt(MaxParticleCountId, maxCapacity);
@@ -297,10 +335,6 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private uint SanitizeCount(uint raw) => raw > (uint)maxCapacity ? (uint)maxCapacity : raw;
 
-        /// <summary>
-        /// Append counters can drift above the allocated buffer when a prior frame overflowed.
-        /// Clamp for dispatch and repair the GPU counter so indirect args stay in bounds.
-        /// </summary>
         private uint SanitizeAndRepairCount(ComputeBuffer source)
         {
             uint raw = FetchActiveCount(source);
@@ -320,6 +354,100 @@ namespace HarmonicEngine.Infrastructure.Management
 
             source.SetCounterValue((uint)maxCapacity);
             return (uint)maxCapacity;
+        }
+
+        private uint SanitizeAndRepairCount(ParticleSoaBuffers soa)
+        {
+            uint raw = FetchActiveCount(soa);
+            if (raw <= (uint)maxCapacity)
+            {
+                _capacityClampWarningLogged = false;
+                return raw;
+            }
+
+            if (!_capacityClampWarningLogged)
+            {
+                _capacityClampWarningLogged = true;
+                Debug.LogWarning(
+                    $"[HarmonicPipeline] Active count {raw} exceeded maxCapacity {maxCapacity}; clamping. " +
+                    "If this persists after a fix, use Clear All / restart Play.");
+            }
+
+            soa.SetCounterValue((uint)maxCapacity);
+            return (uint)maxCapacity;
+        }
+
+        private void BindReadSoa(ComputeShader shader, int kernel, ParticleSoaBuffers soa)
+        {
+            shader.SetBuffer(kernel, Block0Id, soa.Block0);
+            shader.SetBuffer(kernel, Block1Id, soa.Block1);
+            shader.SetBuffer(kernel, PackedColorsId, soa.PackedColors);
+            shader.SetBuffer(kernel, WetnessId, soa.Wetness);
+        }
+
+        private void BindPositionsOnly(ComputeShader shader, int kernel, ParticleSoaBuffers soa)
+        {
+            shader.SetBuffer(kernel, Block0Id, soa.Block0);
+        }
+
+        private void BindWriteSoaIndexed(ComputeShader shader, int kernel, ParticleSoaBuffers soa)
+        {
+            shader.SetBuffer(kernel, WriteBlock0Id, soa.Block0);
+            shader.SetBuffer(kernel, WriteBlock1Id, soa.Block1);
+            shader.SetBuffer(kernel, WritePackedColorsId, soa.PackedColors);
+            shader.SetBuffer(kernel, WriteWetnessId, soa.Wetness);
+        }
+
+        private void BindInternalAppendSoa(ComputeShader shader, int kernel, ParticleSoaBuffers soa)
+        {
+            shader.SetBuffer(kernel, InternalBlock0Id, soa.Block0);
+            shader.SetBuffer(kernel, InternalBlock1Id, soa.Block1);
+            shader.SetBuffer(kernel, InternalPackedColorsId, soa.PackedColors);
+            shader.SetBuffer(kernel, InternalWetnessId, soa.Wetness);
+        }
+
+        private void BindFallingAppendSoa(ComputeShader shader, int kernel, ParticleSoaBuffers soa)
+        {
+            shader.SetBuffer(kernel, FallingBlock0Id, soa.Block0);
+            shader.SetBuffer(kernel, FallingBlock1Id, soa.Block1);
+            shader.SetBuffer(kernel, FallingPackedColorsId, soa.PackedColors);
+            shader.SetBuffer(kernel, FallingWetnessId, soa.Wetness);
+        }
+
+        private void BindFallingReadSoa(ComputeShader shader, int kernel, ParticleSoaBuffers soa)
+        {
+            shader.SetBuffer(kernel, FallingReadBlock0Id, soa.Block0);
+            shader.SetBuffer(kernel, FallingReadBlock1Id, soa.Block1);
+            shader.SetBuffer(kernel, FallingReadPackedColorsId, soa.PackedColors);
+            shader.SetBuffer(kernel, FallingReadWetnessId, soa.Wetness);
+        }
+
+        private void BindFallingWorldAppendSoa(ComputeShader shader, int kernel, ParticleSoaBuffers soa)
+        {
+            shader.SetBuffer(kernel, FallingAppendBlock0Id, soa.Block0);
+            shader.SetBuffer(kernel, FallingAppendBlock1Id, soa.Block1);
+            shader.SetBuffer(kernel, FallingAppendPackedColorsId, soa.PackedColors);
+            shader.SetBuffer(kernel, FallingAppendWetnessId, soa.Wetness);
+        }
+
+        private void BindDragTargetSoa(ComputeShader shader, int kernel, ParticleSoaBuffers soa)
+        {
+            shader.SetBuffer(kernel, TargetBlock0Id, soa.Block0);
+            shader.SetBuffer(kernel, TargetBlock1Id, soa.Block1);
+            shader.SetBuffer(kernel, TargetPackedColorsId, soa.PackedColors);
+            shader.SetBuffer(kernel, TargetWetnessId, soa.Wetness);
+        }
+
+        private void BindDensityCacheRw(ComputeShader shader, int kernel)
+        {
+            shader.SetBuffer(kernel, DensityCacheDensitiesId, _bufferDensityCacheDensities);
+            shader.SetBuffer(kernel, DensityCachePressuresId, _bufferDensityCachePressures);
+        }
+
+        private void BindDensityCacheRead(ComputeShader shader, int kernel)
+        {
+            shader.SetBuffer(kernel, DensityCacheDensitiesId, _bufferDensityCacheDensities);
+            shader.SetBuffer(kernel, DensityCachePressuresId, _bufferDensityCachePressures);
         }
     }
 }

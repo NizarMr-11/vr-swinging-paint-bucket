@@ -186,34 +186,6 @@ namespace HarmonicEngine.Infrastructure.Management
 
         public void SetBucketKinematicProvider(MonoBehaviour provider) => bucketKinematicProvider = provider;
 
-        public bool TryGetInternalParticleBuffer(out ComputeBuffer buffer, out uint count)
-        {
-            buffer = _pingPong?.ReadBuffer;
-            count = _cachedInternalCount;
-            return buffer != null;
-        }
-
-        public bool TryGetFallingParticleBuffer(out ComputeBuffer buffer, out uint count)
-        {
-            if (worldFallingOnly && _pingPong != null)
-            {
-                buffer = _pingPong.ReadBuffer;
-                count = _cachedInternalCount;
-                return buffer != null;
-            }
-
-            buffer = _bufferFallingWorld ?? _bufferFalling;
-            count = _lastFallingDebugCount;
-            return buffer != null;
-        }
-
-        public bool TryGetDensityCacheBuffer(out ComputeBuffer buffer, out uint count)
-        {
-            buffer = _bufferDensityCache;
-            count = _cachedInternalCount;
-            return buffer != null;
-        }
-
         public void SetSimulationActive(bool active)
         {
             simulationActive = active;

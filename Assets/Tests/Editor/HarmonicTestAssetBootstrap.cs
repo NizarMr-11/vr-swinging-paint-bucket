@@ -35,6 +35,8 @@ namespace HarmonicEngine.Tests.EditorSupport
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/SpatialHashGridIndirect.compute");
             settings.streamCompactionShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/StreamCompactionPingPong.compute");
+            settings.streamCompactionIntegrateShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/StreamCompactionIntegrate.compute");
             settings.dataCompactionShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/DataCompactionPacker.compute");
             settings.fallingFluidWorldShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(

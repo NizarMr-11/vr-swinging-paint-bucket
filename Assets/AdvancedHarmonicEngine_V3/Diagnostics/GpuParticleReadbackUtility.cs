@@ -1,4 +1,5 @@
 using HarmonicEngine.Domain.Models;
+using HarmonicEngine.Infrastructure.Management;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -9,16 +10,64 @@ namespace HarmonicEngine.Diagnostics
     /// </summary>
     public static class GpuParticleReadbackUtility
     {
-        public static FluidParticle[] ReadParticles(ComputeBuffer buffer, int count)
+        public static FluidParticle[] ReadParticles(ParticleSoaBuffers soa, int count)
         {
-            if (buffer == null || count <= 0)
+            if (soa == null || count <= 0)
             {
                 return System.Array.Empty<FluidParticle>();
             }
 
-            int readCount = math.min(count, buffer.count);
+            int readCount = math.min(count, soa.Block0.count);
+            var block0 = new Vector4[readCount];
+            var block1 = new Vector4[readCount];
+            var colors = new uint[readCount];
+            var wetness = new float[readCount];
+
+            soa.Block0.GetData(block0, 0, 0, readCount);
+            soa.Block1.GetData(block1, 0, 0, readCount);
+            soa.PackedColors.GetData(colors, 0, 0, readCount);
+            soa.Wetness.GetData(wetness, 0, 0, readCount);
+
             var particles = new FluidParticle[readCount];
-            buffer.GetData(particles, 0, 0, readCount);
+            for (int i = 0; i < readCount; i++)
+            {
+                particles[i] = new FluidParticle
+                {
+                    Position = new float3(block0[i].x, block0[i].y, block0[i].z),
+                    Velocity = new float3(block1[i].x, block1[i].y, block1[i].z),
+                    Density = block0[i].w,
+                    Pressure = block1[i].w,
+                    PackedColorRGBA = colors[i],
+                    _Padding = new float3(wetness[i], 0f, 0f)
+                };
+            }
+
+            return particles;
+        }
+
+        public static FluidParticle[] ReadDensityCache(ComputeBuffer densities, ComputeBuffer pressures, int count)
+        {
+            if (densities == null || pressures == null || count <= 0)
+            {
+                return System.Array.Empty<FluidParticle>();
+            }
+
+            int readCount = math.min(count, math.min(densities.count, pressures.count));
+            var densityData = new float[readCount];
+            var pressureData = new float[readCount];
+            densities.GetData(densityData, 0, 0, readCount);
+            pressures.GetData(pressureData, 0, 0, readCount);
+
+            var particles = new FluidParticle[readCount];
+            for (int i = 0; i < readCount; i++)
+            {
+                particles[i] = new FluidParticle
+                {
+                    Density = densityData[i],
+                    Pressure = pressureData[i]
+                };
+            }
+
             return particles;
         }
 

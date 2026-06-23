@@ -1,4 +1,5 @@
-using HarmonicEngine.Domain.Models;
+using HarmonicEngine.Infrastructure.Management;
+using HarmonicEngine.Infrastructure.Rendering;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -16,13 +17,14 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
         [SerializeField, Min(0.001f)] private float pointSize = 0.03f;
         [SerializeField] private Color color = new(1f, 0.45f, 0.1f, 1f);
 
-        private static readonly int ParticlesId = Shader.PropertyToID("_Particles");
-        private static readonly int ParticleCountId = Shader.PropertyToID("_ParticleCount");
         private static readonly int PointSizeId = Shader.PropertyToID("_PointSize");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
+        private static readonly int UseParticleColorId = Shader.PropertyToID("_UseParticleColor");
 
-        private ComputeBuffer _buffer;
-        private FluidParticle[] _scratch;
+        private ComputeBuffer _block0;
+        private ComputeBuffer _packedColors;
+        private Vector4[] _scratchBlock0;
+        private uint[] _scratchColors;
         private int _displayCount;
         private bool _visible;
 
@@ -45,19 +47,15 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
             count = Mathf.Min(count, positions.Length);
             EnsureCapacity(count);
 
+            uint packed = 0xFFFFFFFFu;
             for (int i = 0; i < count; i++)
             {
-                _scratch[i] = new FluidParticle
-                {
-                    Position = positions[i],
-                    Velocity = float3.zero,
-                    Density = 1000f,
-                    Pressure = 0f,
-                    PackedColorRGBA = 0xFFFFFFFFu
-                };
+                _scratchBlock0[i] = new Vector4(positions[i].x, positions[i].y, positions[i].z, 0f);
+                _scratchColors[i] = packed;
             }
 
-            _buffer.SetData(_scratch, 0, 0, count);
+            _block0.SetData(_scratchBlock0, 0, 0, count);
+            _packedColors.SetData(_scratchColors, 0, 0, count);
             _displayCount = count;
             _visible = true;
         }
@@ -86,21 +84,24 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
 
         private void EnsureCapacity(int count)
         {
-            if (_scratch == null || _scratch.Length < count)
+            int capacity = Mathf.NextPowerOfTwo(count);
+            if (_scratchBlock0 == null || _scratchBlock0.Length < count)
             {
-                _scratch = new FluidParticle[Mathf.NextPowerOfTwo(count)];
+                _scratchBlock0 = new Vector4[capacity];
+                _scratchColors = new uint[capacity];
             }
 
-            if (_buffer == null || _buffer.count < count)
+            if (_block0 == null || _block0.count < count)
             {
-                _buffer?.Release();
-                _buffer = new ComputeBuffer(Mathf.NextPowerOfTwo(count), sizeof(float) * 12, ComputeBufferType.Structured);
+                ReleaseBuffers();
+                _block0 = new ComputeBuffer(capacity, sizeof(float) * 4, ComputeBufferType.Structured);
+                _packedColors = new ComputeBuffer(capacity, sizeof(uint), ComputeBufferType.Structured);
             }
         }
 
         private void OnRenderObject()
         {
-            if (!_visible || _displayCount <= 0 || _buffer == null)
+            if (!_visible || _displayCount <= 0 || _block0 == null)
             {
                 return;
             }
@@ -111,18 +112,30 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
                 return;
             }
 
-            particleDebugMaterial.SetBuffer(ParticlesId, _buffer);
-            particleDebugMaterial.SetInt(ParticleCountId, _displayCount);
+            var soa = new ParticleSoaBuffers
+            {
+                Block0 = _block0,
+                PackedColors = _packedColors
+            };
+            HarmonicParticleSoaShaderBindings.BindSoa(particleDebugMaterial, soa, _displayCount);
             particleDebugMaterial.SetFloat(PointSizeId, pointSize);
             particleDebugMaterial.SetColor(ColorId, color);
+            particleDebugMaterial.SetFloat(UseParticleColorId, 0f);
             particleDebugMaterial.SetPass(0);
             Graphics.DrawProceduralNow(MeshTopology.Points, _displayCount, 1);
         }
 
-        private void OnDisable()
+        private void OnDestroy()
         {
-            _buffer?.Release();
-            _buffer = null;
+            ReleaseBuffers();
+        }
+
+        private void ReleaseBuffers()
+        {
+            _block0?.Release();
+            _packedColors?.Release();
+            _block0 = null;
+            _packedColors = null;
         }
     }
 }

@@ -72,9 +72,9 @@ namespace HarmonicEngine.Tests.PlayMode
                 pipeline.ExecuteContainerSphDensityForVerification();
                 yield return null;
 
-                if (pipeline.TryGetDensityCacheBuffer(out ComputeBuffer buffer, out uint count))
+                if (pipeline.TryGetDensityCacheBuffers(out ComputeBuffer densities, out ComputeBuffer pressures, out uint count))
                 {
-                    var particles = HarmonicEngine.Diagnostics.GpuParticleReadbackUtility.ReadParticles(buffer, (int)count);
+                    var particles = HarmonicEngine.Diagnostics.GpuParticleReadbackUtility.ReadDensityCache(densities, pressures, (int)count);
                     Debug.Log(
                         $"[SPH smoking-gun] particle=0 density={particles[0].Density:F1} rest={pipeline.RestDensity:F1}");
                 }

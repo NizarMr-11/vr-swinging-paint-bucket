@@ -1,4 +1,5 @@
 using HarmonicEngine.Infrastructure.Management;
+using HarmonicEngine.Infrastructure.Rendering;
 using UnityEngine;
 
 namespace HarmonicEngine.Infrastructure.PlaybackStreaming
@@ -24,8 +25,6 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
         /// <summary>When true, <see cref="OnRenderObject"/> skips drawing (e.g. SSFR active).</summary>
         public bool SuppressDrawing { get; set; }
 
-        private static readonly int ParticlesId = Shader.PropertyToID("_Particles");
-        private static readonly int ParticleCountId = Shader.PropertyToID("_ParticleCount");
         private static readonly int PointSizeId = Shader.PropertyToID("_PointSize");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
         private static readonly int UseParticleColorId = Shader.PropertyToID("_UseParticleColor");
@@ -59,10 +58,10 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
             if (pipeline.WorldFallingOnly)
             {
                 if (drawFallingParticles
-                    && pipeline.TryGetFallingParticleBuffer(out ComputeBuffer worldBuffer, out uint worldCount)
+                    && pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers worldSoa, out uint worldCount)
                     && worldCount > 0)
                 {
-                    DrawBuffer(worldBuffer, worldCount, fallingColor);
+                    DrawSoa(worldSoa, worldCount, fallingColor);
                 }
 
                 return;
@@ -71,23 +70,27 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
             if (pipeline.ContainerFluidEnabled)
             {
                 if (drawInternalParticles
-                    && pipeline.TryGetInternalParticleBuffer(out ComputeBuffer containerBuffer, out uint containerCount)
+                    && pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers containerSoa, out uint containerCount)
                     && containerCount > 0)
                 {
-                    DrawBuffer(containerBuffer, containerCount, internalColor);
+                    DrawSoa(containerSoa, containerCount, internalColor);
                 }
 
                 return;
             }
 
-            if (drawInternalParticles && pipeline.TryGetInternalParticleBuffer(out ComputeBuffer internalBuffer, out uint internalCount) && internalCount > 0)
+            if (drawInternalParticles
+                && pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers internalSoa, out uint internalCount)
+                && internalCount > 0)
             {
-                DrawBuffer(internalBuffer, internalCount, internalColor);
+                DrawSoa(internalSoa, internalCount, internalColor);
             }
 
-            if (drawFallingParticles && pipeline.TryGetFallingParticleBuffer(out ComputeBuffer fallingBuffer, out uint fallingCount) && fallingCount > 0)
+            if (drawFallingParticles
+                && pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers fallingSoa, out uint fallingCount)
+                && fallingCount > 0)
             {
-                DrawBuffer(fallingBuffer, fallingCount, fallingColor);
+                DrawSoa(fallingSoa, fallingCount, fallingColor);
             }
         }
 
@@ -97,10 +100,9 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
                 pipeline, autoSizeFromSph, pointSizeMultiplier, pointSize);
         }
 
-        private void DrawBuffer(ComputeBuffer buffer, uint count, Color color)
+        private void DrawSoa(ParticleSoaBuffers soa, uint count, Color color)
         {
-            particleDebugMaterial.SetBuffer(ParticlesId, buffer);
-            particleDebugMaterial.SetInt(ParticleCountId, (int)count);
+            HarmonicParticleSoaShaderBindings.BindSoa(particleDebugMaterial, soa, (int)count);
             particleDebugMaterial.SetFloat(PointSizeId, ResolvePointRadius());
             particleDebugMaterial.SetColor(ColorId, color);
             particleDebugMaterial.SetFloat(UseParticleColorId, useParticleColor ? 1f : 0f);
