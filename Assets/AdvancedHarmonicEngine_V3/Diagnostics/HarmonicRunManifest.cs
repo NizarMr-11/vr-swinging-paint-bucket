@@ -26,6 +26,7 @@ namespace HarmonicEngine.Diagnostics
         public HarmonicRunManifestBucket bucket;
         public HarmonicRunManifestBucketNozzle bucketNozzle;
         public HarmonicRunManifestSph sph;
+        public HarmonicRunManifestPbf pbf;
         public HarmonicRunManifestSimulation simulation;
         public HarmonicRunManifestParticles particles;
         public HarmonicRunManifestInitConditions initConditions;
@@ -46,7 +47,8 @@ namespace HarmonicEngine.Diagnostics
             HarmonicLogChannel.Rain.FileName(),
             HarmonicLogChannel.Sph.FileName(),
             HarmonicLogChannel.Telemetry.FileName(),
-            HarmonicLogChannel.Perf.FileName()
+            HarmonicLogChannel.Perf.FileName(),
+            HarmonicLogChannel.Pbf.FileName()
         };
 
         public static void WriteStart(
@@ -104,6 +106,7 @@ namespace HarmonicEngine.Diagnostics
             data.bucket = HarmonicRunManifestSnapshotBuilder.BuildBucket(pipeline, sceneContainerName);
             data.bucketNozzle = HarmonicRunManifestSnapshotBuilder.BuildBucketNozzle(pipeline);
             data.sph = HarmonicRunManifestSnapshotBuilder.BuildSph(pipeline);
+            data.pbf = HarmonicRunManifestSnapshotBuilder.BuildPbf(pipeline);
             data.simulation = HarmonicRunManifestSnapshotBuilder.BuildSimulation(pipeline);
             data.particles = HarmonicRunManifestSnapshotBuilder.BuildParticles(pipeline, spawn);
             data.initConditions = HarmonicRunManifestSnapshotBuilder.BuildInitConditions(pipeline, spawnLatticeOnStart);

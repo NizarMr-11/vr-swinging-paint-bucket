@@ -8,7 +8,8 @@ namespace HarmonicEngine.Diagnostics
         Rain,
         Sph,
         Telemetry,
-        Perf
+        Perf,
+        Pbf
     }
 
     public static class HarmonicLogChannelExtensions
@@ -23,6 +24,7 @@ namespace HarmonicEngine.Diagnostics
                 HarmonicLogChannel.Sph => "sph.log",
                 HarmonicLogChannel.Telemetry => "telemetry.log",
                 HarmonicLogChannel.Perf => "perf.log",
+                HarmonicLogChannel.Pbf => "pbf.log",
                 _ => "unknown.log"
             };
     }

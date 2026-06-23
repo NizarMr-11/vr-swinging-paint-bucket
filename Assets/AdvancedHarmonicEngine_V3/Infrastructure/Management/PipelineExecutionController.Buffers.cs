@@ -22,6 +22,7 @@ namespace HarmonicEngine.Infrastructure.Management
         private ComputeBuffer _quantizedBakeBuffer;
         private ComputeBuffer _counterReadbackBuffer;
         private ComputeBuffer _bufferCanvasHits;
+        private PbfScratchBuffers _pbfScratch;
 
         private PingPongSoaManager _pingPong;
         private HarmonicParticleBufferService _bufferService;
@@ -44,6 +45,11 @@ namespace HarmonicEngine.Infrastructure.Management
         private int _kernelDragAdvect;
         private int _kernelDragScatter;
         private int _kernelDragApply;
+        private int _kernelPbfPredict;
+        private int _kernelPbfDensity;
+        private int _kernelPbfLambda;
+        private int _kernelPbfSolve;
+        private int _kernelPbfApply;
 
         private static readonly int IndirectArgsBufferId = Shader.PropertyToID("_IndirectArgsBuffer");
         private static readonly int CellStartEndBufferId = Shader.PropertyToID("_CellStartEndBuffer");
@@ -131,6 +137,10 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int CanvasPaintAbsorbEnabledId = Shader.PropertyToID("_CanvasPaintAbsorbEnabled");
         private static readonly int CanvasAbsorbRateId = Shader.PropertyToID("_CanvasAbsorbRate");
         private static readonly int CanvasAbsorbPaintWeightScaleId = Shader.PropertyToID("_CanvasAbsorbPaintWeightScale");
+        private static readonly int PredictedBlock0Id = Shader.PropertyToID("_PredictedBlock0");
+        private static readonly int OldBlock0Id = Shader.PropertyToID("_OldBlock0");
+        private static readonly int LambdasId = Shader.PropertyToID("_Lambdas");
+        private static readonly int PbfEpsilonId = Shader.PropertyToID("_PbfEpsilon");
 
         private static readonly ProfilerMarker MarkerGrid = new("Harmonic.SpatialHashGrid");
         private static readonly ProfilerMarker MarkerSort = new("Harmonic.BitonicSort");
@@ -138,11 +148,20 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private bool AreShadersReady()
         {
-            return argumentUtilityShader != null
-                && spatialHashGridShader != null
-                && streamCompactionShader != null
-                && streamCompactionIntegrateShader != null
-                && dataCompactionShader != null;
+            if (argumentUtilityShader == null
+                || spatialHashGridShader == null
+                || dataCompactionShader == null)
+            {
+                return false;
+            }
+
+            if (containerFluid.enabled && usePBF)
+            {
+                return pbfSolverShader != null;
+            }
+
+            return streamCompactionShader != null
+                && streamCompactionIntegrateShader != null;
         }
 
         private void InitializeBuffers()
@@ -159,6 +178,7 @@ namespace HarmonicEngine.Infrastructure.Management
 
             _bufferDensityCacheDensities = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured);
             _bufferDensityCachePressures = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured);
+            _pbfScratch = PbfScratchBuffers.Create(maxCapacity);
 
             int dragVolume = Mathf.Max(1, dragGridVolume);
             int dragStride = sizeof(float) * 4;
@@ -238,6 +258,15 @@ namespace HarmonicEngine.Infrastructure.Management
                 _kernelDragScatter = eulerianDragGridShader.FindKernel("ScatterParticleToGridKernel");
                 _kernelDragApply = eulerianDragGridShader.FindKernel("ApplyDragFromGridKernel");
             }
+
+            if (pbfSolverShader != null)
+            {
+                _kernelPbfPredict = pbfSolverShader.FindKernel("PredictPositionsKernel");
+                _kernelPbfDensity = pbfSolverShader.FindKernel("ComputeDensityKernel");
+                _kernelPbfLambda = pbfSolverShader.FindKernel("ComputeLambdaKernel");
+                _kernelPbfSolve = pbfSolverShader.FindKernel("SolvePositionsKernel");
+                _kernelPbfApply = pbfSolverShader.FindKernel("ApplyPositionsKernel");
+            }
         }
 
         public void ConfigureAndInitialize(
@@ -250,13 +279,15 @@ namespace HarmonicEngine.Infrastructure.Management
             bool autoRun = false,
             ComputeShader fallingShader = null,
             ComputeShader eulerianShader = null,
-            ComputeShader integrateShader = null)
+            ComputeShader integrateShader = null,
+            ComputeShader pbfShader = null)
         {
             ReleaseBuffers();
             argumentUtilityShader = argumentShader;
             spatialHashGridShader = spatialShader;
             streamCompactionShader = streamShader;
             streamCompactionIntegrateShader = integrateShader ?? streamShader;
+            pbfSolverShader = pbfShader ?? pbfSolverShader;
             dataCompactionShader = dataShader;
             fallingFluidWorldShader = fallingShader;
             eulerianDragGridShader = eulerianShader;
@@ -299,6 +330,7 @@ namespace HarmonicEngine.Infrastructure.Management
             _quantizedBakeBuffer?.Release();
             _counterReadbackBuffer?.Release();
             _bufferCanvasHits?.Release();
+            _pbfScratch?.Release();
             _soaInternalA = null;
             _soaInternalB = null;
             _soaFalling = null;
@@ -315,6 +347,7 @@ namespace HarmonicEngine.Infrastructure.Management
             _quantizedBakeBuffer = null;
             _counterReadbackBuffer = null;
             _bufferCanvasHits = null;
+            _pbfScratch = null;
         }
 
         private uint FetchActiveCount(ComputeBuffer source)

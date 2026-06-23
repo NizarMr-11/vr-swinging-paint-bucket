@@ -56,6 +56,7 @@ namespace HarmonicEngine.Tests
             StringAssert.Contains("run_test", json);
             StringAssert.Contains("session.log", json);
             StringAssert.Contains("sph.log", json);
+            StringAssert.Contains("pbf.log", json);
             StringAssert.Contains("perf.log", json);
             StringAssert.Contains("diagnostics", json);
             StringAssert.Contains("enableProfileTelemetry", json);
@@ -114,6 +115,8 @@ namespace HarmonicEngine.Tests
             Publish(new HarmonicDiagnosticEvent(
                 HarmonicDiagnosticEventType.PipelineStage, "SPH", "[SPH CFL] OK c=12.0", 4, 0.4f, 256));
             Publish(new HarmonicDiagnosticEvent(
+                HarmonicDiagnosticEventType.PipelineStage, "PBF", "[PBF FRAME] active=256", 4, 0.45f, 256));
+            Publish(new HarmonicDiagnosticEvent(
                 HarmonicDiagnosticEventType.PipelineFrameAfter, "TELEMETRY", "PERIODIC delta=0 total=256", 5, 0.5f, 256));
 
             HarmonicDiagnosticHub.Shutdown();
@@ -123,6 +126,7 @@ namespace HarmonicEngine.Tests
             AssertChannelContains(_runDirectory, HarmonicLogChannel.Engine, "engine marker");
             AssertChannelContains(_runDirectory, HarmonicLogChannel.Rain, "rain marker");
             AssertChannelContains(_runDirectory, HarmonicLogChannel.Sph, "[SPH CFL]");
+            AssertChannelContains(_runDirectory, HarmonicLogChannel.Pbf, "[PBF FRAME]");
             AssertChannelContains(_runDirectory, HarmonicLogChannel.Telemetry, "PERIODIC");
 
             string sphLog = ReadChannel(_runDirectory, HarmonicLogChannel.Sph);
@@ -259,12 +263,14 @@ namespace HarmonicEngine.Tests
             var settings = HarmonicPipelineDiagnosticsSettings.CreateDefault();
             settings.frameDiagnosticInterval = 42;
             settings.muteSphTelemetry = true;
+            settings.mutePbfTelemetry = true;
             settings.positionSampleInterval = 7;
 
             pipeline.ApplyDiagnosticsSettings(settings);
 
             Assert.AreEqual(42, GetPrivateField<int>(pipeline, "frameDiagnosticInterval"));
             Assert.AreEqual(true, GetPrivateField<bool>(pipeline, "muteSphTelemetry"));
+            Assert.AreEqual(true, GetPrivateField<bool>(pipeline, "mutePbfTelemetry"));
             Assert.AreEqual(7, GetPrivateField<int>(pipeline, "positionSampleInterval"));
 
             Object.DestroyImmediate(go);

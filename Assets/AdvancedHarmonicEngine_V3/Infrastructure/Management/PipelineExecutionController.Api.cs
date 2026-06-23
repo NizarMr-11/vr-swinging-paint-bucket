@@ -215,6 +215,8 @@ namespace HarmonicEngine.Infrastructure.Management
             perfDiagnosticsMuted = settings.perfDiagnosticsMuted;
             logSphToConsole = settings.logSphToConsole;
             muteSphTelemetry = settings.muteSphTelemetry;
+            logPbfToConsole = settings.logPbfToConsole;
+            mutePbfTelemetry = settings.mutePbfTelemetry;
         }
 
         /// <summary>When <see cref="useLatticeSpawn"/> is enabled, fills the container cylinder with a uniform lattice.</summary>

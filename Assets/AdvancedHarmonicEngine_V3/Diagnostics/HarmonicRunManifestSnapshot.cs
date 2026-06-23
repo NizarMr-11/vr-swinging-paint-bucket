@@ -73,6 +73,16 @@ namespace HarmonicEngine.Diagnostics
     }
 
     [System.Serializable]
+    public sealed class HarmonicRunManifestPbf
+    {
+        public bool usePBF;
+        public int pbfIterations;
+        public float epsilon;
+        public float smoothingRadius;
+        public float restDensity;
+    }
+
+    [System.Serializable]
     public sealed class HarmonicRunManifestSimulation
     {
         public string simulationMode;
@@ -187,6 +197,19 @@ namespace HarmonicEngine.Diagnostics
                 maxCflSubsteps = tuning.maxCflSubsteps,
                 colorDiffusionRate = tuning.colorDiffusionRate,
                 particleMass = tuning.particleMass
+            };
+        }
+
+        public static HarmonicRunManifestPbf BuildPbf(PipelineExecutionController pipeline)
+        {
+            HarmonicPbfTuningSnapshot tuning = pipeline.ReadPbfTuning();
+            return new HarmonicRunManifestPbf
+            {
+                usePBF = tuning.usePBF,
+                pbfIterations = tuning.pbfIterations,
+                epsilon = tuning.epsilon,
+                smoothingRadius = tuning.smoothingRadius,
+                restDensity = tuning.restDensity
             };
         }
 

@@ -39,6 +39,7 @@ namespace HarmonicEngine.Infrastructure.Management
         [SerializeField] private ComputeShader dataCompactionShader;
         [SerializeField] private ComputeShader fallingFluidWorldShader;
         [SerializeField] private ComputeShader eulerianDragGridShader;
+        [SerializeField] private ComputeShader pbfSolverShader;
 
         [Header("Scene References")]
         [SerializeField] private Transform bucketTransform;
@@ -89,6 +90,9 @@ namespace HarmonicEngine.Infrastructure.Management
 
         [Header("Container fluid (world-space SPH in a cylinder)")]
         [SerializeField] private ContainerFluidSettings containerFluid = new();
+        [Tooltip("Use Position Based Fluids instead of WCSPH for container fluid.")]
+        [SerializeField] private bool usePBF = true;
+        [SerializeField, Range(1, 8)] private int pbfIterations = 3;
 
         [Header("Color mixing")]
         [Tooltip("SPH color diffusion coefficient. 0 = colors stay distinct; higher = neighbors blend faster (marbling -> uniform mix).")]
@@ -120,6 +124,8 @@ namespace HarmonicEngine.Infrastructure.Management
         [HideInInspector] private bool logStencilNeighborCount;
         [HideInInspector] private bool logSphToConsole = true;
         [HideInInspector] private bool muteSphTelemetry;
+        [HideInInspector] private bool logPbfToConsole = true;
+        [HideInInspector] private bool mutePbfTelemetry;
 
         public int PaddedSortSize => _paddedSortSize;
         public int FrameSortSize => _frameSortSize;
@@ -134,6 +140,8 @@ namespace HarmonicEngine.Infrastructure.Management
         public bool WorldFallingOnly => worldFallingOnly;
         public bool CanvasCullingEnabled => canvasCullingEnabled;
         public bool ContainerFluidEnabled => containerFluid.enabled;
+        public bool UsePbf => usePBF;
+        public int PbfIterations => pbfIterations;
         public float CellSize => cellSize;
         public float SmoothingRadius => sphSolver.SmoothingRadius(cellSize);
         public float RestDensity => sphSolver.RestDensity;
@@ -145,12 +153,15 @@ namespace HarmonicEngine.Infrastructure.Management
 
         public void SetGravity(Vector3 value) => gravity = value;
 
+        public void SetUsePbf(bool enabled) => usePBF = enabled;
+
         public void SetCellSize(float value) => cellSize = Mathf.Max(0.01f, value);
 
         private void Awake()
         {
             SyncSpeedOfSoundToSolver();
             ResolveIntegrateShader();
+            ResolvePbfShader();
             InitializeBuffers();
             CacheKernels();
             _lastBucketPosition = GetBucketPosition();
@@ -172,6 +183,25 @@ namespace HarmonicEngine.Infrastructure.Management
                 Debug.LogError(
                     "[HarmonicPipeline] streamCompactionIntegrateShader is not assigned. "
                     + "Assign StreamCompactionIntegrate.compute on the pipeline controller.");
+            }
+        }
+
+        private void ResolvePbfShader()
+        {
+            if (pbfSolverShader != null)
+            {
+                return;
+            }
+
+#if UNITY_EDITOR
+            pbfSolverShader = UnityEditor.AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/PbfSolver.compute");
+#endif
+            if (pbfSolverShader == null)
+            {
+                Debug.LogWarning(
+                    "[HarmonicPipeline] pbfSolverShader is not assigned. "
+                    + "Assign PbfSolver.compute or disable usePBF.");
             }
         }
 

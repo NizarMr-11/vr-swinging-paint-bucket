@@ -50,6 +50,19 @@ namespace HarmonicEngine.Infrastructure.Management
             };
         }
 
+        public HarmonicPbfTuningSnapshot ReadPbfTuning()
+        {
+            float h = SmoothingRadius;
+            return new HarmonicPbfTuningSnapshot
+            {
+                usePBF = usePBF,
+                pbfIterations = pbfIterations,
+                epsilon = 600f / (h * h),
+                smoothingRadius = h,
+                restDensity = sphSolver.RestDensity
+            };
+        }
+
         public HarmonicSimulationInitSnapshot ReadSimulationInitSnapshot()
         {
             return new HarmonicSimulationInitSnapshot

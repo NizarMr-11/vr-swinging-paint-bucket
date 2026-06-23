@@ -156,6 +156,7 @@ MonoBehaviour:
   dataCompactionShader: {fileID: 7200000, guid: 0234c310e8ef86a41a68df6481aefc77, type: 3}
   fallingFluidWorldShader: {fileID: 7200000, guid: ed4bddf61b02552409d2d4294da1cd19, type: 3}
   eulerianDragGridShader: {fileID: 7200000, guid: 46bfba10dfd6e754eafe9e006f7129a6, type: 3}
+  pbfSolverShader: {fileID: 7200000, guid: c8f4e2a1b3d54790a9e6f1d2c3b4a598, type: 3}
   bucketTransform: {fileID: 2072273976}
   bucketKinematicProvider: {fileID: 0}
   driveBucketFromTransform: 1

@@ -15,6 +15,8 @@ namespace HarmonicEngine.Diagnostics
         public bool logToUnityConsole;
         public bool logSphToConsole;
         public bool muteSphTelemetry;
+        public bool logPbfToConsole;
+        public bool mutePbfTelemetry;
 
         [Header("Pipeline logs")]
         public bool verbosePipelineDiagnostics;
@@ -45,6 +47,8 @@ namespace HarmonicEngine.Diagnostics
             logToUnityConsole = true,
             logSphToConsole = true,
             muteSphTelemetry = false,
+            logPbfToConsole = true,
+            mutePbfTelemetry = false,
             verbosePipelineDiagnostics = true,
             frameDiagnosticInterval = 15,
             positionSampleInterval = 10,

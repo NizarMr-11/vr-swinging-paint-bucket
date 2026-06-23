@@ -23,6 +23,8 @@ namespace HarmonicEngine.Diagnostics.Editor
                 DrawRelative(settings, "logToUnityConsole");
                 DrawRelative(settings, "logSphToConsole");
                 DrawRelative(settings, "muteSphTelemetry");
+                DrawRelative(settings, "logPbfToConsole");
+                DrawRelative(settings, "mutePbfTelemetry");
             });
 
             DrawSection("Pipeline logs", () =>

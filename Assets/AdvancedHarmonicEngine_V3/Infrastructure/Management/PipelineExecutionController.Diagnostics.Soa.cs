@@ -36,6 +36,30 @@ namespace HarmonicEngine.Infrastructure.Management
             return densities != null && pressures != null;
         }
 
+        private int[] _stratifiedSampleIndices;
+
+        private static int[] BuildStratifiedSampleIndices(int activeCount, int sampleCount)
+        {
+            sampleCount = Mathf.Min(sampleCount, activeCount);
+            if (sampleCount <= 0)
+            {
+                return System.Array.Empty<int>();
+            }
+
+            if (sampleCount == 1)
+            {
+                return new[] { 0 };
+            }
+
+            var indices = new int[sampleCount];
+            for (int i = 0; i < sampleCount; i++)
+            {
+                indices[i] = i * (activeCount - 1) / (sampleCount - 1);
+            }
+
+            return indices;
+        }
+
         private void MaybeSampleParticlePositions(ParticleSoaBuffers soa, uint activeCount, string stage)
         {
             if (positionSampleInterval <= 0 || soa == null || activeCount == 0)
@@ -61,7 +85,14 @@ namespace HarmonicEngine.Infrastructure.Management
                 _diagSampleBuffer = new FluidParticle[Mathf.Max(sampleCount, positionSampleCount)];
             }
 
-            FluidParticle[] sampled = GpuParticleReadbackUtility.ReadParticles(soa, sampleCount);
+            int[] indices = BuildStratifiedSampleIndices((int)activeCount, sampleCount);
+            if (_stratifiedSampleIndices == null || _stratifiedSampleIndices.Length < indices.Length)
+            {
+                _stratifiedSampleIndices = new int[Mathf.Max(indices.Length, positionSampleCount)];
+            }
+
+            System.Array.Copy(indices, _stratifiedSampleIndices, indices.Length);
+            FluidParticle[] sampled = GpuParticleReadbackUtility.ReadParticlesAtIndices(soa, indices);
             System.Array.Copy(sampled, _diagSampleBuffer, sampleCount);
 
             float minY = float.MaxValue, maxY = float.MinValue, sumY = 0f, sumSpeed = 0f, maxSpeed = 0f;
@@ -91,6 +122,11 @@ namespace HarmonicEngine.Infrastructure.Management
                 $"{stage}.sample",
                 $"n={sampleCount} minY={minY:F2} maxY={maxY:F2} avgY={(sumY / sampleCount):F2} " +
                 $"avgSpeed={(sumSpeed / sampleCount):F2} p0=({p0.x:F2},{p0.y:F2},{p0.z:F2})");
+
+            if (stage == "containerPbf")
+            {
+                StorePbfColumnSample(minY, maxY, sumY / sampleCount, sumSpeed / sampleCount, maxSpeed);
+            }
         }
 
         private void SeedTestParticlesIfEmpty()

@@ -90,7 +90,12 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private void BuildSpatialHashGrid(ParticleSoaBuffers read, uint activeCount)
         {
-            ComputeBuffer.CopyCount(read.CounterBuffer, _indirectArgsBuffer, sizeof(int) * 3);
+            BuildSpatialHashGrid(read.Block0, activeCount);
+        }
+
+        private void BuildSpatialHashGrid(ComputeBuffer positionBlock0, uint activeCount)
+        {
+            ComputeBuffer.CopyCount(_pingPong.ReadSet.CounterBuffer, _indirectArgsBuffer, sizeof(int) * 3);
             DispatchIndirectArgsSetup();
 
             using (MarkerGrid.Auto())
@@ -102,7 +107,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 spatialHashGridShader.Dispatch(_kernelGridClear, clearGroups, 1, 1);
 
                 spatialHashGridShader.SetBuffer(_kernelGridGenerate, GridKeyValueBufferId, _gridKeyValueBuffer);
-                BindPositionsOnly(spatialHashGridShader, _kernelGridGenerate, read);
+                spatialHashGridShader.SetBuffer(_kernelGridGenerate, Block0Id, positionBlock0);
                 spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
                 spatialHashGridShader.SetInt(ActiveParticleCountId, (int)activeCount);
                 spatialHashGridShader.SetInt(GridResolutionId, _frameSortSize);

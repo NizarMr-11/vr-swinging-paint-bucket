@@ -31,6 +31,15 @@ namespace HarmonicEngine.Infrastructure.Management
         public float particleMass;
     }
 
+    public struct HarmonicPbfTuningSnapshot
+    {
+        public bool usePBF;
+        public int pbfIterations;
+        public float epsilon;
+        public float smoothingRadius;
+        public float restDensity;
+    }
+
     public struct HarmonicSimulationInitSnapshot
     {
         public HarmonicSimulationMode simulationMode;

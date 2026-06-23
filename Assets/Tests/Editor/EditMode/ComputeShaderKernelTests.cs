@@ -43,6 +43,19 @@ namespace HarmonicEngine.Tests
         }
 
         [Test]
+        public void PbfSolver_HasAllKernels()
+        {
+            var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/PbfSolver.compute");
+            Assert.IsNotNull(shader);
+            ComputeShaderTestUtility.AssertHasKernel(shader, "PredictPositionsKernel");
+            ComputeShaderTestUtility.AssertHasKernel(shader, "ComputeDensityKernel");
+            ComputeShaderTestUtility.AssertHasKernel(shader, "ComputeLambdaKernel");
+            ComputeShaderTestUtility.AssertHasKernel(shader, "SolvePositionsKernel");
+            ComputeShaderTestUtility.AssertHasKernel(shader, "ApplyPositionsKernel");
+        }
+
+        [Test]
         public void DataCompaction_HasQuantizeKernel()
         {
             var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(TestComputeShaderPaths.DataCompaction);

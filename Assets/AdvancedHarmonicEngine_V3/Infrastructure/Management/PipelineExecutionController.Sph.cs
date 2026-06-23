@@ -50,7 +50,15 @@ namespace HarmonicEngine.Infrastructure.Management
 
             if (containerFluid.enabled)
             {
-                ExecuteContainerFluidFrame(activeCount, deltaTime);
+                if (usePBF)
+                {
+                    ExecuteContainerPbfFrame(activeCount, deltaTime);
+                }
+                else
+                {
+                    ExecuteContainerFluidFrame(activeCount, deltaTime);
+                }
+
                 PublishPipelineFrameDiagnostic(_cachedInternalCount);
                 return;
             }

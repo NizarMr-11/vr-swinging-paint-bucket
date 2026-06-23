@@ -1,0 +1,278 @@
+#pragma kernel PredictPositionsKernel
+#pragma kernel ComputeDensityKernel
+#pragma kernel ComputeLambdaKernel
+#pragma kernel SolvePositionsKernel
+#pragma kernel ApplyPositionsKernel
+
+#include "Include/SphCommon.hlsl"
+#include "Include/SphSoaAccess.hlsl"
+
+StructuredBuffer<GridKeyPair> _SortedGridKeyValueBuffer;
+StructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
+
+RWStructuredBuffer<float4> _OldBlock0;
+RWStructuredBuffer<float4> _PredictedBlock0;
+RWStructuredBuffer<float> _DensityCacheDensities;
+RWStructuredBuffer<float> _Lambdas;
+
+RWStructuredBuffer<float4> _WriteBlock0;
+RWStructuredBuffer<float4> _WriteBlock1;
+RWStructuredBuffer<uint> _WritePackedColors;
+RWStructuredBuffer<float> _WriteWetness;
+
+float _DeltaTime;
+uint _ActiveParticleCount;
+uint _GridResolution;
+float _CellSize;
+float _SmoothingRadius;
+float _ParticleMass;
+float _RestDensity;
+float _Viscosity;
+float _PbfEpsilon;
+float3 _Gravity;
+float3 _ContainerCenter;
+float _ContainerRadius;
+float _ContainerFloorY;
+float _ContainerRestitution;
+float _ContainerFriction;
+uint _MaxParticleCount;
+
+#include "Include/PbfNeighborQuery.hlsl"
+
+float3 ComputeXsphViscosity(uint particleIndex, float3 selfPos, float3 selfVel)
+{
+    int3 baseCell = SphCellFromPosition(selfPos, _CellSize);
+    float h = _SmoothingRadius;
+    float3 viscosityAccel = float3(0, 0, 0);
+    float selfDensity = max(_RestDensity, 1e-4);
+
+    [loop]
+    for (int n = 0; n < 27; n++)
+    {
+        uint cellHash = SphHashCell(baseCell + kNeighborOffsets[n], _GridResolution);
+        HashCellGridRange range = _CellStartEndBuffer[cellHash];
+        if (range.StartIndex < 0 || range.EndIndex < range.StartIndex)
+        {
+            continue;
+        }
+
+        for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
+        {
+            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
+            if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
+            {
+                continue;
+            }
+
+            uint neighborIndex = pair.ParticleIndex;
+            float3 neighborPos = SphLoadPosition(neighborIndex);
+            float3 diff = selfPos - neighborPos;
+            float r = length(diff);
+            if (r > 2.0 * h)
+            {
+                continue;
+            }
+
+            float lap = CubicSplineLaplacian(r, h);
+            float3 neighborVel = SphLoadVelocity(neighborIndex);
+            float neighborDensity = max(_RestDensity, 1e-4);
+            viscosityAccel += _ParticleMass * (neighborVel - selfVel) / neighborDensity * lap;
+        }
+    }
+
+    return _Viscosity * viscosityAccel / selfDensity;
+}
+
+[numthreads(64, 1, 1)]
+void PredictPositionsKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount || i >= _MaxParticleCount)
+    {
+        return;
+    }
+
+    float3 pos = SphLoadPosition(i);
+    float3 vel = SphLoadVelocity(i);
+
+    _OldBlock0[i] = float4(pos, 0.0);
+
+    float3 accel = _Gravity + ComputeXsphViscosity(i, pos, vel);
+    vel += accel * _DeltaTime;
+    pos += vel * _DeltaTime;
+
+    _PredictedBlock0[i] = float4(pos, 0.0);
+}
+
+[numthreads(64, 1, 1)]
+void ComputeDensityKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount || i >= _MaxParticleCount)
+    {
+        return;
+    }
+
+    _DensityCacheDensities[i] = PbfComputeDensityAt(i);
+}
+
+[numthreads(64, 1, 1)]
+void ComputeLambdaKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount || i >= _MaxParticleCount)
+    {
+        return;
+    }
+
+    float density = _DensityCacheDensities[i];
+    float constraint = density / max(_RestDensity, 1e-4) - 1.0;
+
+    float3 selfPos = PbfLoadPredictedPosition(i);
+    int3 baseCell = SphCellFromPosition(selfPos, _CellSize);
+    float h = _SmoothingRadius;
+    float gradSqSum = 0.0;
+
+    [loop]
+    for (int n = 0; n < 27; n++)
+    {
+        uint cellHash = SphHashCell(baseCell + kNeighborOffsets[n], _GridResolution);
+        HashCellGridRange range = _CellStartEndBuffer[cellHash];
+        if (range.StartIndex < 0 || range.EndIndex < range.StartIndex)
+        {
+            continue;
+        }
+
+        for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
+        {
+            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
+            if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
+            {
+                continue;
+            }
+
+            float3 neighborPos = PbfLoadPredictedPosition(pair.ParticleIndex);
+            float3 diff = selfPos - neighborPos;
+            float r = length(diff);
+            if (r > 2.0 * h)
+            {
+                continue;
+            }
+
+            float3 gradW = CubicSplineGradient(diff, r, h);
+            float3 gradC = (_ParticleMass / max(_RestDensity, 1e-4)) * gradW;
+            gradSqSum += dot(gradC, gradC);
+        }
+    }
+
+    _Lambdas[i] = -constraint / (gradSqSum + _PbfEpsilon);
+}
+
+[numthreads(64, 1, 1)]
+void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount || i >= _MaxParticleCount)
+    {
+        return;
+    }
+
+    float3 selfPos = PbfLoadPredictedPosition(i);
+    float lambdaI = _Lambdas[i];
+    int3 baseCell = SphCellFromPosition(selfPos, _CellSize);
+    float h = _SmoothingRadius;
+    float3 delta = float3(0, 0, 0);
+
+    [loop]
+    for (int n = 0; n < 27; n++)
+    {
+        uint cellHash = SphHashCell(baseCell + kNeighborOffsets[n], _GridResolution);
+        HashCellGridRange range = _CellStartEndBuffer[cellHash];
+        if (range.StartIndex < 0 || range.EndIndex < range.StartIndex)
+        {
+            continue;
+        }
+
+        for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
+        {
+            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
+            if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
+            {
+                continue;
+            }
+
+            uint j = pair.ParticleIndex;
+            float3 neighborPos = PbfLoadPredictedPosition(j);
+            float3 diff = selfPos - neighborPos;
+            float r = length(diff);
+            if (r > 2.0 * h)
+            {
+                continue;
+            }
+
+            float3 gradW = CubicSplineGradient(diff, r, h);
+            float lambdaJ = _Lambdas[j];
+            delta += (lambdaI + lambdaJ) * gradW;
+        }
+    }
+
+    delta *= _ParticleMass / max(_RestDensity, 1e-4);
+    selfPos += delta;
+    _PredictedBlock0[i] = float4(selfPos, 0.0);
+}
+
+void PbfClampToContainer(inout float3 pos, inout float3 vel)
+{
+    if (pos.y < _ContainerFloorY)
+    {
+        pos.y = _ContainerFloorY;
+        if (vel.y < 0.0)
+        {
+            vel.y = -vel.y * _ContainerRestitution;
+        }
+        vel.x *= _ContainerFriction;
+        vel.z *= _ContainerFriction;
+    }
+
+    float2 rel = pos.xz - _ContainerCenter.xz;
+    float d = length(rel);
+    if (d > _ContainerRadius && d > 1e-5)
+    {
+        float2 n = rel / d;
+        pos.xz = _ContainerCenter.xz + n * _ContainerRadius;
+
+        float vn = dot(vel.xz, n);
+        if (vn > 0.0)
+        {
+            float2 vNormal = vn * n;
+            float2 vTangent = vel.xz - vNormal;
+            vel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
+        }
+    }
+}
+
+[numthreads(64, 1, 1)]
+void ApplyPositionsKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount || i >= _MaxParticleCount)
+    {
+        return;
+    }
+
+    float3 oldPos = _OldBlock0[i].xyz;
+    float3 newPos = _PredictedBlock0[i].xyz;
+    float3 vel = (newPos - oldPos) / max(_DeltaTime, 1e-6);
+
+    PbfClampToContainer(newPos, vel);
+
+    float density = _DensityCacheDensities[i];
+    float pressure = 0.0;
+    uint packedColor = SphLoadPackedColor(i);
+    float wetness = SphLoadWetness(i);
+
+    _WriteBlock0[i] = float4(newPos, density);
+    _WriteBlock1[i] = float4(vel, pressure);
+    _WritePackedColors[i] = packedColor;
+    _WriteWetness[i] = wetness;
+}

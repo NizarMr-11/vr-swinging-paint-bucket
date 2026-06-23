@@ -23,6 +23,11 @@ namespace HarmonicEngine.Diagnostics
                 return HarmonicLogChannel.Sph;
             }
 
+            if (diagnosticEvent.Category == "PBF" || ContainsPbfMarker(diagnosticEvent.Message))
+            {
+                return HarmonicLogChannel.Pbf;
+            }
+
             if (diagnosticEvent.Category == "TELEMETRY")
             {
                 return HarmonicLogChannel.Telemetry;
@@ -67,6 +72,16 @@ namespace HarmonicEngine.Diagnostics
             return message.Contains("[SPH CFL]")
                 || message.Contains("[SPH HASH]")
                 || message.Contains("[SPH stencil");
+        }
+
+        private static bool ContainsPbfMarker(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                return false;
+            }
+
+            return message.Contains("[PBF");
         }
     }
 }

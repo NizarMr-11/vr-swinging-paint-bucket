@@ -37,6 +37,8 @@ namespace HarmonicEngine.Tests.EditorSupport
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/StreamCompactionPingPong.compute");
             settings.streamCompactionIntegrateShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/StreamCompactionIntegrate.compute");
+            settings.pbfSolverShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/PbfSolver.compute");
             settings.dataCompactionShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/DataCompactionPacker.compute");
             settings.fallingFluidWorldShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
