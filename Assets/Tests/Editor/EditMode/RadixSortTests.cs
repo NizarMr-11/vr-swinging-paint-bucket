@@ -164,7 +164,7 @@ namespace HarmonicEngine.Tests
         [TestCase(4096)]
         [TestCase(32768)]
         [TestCase(65536)]
-        public void RadixSort_DispatchCount_Is25_RegardlessOfN(int n)
+        public void RadixSort_DispatchCount_Is26_RegardlessOfN(int n)
         {
             int dispatches = RadixSortTestUtility.CountDispatches(n);
             Assert.AreEqual(GpuRadixSort.DispatchesPerFullSort, dispatches, $"N={n}");

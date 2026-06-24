@@ -9,7 +9,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public const int BucketCount = 64;
         public const int PassCount = 6;
         public const int DispatchesPerPass = 4;
-        public const int DispatchesPerFullSort = PassCount * DispatchesPerPass + 1;
+        public const int DispatchesPerFullSort = PassCount * DispatchesPerPass + 2;
 
         private static readonly int SortKeysId = Shader.PropertyToID("_SortKeys");
         private static readonly int SortValuesId = Shader.PropertyToID("_SortValues");
@@ -25,6 +25,7 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int NumGroupsId = Shader.PropertyToID("_NumGroups");
 
         private readonly ComputeShader _shader;
+        private readonly int _kernelExtract;
         private readonly int _kernelClear;
         private readonly int _kernelHistogram;
         private readonly int _kernelScan;
@@ -41,6 +42,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public GpuRadixSort(ComputeShader shader, int maxSortSize)
         {
             _shader = shader;
+            _kernelExtract = shader.FindKernel("ExtractGridKeysKernel");
             _kernelClear = shader.FindKernel("ClearHistogramKernel");
             _kernelHistogram = shader.FindKernel("HistogramKernel");
             _kernelScan = shader.FindKernel("ScanKernel");
@@ -89,6 +91,15 @@ namespace HarmonicEngine.Infrastructure.Management
             ComputeBuffer readValues = values;
             ComputeBuffer writeKeys = tempKeys;
             ComputeBuffer writeValues = tempValues;
+
+            if (packGridKeyValueBuffer != null)
+            {
+                _shader.SetBuffer(_kernelExtract, GridKeyValueBufferId, packGridKeyValueBuffer);
+                _shader.SetBuffer(_kernelExtract, SortKeysId, readKeys);
+                _shader.SetBuffer(_kernelExtract, SortValuesId, readValues);
+                _shader.Dispatch(_kernelExtract, threadGroups, 1, 1);
+                LastDispatchCount++;
+            }
 
             for (int pass = 0; pass < PassCount; pass++)
             {

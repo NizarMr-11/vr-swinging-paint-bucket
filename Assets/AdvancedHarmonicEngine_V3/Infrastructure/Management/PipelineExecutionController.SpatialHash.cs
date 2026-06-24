@@ -115,14 +115,11 @@ namespace HarmonicEngine.Infrastructure.Management
                 spatialHashGridShader.Dispatch(_kernelGridClear, clearGroups, 1, 1);
 
                 spatialHashGridShader.SetBuffer(_kernelGridGenerate, Block0Id, positionBlock0);
-                spatialHashGridShader.SetBuffer(_kernelGridGenerate, SortKeysId, _sortKeysBuffer);
-                spatialHashGridShader.SetBuffer(_kernelGridGenerate, SortValuesId, _sortValuesBuffer);
                 spatialHashGridShader.SetBuffer(_kernelGridGenerate, GridKeyValueBufferId, _gridKeyValueBuffer);
                 spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
                 spatialHashGridShader.SetInt(ActiveParticleCountId, (int)activeCount);
                 spatialHashGridShader.SetInt(GridResolutionId, _frameSortSize);
                 spatialHashGridShader.SetFloat(CellSizeId, cellSize);
-                spatialHashGridShader.SetInt(UseSplitSortOutputId, radixActive ? 1 : 0);
                 spatialHashGridShader.Dispatch(_kernelGridGenerate, generateGroups, 1, 1);
             }
 
@@ -146,7 +143,6 @@ namespace HarmonicEngine.Infrastructure.Management
             spatialHashGridShader.SetBuffer(_kernelGridBuildRanges, CellStartEndBufferId, _cellStartEndBuffer);
             spatialHashGridShader.SetBuffer(_kernelGridBuildRanges, GridKeyValueBufferId, _gridKeyValueBuffer);
             spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
-            spatialHashGridShader.SetInt(UseSplitSortKeysId, 0);
             using (MarkerBuildRanges.Auto())
             {
                 spatialHashGridShader.Dispatch(_kernelGridBuildRanges, generateGroups, 1, 1);

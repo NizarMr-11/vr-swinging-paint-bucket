@@ -55,7 +55,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 BindReadSoa(pbfSolverShader, _kernelPbfPredict, _pingPong.ReadSet);
                 pbfSolverShader.SetBuffer(_kernelPbfPredict, OldBlock0Id, _pbfScratch.OldBlock0);
                 pbfSolverShader.SetBuffer(_kernelPbfPredict, PredictedBlock0Id, _pbfScratch.PredictedBlock0);
-                BindSortedGridForPhysics(pbfSolverShader, _kernelPbfPredict);
+                pbfSolverShader.SetBuffer(_kernelPbfPredict, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
                 pbfSolverShader.SetBuffer(_kernelPbfPredict, CellStartEndBufferId, _cellStartEndBuffer);
                 pbfSolverShader.SetInt(ActiveParticleCountId, (int)activeCount);
                 pbfSolverShader.DispatchIndirect(_kernelPbfPredict, _indirectArgsBuffer, 0);
@@ -68,7 +68,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 using (MarkerPbfDensity.Auto())
                 {
                     pbfSolverShader.SetBuffer(_kernelPbfDensity, PredictedBlock0Id, _pbfScratch.PredictedBlock0);
-                    BindSortedGridForPhysics(pbfSolverShader, _kernelPbfDensity);
+                    pbfSolverShader.SetBuffer(_kernelPbfDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
                     pbfSolverShader.SetBuffer(_kernelPbfDensity, CellStartEndBufferId, _cellStartEndBuffer);
                     BindDensityCacheRw(pbfSolverShader, _kernelPbfDensity);
                     pbfSolverShader.SetInt(ActiveParticleCountId, (int)activeCount);
@@ -78,7 +78,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 using (MarkerPbfLambda.Auto())
                 {
                     pbfSolverShader.SetBuffer(_kernelPbfLambda, PredictedBlock0Id, _pbfScratch.PredictedBlock0);
-                    BindSortedGridForPhysics(pbfSolverShader, _kernelPbfLambda);
+                    pbfSolverShader.SetBuffer(_kernelPbfLambda, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
                     pbfSolverShader.SetBuffer(_kernelPbfLambda, CellStartEndBufferId, _cellStartEndBuffer);
                     BindDensityCacheRead(pbfSolverShader, _kernelPbfLambda);
                     pbfSolverShader.SetBuffer(_kernelPbfLambda, LambdasId, _pbfScratch.Lambdas);
@@ -90,7 +90,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 using (MarkerPbfSolve.Auto())
                 {
                     pbfSolverShader.SetBuffer(_kernelPbfSolve, PredictedBlock0Id, _pbfScratch.PredictedBlock0);
-                    BindSortedGridForPhysics(pbfSolverShader, _kernelPbfSolve);
+                    pbfSolverShader.SetBuffer(_kernelPbfSolve, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
                     pbfSolverShader.SetBuffer(_kernelPbfSolve, CellStartEndBufferId, _cellStartEndBuffer);
                     pbfSolverShader.SetBuffer(_kernelPbfSolve, LambdasId, _pbfScratch.Lambdas);
                     pbfSolverShader.SetInt(ActiveParticleCountId, (int)activeCount);

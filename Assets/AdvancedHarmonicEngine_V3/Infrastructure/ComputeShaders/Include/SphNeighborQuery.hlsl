@@ -19,7 +19,7 @@
 //  and must have included SphCommon.hlsl first.
 // =============================================================================
 
-#include "SortedGridAccess.hlsl"
+StructuredBuffer<GridKeyPair> _SortedGridKeyValueBuffer;
 
 void ForEachNeighbor(
     uint particleIndex,
@@ -63,7 +63,7 @@ void ForEachNeighbor(
 
         for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
         {
-            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
+            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
             if (pair.CellHash == 0xFFFFFFFFu)
             {
                 continue;

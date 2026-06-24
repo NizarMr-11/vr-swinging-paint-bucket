@@ -6,7 +6,6 @@
 
 #include "Include/SphCommon.hlsl"
 #include "Include/SphSoaAccess.hlsl"
-#include "Include/SortedGridAccess.hlsl"
 
 StructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
 
@@ -70,7 +69,7 @@ float3 ComputeXsphViscosity(uint particleIndex, float3 selfPos, float3 selfVel)
 
         for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
         {
-            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
+            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
             if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
             {
                 continue;
@@ -118,7 +117,7 @@ float3 ComputeCohesionForce(uint particleIndex, float3 selfPos)
 
         for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
         {
-            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
+            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
             if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
             {
                 continue;
@@ -216,7 +215,7 @@ void ComputeLambdaKernel(uint3 id : SV_DispatchThreadID)
 
         for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
         {
-            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
+            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
             if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
             {
                 continue;
@@ -277,7 +276,7 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
 
         for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
         {
-            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
+            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
             if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
             {
                 continue;

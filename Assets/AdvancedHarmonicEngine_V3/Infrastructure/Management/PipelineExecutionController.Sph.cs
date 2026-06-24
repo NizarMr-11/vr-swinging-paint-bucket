@@ -90,7 +90,7 @@ namespace HarmonicEngine.Infrastructure.Management
             using (MarkerDensity.Auto())
             {
                 BindReadSoa(streamCompactionShader, _kernelDensity, _pingPong.ReadSet);
-                BindSortedGridForPhysics(streamCompactionShader, _kernelDensity);
+                streamCompactionShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
                 streamCompactionShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
                 BindDensityCacheRw(streamCompactionShader, _kernelDensity);
                 streamCompactionShader.SetInt(ActiveParticleCountId, (int)activeCount);
@@ -119,7 +119,7 @@ namespace HarmonicEngine.Infrastructure.Management
             using (MarkerDensity.Auto())
             {
                 BindReadSoa(streamCompactionShader, _kernelDensity, particleSourceForSph);
-                BindSortedGridForPhysics(streamCompactionShader, _kernelDensity);
+                streamCompactionShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
                 streamCompactionShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
                 BindDensityCacheRw(streamCompactionShader, _kernelDensity);
                 streamCompactionShader.SetInt(ActiveParticleCountId, (int)activeCount);
@@ -131,7 +131,7 @@ namespace HarmonicEngine.Infrastructure.Management
             {
                 BindReadSoa(streamCompactionIntegrateShader, _kernelIntegration, particleSourceForSph);
                 BindDensityCacheRead(streamCompactionIntegrateShader, _kernelIntegration);
-                BindSortedGridForPhysics(streamCompactionIntegrateShader, _kernelIntegration);
+                streamCompactionIntegrateShader.SetBuffer(_kernelIntegration, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
                 streamCompactionIntegrateShader.SetBuffer(_kernelIntegration, CellStartEndBufferId, _cellStartEndBuffer);
                 BindInternalAppendSoa(streamCompactionIntegrateShader, _kernelIntegration, _pingPong.WriteSet);
                 BindFallingAppendSoa(streamCompactionIntegrateShader, _kernelIntegration, _soaFalling);
@@ -284,7 +284,7 @@ namespace HarmonicEngine.Infrastructure.Management
             using (MarkerDensity.Auto())
             {
                 BindReadSoa(streamCompactionShader, _kernelDensity, _pingPong.ReadSet);
-                BindSortedGridForPhysics(streamCompactionShader, _kernelDensity);
+                streamCompactionShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
                 streamCompactionShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
                 BindDensityCacheRw(streamCompactionShader, _kernelDensity);
                 streamCompactionShader.SetInt(ActiveParticleCountId, (int)activeCount);
@@ -296,7 +296,7 @@ namespace HarmonicEngine.Infrastructure.Management
             {
                 BindReadSoa(streamCompactionIntegrateShader, _kernelContainerIntegration, _pingPong.ReadSet);
                 BindDensityCacheRead(streamCompactionIntegrateShader, _kernelContainerIntegration);
-                BindSortedGridForPhysics(streamCompactionIntegrateShader, _kernelContainerIntegration);
+                streamCompactionIntegrateShader.SetBuffer(_kernelContainerIntegration, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
                 streamCompactionIntegrateShader.SetBuffer(_kernelContainerIntegration, CellStartEndBufferId, _cellStartEndBuffer);
                 BindWriteSoaIndexed(streamCompactionIntegrateShader, _kernelContainerIntegration, _pingPong.WriteSet);
                 streamCompactionIntegrateShader.SetInt(ActiveParticleCountId, (int)activeCount);

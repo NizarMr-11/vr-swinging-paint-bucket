@@ -67,11 +67,6 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int GridKeyValueBufferId = Shader.PropertyToID("_GridKeyValueBuffer");
         private static readonly int SortKeysId = Shader.PropertyToID("_SortKeys");
         private static readonly int SortValuesId = Shader.PropertyToID("_SortValues");
-        private static readonly int SortedGridKeysId = Shader.PropertyToID("_SortedGridKeys");
-        private static readonly int SortedGridValuesId = Shader.PropertyToID("_SortedGridValues");
-        private static readonly int UseSplitSortOutputId = Shader.PropertyToID("_UseSplitSortOutput");
-        private static readonly int UseSplitSortKeysId = Shader.PropertyToID("_UseSplitSortKeys");
-        private static readonly int UseSplitSortedGridId = Shader.PropertyToID("_UseSplitSortedGrid");
         private static readonly int BitonicWidthId = Shader.PropertyToID("_BitonicWidth");
         private static readonly int SortedGridKeyValueBufferId = Shader.PropertyToID("_SortedGridKeyValueBuffer");
         private static readonly int DensityCacheDensitiesId = Shader.PropertyToID("_DensityCacheDensities");
@@ -544,11 +539,5 @@ namespace HarmonicEngine.Infrastructure.Management
         }
 
         private bool UseRadixSortActive => useRadixSort && _gpuRadixSort != null;
-
-        private void BindSortedGridForPhysics(ComputeShader shader, int kernel)
-        {
-            shader.SetInt(UseSplitSortedGridId, 0);
-            shader.SetBuffer(kernel, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
-        }
     }
 }

@@ -1,7 +1,7 @@
 #ifndef HARMONIC_PBF_NEIGHBOR_QUERY_INCLUDED
 #define HARMONIC_PBF_NEIGHBOR_QUERY_INCLUDED
 
-#include "SortedGridAccess.hlsl"
+StructuredBuffer<GridKeyPair> _SortedGridKeyValueBuffer;
 
 // Neighbor iteration over predicted positions using the spatial hash grid.
 // Parent shader must declare RWStructuredBuffer<float4> _PredictedBlock0 before including.
@@ -39,7 +39,7 @@ float PbfComputeDensityAtPosition(uint particleIndex, float3 selfPos)
 
         for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
         {
-            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
+            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
             if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
             {
                 continue;

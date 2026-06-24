@@ -1,3 +1,4 @@
+#pragma kernel ExtractGridKeysKernel
 #pragma kernel PackGridKeysKernel
 #pragma kernel ClearHistogramKernel
 #pragma kernel HistogramKernel
@@ -21,6 +22,19 @@ RWStructuredBuffer<uint2> _GridKeyValueBuffer;
 uint _BitShift;
 uint _SortSize;
 uint _NumGroups;
+
+[numthreads(GROUP_SIZE, 1, 1)]
+void ExtractGridKeysKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _SortSize)
+    {
+        return;
+    }
+
+    uint2 pair = _GridKeyValueBuffer[id.x];
+    _SortKeys[id.x] = pair.x;
+    _SortValues[id.x] = pair.y;
+}
 
 [numthreads(GROUP_SIZE, 1, 1)]
 void PackGridKeysKernel(uint3 id : SV_DispatchThreadID)

@@ -7,12 +7,8 @@
 
 RWStructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
 RWStructuredBuffer<uint2> _GridKeyValueBuffer;
-RWStructuredBuffer<uint> _SortKeys;
-RWStructuredBuffer<uint> _SortValues;
 StructuredBuffer<float4> _Block0;
 uint _PaddedGridSize;
-uint _UseSplitSortOutput;
-uint _UseSplitSortKeys;
 uint _ActiveParticleCount;
 uint _GridResolution;
 float _CellSize;
@@ -43,30 +39,13 @@ void GenerateGridKeysKernel(uint3 id : SV_DispatchThreadID)
 
     if (index >= _ActiveParticleCount)
     {
-        if (_UseSplitSortOutput != 0u)
-        {
-            _SortKeys[index] = 0xFFFFFFFFu;
-            _SortValues[index] = 0xFFFFFFFFu;
-        }
-        else
-        {
-            _GridKeyValueBuffer[index] = uint2(0xFFFFFFFF, 0xFFFFFFFF);
-        }
-
+        _GridKeyValueBuffer[index] = uint2(0xFFFFFFFF, 0xFFFFFFFF);
         return;
     }
 
     float3 position = _Block0[index].xyz;
     uint hash = SphHashPosition(position, _CellSize, _GridResolution);
-    if (_UseSplitSortOutput != 0u)
-    {
-        _SortKeys[index] = hash;
-        _SortValues[index] = index;
-    }
-    else
-    {
-        _GridKeyValueBuffer[index] = uint2(hash, index);
-    }
+    _GridKeyValueBuffer[index] = uint2(hash, index);
 }
 
 [numthreads(256, 1, 1)]
@@ -104,18 +83,14 @@ void BuildCellRangesKernel(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    uint currKey = _UseSplitSortKeys != 0u ? _SortKeys[i] : _GridKeyValueBuffer[i].x;
+    uint currKey = _GridKeyValueBuffer[i].x;
     if (currKey == 0xFFFFFFFFu)
     {
         return;
     }
 
-    uint prevKey = (i > 0)
-        ? (_UseSplitSortKeys != 0u ? _SortKeys[i - 1] : _GridKeyValueBuffer[i - 1].x)
-        : 0xFFFFFFFFu;
-    uint nextKey = (i + 1 < _PaddedGridSize)
-        ? (_UseSplitSortKeys != 0u ? _SortKeys[i + 1] : _GridKeyValueBuffer[i + 1].x)
-        : 0xFFFFFFFFu;
+    uint prevKey = (i > 0) ? _GridKeyValueBuffer[i - 1].x : 0xFFFFFFFFu;
+    uint nextKey = (i + 1 < _PaddedGridSize) ? _GridKeyValueBuffer[i + 1].x : 0xFFFFFFFFu;
 
     if (i == 0 || prevKey != currKey)
     {
