@@ -6,14 +6,15 @@
 
 #include "Include/SphCommon.hlsl"
 #include "Include/SphSoaAccess.hlsl"
+#include "Include/SortedGridAccess.hlsl"
 
-StructuredBuffer<GridKeyPair> _SortedGridKeyValueBuffer;
 StructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
 
 RWStructuredBuffer<float4> _OldBlock0;
 RWStructuredBuffer<float4> _PredictedBlock0;
 RWStructuredBuffer<float> _DensityCacheDensities;
 RWStructuredBuffer<float> _Lambdas;
+RWStructuredBuffer<float> _GradSqSum;
 
 RWStructuredBuffer<float4> _WriteBlock0;
 RWStructuredBuffer<float4> _WriteBlock1;
@@ -29,10 +30,21 @@ float _ParticleMass;
 float _RestDensity;
 float _Viscosity;
 float _PbfEpsilon;
-float3 _Gravity;
-float3 _ContainerCenter;
+float _PbfRelaxation;
+float _PbfVelocityDamping;
+float _PbfMaxPositionDelta;
+float _ContainerHeight;
+float4x4 _ContainerLocalToWorld;
+float4x4 _ContainerWorldToLocal;
+int _ContainerSpillEnabled;
+int _ContainerUsesOrientation;
+float3 _ContainerFloorPivot;
+
+float _CohesionStrength;
+float3 _Gravity;float3 _ContainerCenter;
 float _ContainerRadius;
 float _ContainerFloorY;
+float _ContainerRimY;
 float _ContainerRestitution;
 float _ContainerFriction;
 uint _MaxParticleCount;
@@ -58,7 +70,7 @@ float3 ComputeXsphViscosity(uint particleIndex, float3 selfPos, float3 selfVel)
 
         for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
         {
-            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
+            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
             if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
             {
                 continue;
@@ -83,6 +95,57 @@ float3 ComputeXsphViscosity(uint particleIndex, float3 selfPos, float3 selfVel)
     return _Viscosity * viscosityAccel / selfDensity;
 }
 
+float3 ComputeCohesionForce(uint particleIndex, float3 selfPos)
+{
+    if (_CohesionStrength <= 0.0)
+    {
+        return float3(0, 0, 0);
+    }
+
+    int3 baseCell = SphCellFromPosition(selfPos, _CellSize);
+    float h = _SmoothingRadius;
+    float3 cohesionAccel = float3(0, 0, 0);
+
+    [loop]
+    for (int n = 0; n < 27; n++)
+    {
+        uint cellHash = SphHashCell(baseCell + kNeighborOffsets[n], _GridResolution);
+        HashCellGridRange range = _CellStartEndBuffer[cellHash];
+        if (range.StartIndex < 0 || range.EndIndex < range.StartIndex)
+        {
+            continue;
+        }
+
+        for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
+        {
+            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
+            if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
+            {
+                continue;
+            }
+
+            uint neighborIndex = pair.ParticleIndex;
+            if (neighborIndex == particleIndex)
+            {
+                continue;
+            }
+
+            float3 neighborPos = SphLoadPosition(neighborIndex);
+            float3 diff = selfPos - neighborPos;
+            float r = length(diff);
+            if (r > h || r < 1e-5)
+            {
+                continue;
+            }
+
+            float W = SpikyKernel(r, h);
+            cohesionAccel -= _CohesionStrength * _ParticleMass * W * (diff / r);
+        }
+    }
+
+    return cohesionAccel;
+}
+
 [numthreads(64, 1, 1)]
 void PredictPositionsKernel(uint3 id : SV_DispatchThreadID)
 {
@@ -94,10 +157,11 @@ void PredictPositionsKernel(uint3 id : SV_DispatchThreadID)
 
     float3 pos = SphLoadPosition(i);
     float3 vel = SphLoadVelocity(i);
+    vel *= _PbfVelocityDamping;
 
     _OldBlock0[i] = float4(pos, 0.0);
 
-    float3 accel = _Gravity + ComputeXsphViscosity(i, pos, vel);
+    float3 accel = _Gravity + ComputeXsphViscosity(i, pos, vel) + ComputeCohesionForce(i, pos);
     vel += accel * _DeltaTime;
     pos += vel * _DeltaTime;
 
@@ -129,6 +193,13 @@ void ComputeLambdaKernel(uint3 id : SV_DispatchThreadID)
     float constraint = density / max(_RestDensity, 1e-4) - 1.0;
 
     float3 selfPos = PbfLoadPredictedPosition(i);
+    if (PbfIsQuarantined(selfPos))
+    {
+        _GradSqSum[i] = 0.0;
+        _Lambdas[i] = 0.0;
+        return;
+    }
+
     int3 baseCell = SphCellFromPosition(selfPos, _CellSize);
     float h = _SmoothingRadius;
     float gradSqSum = 0.0;
@@ -145,26 +216,32 @@ void ComputeLambdaKernel(uint3 id : SV_DispatchThreadID)
 
         for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
         {
-            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
+            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
             if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
             {
                 continue;
             }
 
             float3 neighborPos = PbfLoadPredictedPosition(pair.ParticleIndex);
-            float3 diff = selfPos - neighborPos;
-            float r = length(diff);
-            if (r > 2.0 * h)
+            if (PbfIsQuarantined(neighborPos))
             {
                 continue;
             }
 
-            float3 gradW = CubicSplineGradient(diff, r, h);
+            float3 diff = selfPos - neighborPos;
+            float r = length(diff);
+            if (r > h)
+            {
+                continue;
+            }
+
+            float3 gradW = SpikyGradient(diff, r, h);
             float3 gradC = (_ParticleMass / max(_RestDensity, 1e-4)) * gradW;
             gradSqSum += dot(gradC, gradC);
         }
     }
 
+    _GradSqSum[i] = gradSqSum;
     _Lambdas[i] = -constraint / (gradSqSum + _PbfEpsilon);
 }
 
@@ -178,6 +255,11 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float3 selfPos = PbfLoadPredictedPosition(i);
+    if (PbfIsQuarantined(selfPos))
+    {
+        return;
+    }
+
     float lambdaI = _Lambdas[i];
     int3 baseCell = SphCellFromPosition(selfPos, _CellSize);
     float h = _SmoothingRadius;
@@ -195,7 +277,7 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
 
         for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
         {
-            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
+            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
             if (pair.CellHash == 0xFFFFFFFFu || pair.ParticleIndex >= _ActiveParticleCount)
             {
                 continue;
@@ -203,26 +285,78 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
 
             uint j = pair.ParticleIndex;
             float3 neighborPos = PbfLoadPredictedPosition(j);
-            float3 diff = selfPos - neighborPos;
-            float r = length(diff);
-            if (r > 2.0 * h)
+            if (PbfIsQuarantined(neighborPos))
             {
                 continue;
             }
 
-            float3 gradW = CubicSplineGradient(diff, r, h);
+            float3 diff = selfPos - neighborPos;
+            float r = length(diff);
+            if (r > h)
+            {
+                continue;
+            }
+
+            float3 gradW = SpikyGradient(diff, r, h);
             float lambdaJ = _Lambdas[j];
             delta += (lambdaI + lambdaJ) * gradW;
         }
     }
 
     delta *= _ParticleMass / max(_RestDensity, 1e-4);
+    delta *= _PbfRelaxation;
+    float deltaLen = length(delta);
+    if (deltaLen > _PbfMaxPositionDelta)
+    {
+        delta *= _PbfMaxPositionDelta / deltaLen;
+    }
     selfPos += delta;
     _PredictedBlock0[i] = float4(selfPos, 0.0);
 }
 
 void PbfClampToContainer(inout float3 pos, inout float3 vel)
 {
+    if (_ContainerUsesOrientation != 0)
+    {
+        float3 localPos = mul(_ContainerWorldToLocal, float4(pos, 1.0)).xyz;
+        float3 localVel = mul((float3x3)_ContainerWorldToLocal, vel);
+
+        if (localPos.y < 0.0)
+        {
+            localPos.y = 0.0;
+            if (localVel.y < 0.0)
+            {
+                localVel.y = -localVel.y * _ContainerRestitution;
+            }
+
+            localVel.x *= _ContainerFriction;
+            localVel.z *= _ContainerFriction;
+        }
+
+        if (localPos.y <= _ContainerHeight)
+        {
+            float2 rel = localPos.xz;
+            float d = length(rel);
+            if (d > _ContainerRadius && d > 1e-5)
+            {
+                float2 n = rel / d;
+                localPos.xz = n * _ContainerRadius;
+
+                float vn = dot(localVel.xz, n);
+                if (vn > 0.0)
+                {
+                    float2 vNormal = vn * n;
+                    float2 vTangent = localVel.xz - vNormal;
+                    localVel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
+                }
+            }
+        }
+
+        pos = mul(_ContainerLocalToWorld, float4(localPos, 1.0)).xyz;
+        vel = mul((float3x3)_ContainerLocalToWorld, localVel);
+        return;
+    }
+
     if (pos.y < _ContainerFloorY)
     {
         pos.y = _ContainerFloorY;
@@ -230,15 +364,17 @@ void PbfClampToContainer(inout float3 pos, inout float3 vel)
         {
             vel.y = -vel.y * _ContainerRestitution;
         }
+
         vel.x *= _ContainerFriction;
         vel.z *= _ContainerFriction;
     }
 
-    float2 rel = pos.xz - _ContainerCenter.xz;
-    float d = length(rel);
-    if (d > _ContainerRadius && d > 1e-5)
+    float2 relWorld = pos.xz - _ContainerCenter.xz;
+    float dWorld = length(relWorld);
+    bool belowRim = pos.y <= _ContainerRimY;
+    if (belowRim && dWorld > _ContainerRadius && dWorld > 1e-5)
     {
-        float2 n = rel / d;
+        float2 n = relWorld / dWorld;
         pos.xz = _ContainerCenter.xz + n * _ContainerRadius;
 
         float vn = dot(vel.xz, n);
@@ -247,6 +383,26 @@ void PbfClampToContainer(inout float3 pos, inout float3 vel)
             float2 vNormal = vn * n;
             float2 vTangent = vel.xz - vNormal;
             vel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
+        }
+    }
+
+    if (_ContainerSpillEnabled == 0)
+    {
+        float ceilingY = _ContainerRimY + 0.3;
+        if (pos.y > ceilingY)
+        {
+            pos.y = ceilingY;
+            if (vel.y > 0.0)
+            {
+                vel.y = -vel.y * 0.1;
+            }
+        }
+
+        if (pos.y > _ContainerRimY + 2.0
+            || length(pos.xz - _ContainerCenter.xz) > _ContainerRadius + 2.0)
+        {
+            pos = float3(99999.0, 99999.0, 99999.0);
+            vel = float3(0.0, 0.0, 0.0);
         }
     }
 }
@@ -263,6 +419,7 @@ void ApplyPositionsKernel(uint3 id : SV_DispatchThreadID)
     float3 oldPos = _OldBlock0[i].xyz;
     float3 newPos = _PredictedBlock0[i].xyz;
     float3 vel = (newPos - oldPos) / max(_DeltaTime, 1e-6);
+    vel *= _PbfVelocityDamping;
 
     PbfClampToContainer(newPos, vel);
 

@@ -25,8 +25,7 @@ namespace HarmonicEngine.Diagnostics
         public HarmonicRunManifestEnvironment environment;
         public HarmonicRunManifestBucket bucket;
         public HarmonicRunManifestBucketNozzle bucketNozzle;
-        public HarmonicRunManifestSph sph;
-        public HarmonicRunManifestPbf pbf;
+        public HarmonicRunManifestRuntime runtime;
         public HarmonicRunManifestSimulation simulation;
         public HarmonicRunManifestParticles particles;
         public HarmonicRunManifestInitConditions initConditions;
@@ -105,8 +104,7 @@ namespace HarmonicEngine.Diagnostics
             data.worldFallingOnly = pipeline.WorldFallingOnly;
             data.bucket = HarmonicRunManifestSnapshotBuilder.BuildBucket(pipeline, sceneContainerName);
             data.bucketNozzle = HarmonicRunManifestSnapshotBuilder.BuildBucketNozzle(pipeline);
-            data.sph = HarmonicRunManifestSnapshotBuilder.BuildSph(pipeline);
-            data.pbf = HarmonicRunManifestSnapshotBuilder.BuildPbf(pipeline);
+            data.runtime = HarmonicRunManifestSnapshotBuilder.BuildRuntime(pipeline);
             data.simulation = HarmonicRunManifestSnapshotBuilder.BuildSimulation(pipeline);
             data.particles = HarmonicRunManifestSnapshotBuilder.BuildParticles(pipeline, spawn);
             data.initConditions = HarmonicRunManifestSnapshotBuilder.BuildInitConditions(pipeline, spawnLatticeOnStart);

@@ -93,6 +93,7 @@ namespace HarmonicEngine.Tests
             StringAssert.Contains("bucket", json);
             StringAssert.Contains("0.55", json);
             StringAssert.Contains("cellSize", json);
+            StringAssert.Contains("runtime", json);
             StringAssert.Contains("lattice", json);
             StringAssert.Contains("spawnMethod", json);
             StringAssert.Contains("initSnapshotAt", json);

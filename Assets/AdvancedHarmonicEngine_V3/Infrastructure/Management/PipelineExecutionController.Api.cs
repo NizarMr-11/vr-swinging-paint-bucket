@@ -38,6 +38,9 @@ namespace HarmonicEngine.Infrastructure.Management
             float wallStiffness)
         {
             containerFluid.ApplyBounds(center, radius, floorY, rimY, restitution, friction, wallStiffness);
+            float height = Mathf.Max(0.05f, rimY - floorY);
+            Vector3 floorPivot = new Vector3(center.x, floorY, center.z);
+            SetContainerFluidOriented(floorPivot, Quaternion.identity, radius, height, restitution, friction, wallStiffness, containerFluid.spillOverRim);
         }
 
         /// <summary>Stores a default spawn region used by the parameterless <see cref="SpawnVolume()"/>.</summary>

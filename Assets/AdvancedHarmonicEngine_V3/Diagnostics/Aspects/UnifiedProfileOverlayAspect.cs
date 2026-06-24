@@ -24,9 +24,15 @@ namespace HarmonicEngine.Diagnostics.Aspects
 
         private ProfilerRecorder _gridRecorder;
         private ProfilerRecorder _sortRecorder;
+        private ProfilerRecorder _radixSortRecorder;
         private ProfilerRecorder _buildRangesRecorder;
         private ProfilerRecorder _densityRecorder;
         private ProfilerRecorder _integrationRecorder;
+        private ProfilerRecorder _pbfPredictRecorder;
+        private ProfilerRecorder _pbfDensityRecorder;
+        private ProfilerRecorder _pbfLambdaRecorder;
+        private ProfilerRecorder _pbfSolveRecorder;
+        private ProfilerRecorder _pbfApplyRecorder;
         private ProfilerRecorder _containerRecorder;
         private ProfilerRecorder _worldFallingRecorder;
         private ProfilerRecorder _ssfrRecorder;
@@ -63,9 +69,15 @@ namespace HarmonicEngine.Diagnostics.Aspects
             _session = session;
             _gridRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.SpatialHashGrid");
             _sortRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.BitonicSort");
+            _radixSortRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.RadixSort");
             _buildRangesRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.BuildRanges");
             _densityRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.SphDensity");
             _integrationRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.SphIntegration");
+            _pbfPredictRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.PbfPredict");
+            _pbfDensityRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.PbfDensity");
+            _pbfLambdaRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.PbfLambda");
+            _pbfSolveRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.PbfSolve");
+            _pbfApplyRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.PbfApply");
             _containerRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.ContainerFluidFrame");
             _worldFallingRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.WorldFalling");
             _ssfrRecorder = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, "Harmonic.SSFR");
@@ -76,9 +88,15 @@ namespace HarmonicEngine.Diagnostics.Aspects
             _session = null;
             DisposeRecorder(ref _gridRecorder);
             DisposeRecorder(ref _sortRecorder);
+            DisposeRecorder(ref _radixSortRecorder);
             DisposeRecorder(ref _buildRangesRecorder);
             DisposeRecorder(ref _densityRecorder);
             DisposeRecorder(ref _integrationRecorder);
+            DisposeRecorder(ref _pbfPredictRecorder);
+            DisposeRecorder(ref _pbfDensityRecorder);
+            DisposeRecorder(ref _pbfLambdaRecorder);
+            DisposeRecorder(ref _pbfSolveRecorder);
+            DisposeRecorder(ref _pbfApplyRecorder);
             DisposeRecorder(ref _containerRecorder);
             DisposeRecorder(ref _worldFallingRecorder);
             DisposeRecorder(ref _ssfrRecorder);
@@ -144,11 +162,25 @@ namespace HarmonicEngine.Diagnostics.Aspects
             _sb.AppendLine(
                 $"Active <b>{_lastActive}</b> / {pipeline.MaxCapacity}   peak {_peak}   canvas {_lastCanvasHits}");
             _sb.AppendLine(
-                $"Sort {_session.Pipeline.FrameSortSize} / {pipeline.PaddedSortSize}   frame {_session.FrameIndex}");
+                $"Sort {_session.Pipeline.FrameSortSize} / {pipeline.PaddedSortSize}   "
+                + $"{(pipeline.UseRadixSort ? "radix" : "bitonic")}   frame {_session.FrameIndex}");
             _sb.AppendLine(
-                $"CPU ms  grid {ToMs(_gridRecorder):F2}  sort {ToMs(_sortRecorder):F2}  ranges {ToMs(_buildRangesRecorder):F2}");
-            _sb.AppendLine(
-                $"        density {ToMs(_densityRecorder):F2}  integ {ToMs(_integrationRecorder):F2}  container {ToMs(_containerRecorder):F2}");
+                $"CPU ms  grid {ToMs(_gridRecorder):F2}  radix {ToMs(_radixSortRecorder):F2}  "
+                + $"bitonic {ToMs(_sortRecorder):F2}  ranges {ToMs(_buildRangesRecorder):F2}");
+            if (pipeline.UsePbf)
+            {
+                _sb.AppendLine(
+                    $"        density {ToMs(_pbfDensityRecorder):F2}  solve {ToMs(_pbfSolveRecorder):F2}  "
+                    + $"predict {ToMs(_pbfPredictRecorder):F2}  lambda {ToMs(_pbfLambdaRecorder):F2}  "
+                    + $"apply {ToMs(_pbfApplyRecorder):F2}");
+            }
+            else
+            {
+                _sb.AppendLine(
+                    $"        density {ToMs(_densityRecorder):F2}  integ {ToMs(_integrationRecorder):F2}  "
+                    + $"container {ToMs(_containerRecorder):F2}");
+            }
+
             _sb.AppendLine(
                 $"        world {ToMs(_worldFallingRecorder):F2}  ssfr {ToMs(_ssfrRecorder):F2}");
             _sb.AppendLine($"Log: {TruncatePath(_logFilePath)}");

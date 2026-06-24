@@ -2,8 +2,8 @@
 
 #include "Include/SphCommon.hlsl"
 #include "Include/SphSoaAccess.hlsl"
+#include "Include/SortedGridAccess.hlsl"
 
-StructuredBuffer<GridKeyPair> _SortedGridKeyValueBuffer;
 StructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
 RWStructuredBuffer<float> _DensityCacheDensities;
 RWStructuredBuffer<float> _DensityCachePressures;

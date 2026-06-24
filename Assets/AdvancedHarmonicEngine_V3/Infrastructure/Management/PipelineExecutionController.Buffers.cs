@@ -18,6 +18,11 @@ namespace HarmonicEngine.Infrastructure.Management
         private ComputeBuffer _bufferDragGrid;
         private ComputeBuffer _gridKeyValueBuffer;
         private ComputeBuffer _cellStartEndBuffer;
+        private ComputeBuffer _sortKeysBuffer;
+        private ComputeBuffer _sortTempKeysBuffer;
+        private ComputeBuffer _sortValuesBuffer;
+        private ComputeBuffer _sortTempValuesBuffer;
+        private GpuRadixSort _gpuRadixSort;
         private ComputeBuffer _indirectArgsBuffer;
         private ComputeBuffer _quantizedBakeBuffer;
         private ComputeBuffer _counterReadbackBuffer;
@@ -60,6 +65,13 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int BitonicLevelId = Shader.PropertyToID("_BitonicLevel");
         private static readonly int BitonicLevelMaskId = Shader.PropertyToID("_BitonicLevelMask");
         private static readonly int GridKeyValueBufferId = Shader.PropertyToID("_GridKeyValueBuffer");
+        private static readonly int SortKeysId = Shader.PropertyToID("_SortKeys");
+        private static readonly int SortValuesId = Shader.PropertyToID("_SortValues");
+        private static readonly int SortedGridKeysId = Shader.PropertyToID("_SortedGridKeys");
+        private static readonly int SortedGridValuesId = Shader.PropertyToID("_SortedGridValues");
+        private static readonly int UseSplitSortOutputId = Shader.PropertyToID("_UseSplitSortOutput");
+        private static readonly int UseSplitSortKeysId = Shader.PropertyToID("_UseSplitSortKeys");
+        private static readonly int UseSplitSortedGridId = Shader.PropertyToID("_UseSplitSortedGrid");
         private static readonly int BitonicWidthId = Shader.PropertyToID("_BitonicWidth");
         private static readonly int SortedGridKeyValueBufferId = Shader.PropertyToID("_SortedGridKeyValueBuffer");
         private static readonly int DensityCacheDensitiesId = Shader.PropertyToID("_DensityCacheDensities");
@@ -140,10 +152,24 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int PredictedBlock0Id = Shader.PropertyToID("_PredictedBlock0");
         private static readonly int OldBlock0Id = Shader.PropertyToID("_OldBlock0");
         private static readonly int LambdasId = Shader.PropertyToID("_Lambdas");
+        private static readonly int GradSqSumId = Shader.PropertyToID("_GradSqSum");
         private static readonly int PbfEpsilonId = Shader.PropertyToID("_PbfEpsilon");
+        private static readonly int PbfRelaxationId = Shader.PropertyToID("_PbfRelaxation");
+        private static readonly int PbfVelocityDampingId = Shader.PropertyToID("_PbfVelocityDamping");
+        private static readonly int PbfMaxPositionDeltaId = Shader.PropertyToID("_PbfMaxPositionDelta");
+        private static readonly int CohesionStrengthId = Shader.PropertyToID("_CohesionStrength");
+        private static readonly int ContainerLocalToWorldId = Shader.PropertyToID("_ContainerLocalToWorld");
+        private static readonly int ContainerWorldToLocalId = Shader.PropertyToID("_ContainerWorldToLocal");
+        private static readonly int ContainerHeightId = Shader.PropertyToID("_ContainerHeight");
+        private static readonly int ContainerSpillEnabledId = Shader.PropertyToID("_ContainerSpillEnabled");
+        private static readonly int ContainerUsesOrientationId = Shader.PropertyToID("_ContainerUsesOrientation");
+        private static readonly int ContainerRotationDeltaId = Shader.PropertyToID("_ContainerRotationDelta");
+        private static readonly int ContainerAngularVelocityWorldId = Shader.PropertyToID("_ContainerAngularVelocityWorld");
+        private static readonly int ContainerFloorPivotId = Shader.PropertyToID("_ContainerFloorPivot");
 
         private static readonly ProfilerMarker MarkerGrid = new("Harmonic.SpatialHashGrid");
         private static readonly ProfilerMarker MarkerSort = new("Harmonic.BitonicSort");
+        private static readonly ProfilerMarker MarkerRadixSort = new("Harmonic.RadixSort");
         private static readonly ProfilerMarker MarkerBuildRanges = new("Harmonic.BuildRanges");
 
         private bool AreShadersReady()
@@ -151,6 +177,11 @@ namespace HarmonicEngine.Infrastructure.Management
             if (argumentUtilityShader == null
                 || spatialHashGridShader == null
                 || dataCompactionShader == null)
+            {
+                return false;
+            }
+
+            if (useRadixSort && radixSortShader == null)
             {
                 return false;
             }
@@ -192,6 +223,14 @@ namespace HarmonicEngine.Infrastructure.Management
             _frameSortSize = _paddedSortSize;
             _gridKeyValueBuffer = new ComputeBuffer(_paddedSortSize, keyStride, ComputeBufferType.Structured);
             _cellStartEndBuffer = new ComputeBuffer(_paddedSortSize, cellStride, ComputeBufferType.Structured);
+            _sortKeysBuffer = new ComputeBuffer(_paddedSortSize, sizeof(uint), ComputeBufferType.Structured);
+            _sortTempKeysBuffer = new ComputeBuffer(_paddedSortSize, sizeof(uint), ComputeBufferType.Structured);
+            _sortValuesBuffer = new ComputeBuffer(_paddedSortSize, sizeof(uint), ComputeBufferType.Structured);
+            _sortTempValuesBuffer = new ComputeBuffer(_paddedSortSize, sizeof(uint), ComputeBufferType.Structured);
+            _gpuRadixSort?.Release();
+            _gpuRadixSort = radixSortShader != null
+                ? new GpuRadixSort(radixSortShader, _paddedSortSize)
+                : null;
 
             _indirectArgsBuffer = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
             _quantizedBakeBuffer = new ComputeBuffer(maxCapacity, quantizedStride, ComputeBufferType.Structured);
@@ -267,6 +306,15 @@ namespace HarmonicEngine.Infrastructure.Management
                 _kernelPbfSolve = pbfSolverShader.FindKernel("SolvePositionsKernel");
                 _kernelPbfApply = pbfSolverShader.FindKernel("ApplyPositionsKernel");
             }
+
+            if (containerRigidCarryShader != null)
+            {
+                _kernelContainerRigidCarry = containerRigidCarryShader.FindKernel("ContainerRigidCarryKernel");
+            }
+            else
+            {
+                _kernelContainerRigidCarry = -1;
+            }
         }
 
         public void ConfigureAndInitialize(
@@ -280,11 +328,13 @@ namespace HarmonicEngine.Infrastructure.Management
             ComputeShader fallingShader = null,
             ComputeShader eulerianShader = null,
             ComputeShader integrateShader = null,
-            ComputeShader pbfShader = null)
+            ComputeShader pbfShader = null,
+            ComputeShader radixShader = null)
         {
             ReleaseBuffers();
             argumentUtilityShader = argumentShader;
             spatialHashGridShader = spatialShader;
+            radixSortShader = radixShader ?? radixSortShader;
             streamCompactionShader = streamShader;
             streamCompactionIntegrateShader = integrateShader ?? streamShader;
             pbfSolverShader = pbfShader ?? pbfSolverShader;
@@ -326,6 +376,11 @@ namespace HarmonicEngine.Infrastructure.Management
             _bufferDragGrid?.Release();
             _gridKeyValueBuffer?.Release();
             _cellStartEndBuffer?.Release();
+            _sortKeysBuffer?.Release();
+            _sortTempKeysBuffer?.Release();
+            _sortValuesBuffer?.Release();
+            _sortTempValuesBuffer?.Release();
+            _gpuRadixSort?.Release();
             _indirectArgsBuffer?.Release();
             _quantizedBakeBuffer?.Release();
             _counterReadbackBuffer?.Release();
@@ -343,6 +398,11 @@ namespace HarmonicEngine.Infrastructure.Management
             _bufferDragGrid = null;
             _gridKeyValueBuffer = null;
             _cellStartEndBuffer = null;
+            _sortKeysBuffer = null;
+            _sortTempKeysBuffer = null;
+            _sortValuesBuffer = null;
+            _sortTempValuesBuffer = null;
+            _gpuRadixSort = null;
             _indirectArgsBuffer = null;
             _quantizedBakeBuffer = null;
             _counterReadbackBuffer = null;
@@ -481,6 +541,14 @@ namespace HarmonicEngine.Infrastructure.Management
         {
             shader.SetBuffer(kernel, DensityCacheDensitiesId, _bufferDensityCacheDensities);
             shader.SetBuffer(kernel, DensityCachePressuresId, _bufferDensityCachePressures);
+        }
+
+        private bool UseRadixSortActive => useRadixSort && _gpuRadixSort != null;
+
+        private void BindSortedGridForPhysics(ComputeShader shader, int kernel)
+        {
+            shader.SetInt(UseSplitSortedGridId, 0);
+            shader.SetBuffer(kernel, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
         }
     }
 }

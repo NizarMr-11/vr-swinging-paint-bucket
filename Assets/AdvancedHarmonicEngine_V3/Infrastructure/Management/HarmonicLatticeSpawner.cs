@@ -33,7 +33,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 return 0;
             }
 
-            float spacing = settings.spacing > 0f ? settings.spacing : pipeline.CellSize;
+            float spacing = settings.spacing > 0f ? settings.spacing : pipeline.LatticeSpacing;
             float3 center = settings.center;
             float3 origin = center - new float3(nx - 1, ny - 1, nz - 1) * spacing * 0.5f;
             uint packedColor = FluidParticleFactory.PackColor(settings.spawnColor);

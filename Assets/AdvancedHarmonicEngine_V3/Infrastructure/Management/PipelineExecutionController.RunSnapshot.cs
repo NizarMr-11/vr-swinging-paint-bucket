@@ -57,9 +57,52 @@ namespace HarmonicEngine.Infrastructure.Management
             {
                 usePBF = usePBF,
                 pbfIterations = pbfIterations,
-                epsilon = 600f / (h * h),
+                epsilon = ResolvePbfEpsilon(h),
+                pbfEpsilonScale = pbfEpsilonScale,
+                pbfRelaxation = pbfRelaxation,
+                pbfVelocityDamping = pbfVelocityDamping,
+                pbfMaxPositionDelta = pbfMaxPositionDelta,
+                pbfCohesion = pbfCohesion,
                 smoothingRadius = h,
                 restDensity = sphSolver.RestDensity
+            };
+        }
+
+        public HarmonicRuntimeTuningSnapshot ReadRuntimeSnapshot()
+        {
+            HarmonicSphTuningSnapshot sph = ReadSphTuning();
+            HarmonicPbfTuningSnapshot pbf = ReadPbfTuning();
+            HarmonicSimulationInitSnapshot init = ReadSimulationInitSnapshot();
+            return new HarmonicRuntimeTuningSnapshot
+            {
+                cellSize = sph.cellSize,
+                latticeSpacing = LatticeSpacing,
+                latticeSpacingScale = latticeSpacingScale,
+                latticeSpawnMaxCount = latticeSpawnMaxCount,
+                smoothingRadius = sph.smoothingRadius,
+                restDensity = sph.restDensity,
+                particleMass = sph.particleMass,
+                particleMassOverride = containerFluid.particleMass,
+                speedOfSound = sph.speedOfSound,
+                gasConstantK = sph.gasConstantK,
+                viscosity = sph.viscosity,
+                velocityDamping = sph.velocityDamping,
+                maxSpeed = sph.maxSpeed,
+                substeps = sph.substeps,
+                maxTimeStep = sph.maxTimeStep,
+                maxCflSubsteps = sph.maxCflSubsteps,
+                colorDiffusionRate = sph.colorDiffusionRate,
+                usePBF = pbf.usePBF,
+                pbfIterations = pbf.pbfIterations,
+                epsilon = pbf.epsilon,
+                pbfEpsilonScale = pbf.pbfEpsilonScale,
+                pbfRelaxation = pbf.pbfRelaxation,
+                pbfVelocityDamping = pbf.pbfVelocityDamping,
+                pbfMaxPositionDelta = pbf.pbfMaxPositionDelta,
+                pbfCohesion = pbf.pbfCohesion,
+                dynamicSortSizing = init.dynamicSortSizing,
+                minSortSize = init.minSortSize,
+                spillOverRim = containerFluid.spillOverRim
             };
         }
 

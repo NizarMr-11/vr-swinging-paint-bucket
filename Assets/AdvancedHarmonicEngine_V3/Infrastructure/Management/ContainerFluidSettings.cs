@@ -25,12 +25,18 @@ namespace HarmonicEngine.Infrastructure.Management
 
         [Header("SPH tuning")]
         [Min(0f)] public float gasConstantK = 380f;
-        [Min(0f)] public float viscosity = 2.5f;
+        [Min(0f)] public float viscosity = 8f;
         [Range(0f, 0.5f)] public float velocityDamping;
         [Min(1f)] public float maxSpeed = 100f;
         [Tooltip("0 = auto from cell size and rest density (mass = rho0 * spacing^3).")]
         [Min(0f)] public float particleMass;
         [Range(1, 4)] public int substeps = 2;
+
+        [Header("Orientation")]
+        [Tooltip("When true, particles above the rim are not ceiling-clamped and may spill.")]
+        public bool spillOverRim = true;
+        public Quaternion orientation = Quaternion.identity;
+        [Min(0.05f)] public float height = 1.1f;
 
         public void ApplyBounds(Vector3 newCenter, float newRadius, float newFloorY, float newRimY, float newRestitution, float newFriction, float newWallStiffness)
         {
@@ -41,6 +47,28 @@ namespace HarmonicEngine.Infrastructure.Management
             restitution = Mathf.Clamp01(newRestitution);
             friction = Mathf.Clamp01(newFriction);
             wallStiffness = Mathf.Max(0f, newWallStiffness);
+        }
+
+        public void ApplyOrientedBounds(
+            Vector3 floorPivotWorld,
+            Quaternion worldRotation,
+            float newRadius,
+            float newHeight,
+            float newRestitution,
+            float newFriction,
+            float newWallStiffness,
+            bool spillEnabled)
+        {
+            orientation = worldRotation;
+            height = Mathf.Max(0.05f, newHeight);
+            radius = Mathf.Max(0.01f, newRadius);
+            floorY = floorPivotWorld.y;
+            rimY = floorPivotWorld.y + height;
+            center = floorPivotWorld + worldRotation * new Vector3(0f, height * 0.5f, 0f);
+            restitution = Mathf.Clamp01(newRestitution);
+            friction = Mathf.Clamp01(newFriction);
+            wallStiffness = Mathf.Max(0f, newWallStiffness);
+            spillOverRim = spillEnabled;
         }
     }
 }

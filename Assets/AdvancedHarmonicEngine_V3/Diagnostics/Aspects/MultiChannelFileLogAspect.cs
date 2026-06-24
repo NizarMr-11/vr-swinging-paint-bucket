@@ -41,7 +41,7 @@ namespace HarmonicEngine.Diagnostics.Aspects
                 foreach (HarmonicLogChannel channel in Enum.GetValues(typeof(HarmonicLogChannel)))
                 {
                     string path = Path.Combine(_runDirectory, channel.FileName());
-                    StreamWriter writer = TryOpenLogWriter(path);
+                    StreamWriter writer = TryOpenLogWriter(path, _flushEachLine);
                     if (writer == null)
                     {
                         Debug.LogWarning(
@@ -112,14 +112,14 @@ namespace HarmonicEngine.Diagnostics.Aspects
             }
         }
 
-        private static StreamWriter TryOpenLogWriter(string path)
+        private static StreamWriter TryOpenLogWriter(string path, bool flushEachLine)
         {
             for (int attempt = 0; attempt < 5; attempt++)
             {
                 try
                 {
                     var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
-                    return new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+                    return new StreamWriter(stream, Encoding.UTF8) { AutoFlush = flushEachLine };
                 }
                 catch (IOException ex) when (attempt < 4)
                 {

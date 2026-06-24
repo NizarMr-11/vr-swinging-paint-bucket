@@ -159,7 +159,7 @@ namespace HarmonicEngine.Infrastructure.Management
             useExternalParticleIngestion = true;
             seedTestParticlesOnStart = false;
 
-            float spacing = cellSize;
+            float spacing = LatticeSpacing;
             float fillTopY = containerFluid.floorY + (containerFluid.rimY - containerFluid.floorY) * 0.5f;
             float spawnRadius = containerFluid.radius * 0.9f;
 

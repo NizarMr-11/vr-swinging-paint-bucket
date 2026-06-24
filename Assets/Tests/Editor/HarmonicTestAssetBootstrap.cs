@@ -33,6 +33,8 @@ namespace HarmonicEngine.Tests.EditorSupport
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/ArgumentUtility.compute");
             settings.spatialHashGridShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/SpatialHashGridIndirect.compute");
+            settings.radixSortShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/RadixSort.compute");
             settings.streamCompactionShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/StreamCompactionPingPong.compute");
             settings.streamCompactionIntegrateShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(

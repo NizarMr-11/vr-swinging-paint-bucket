@@ -41,12 +41,16 @@ namespace SwingingPaintBucket.Scene
         [Tooltip("Enable the pipeline's container-fluid mode automatically on Start.")]
         [SerializeField] private bool enableContainerModeOnStart = true;
         [Tooltip("Re-push bounds every frame so a moving/resized container stays in sync.")]
-        [SerializeField] private bool continuouslyUpdate;
+        [SerializeField] private bool continuouslyUpdate = true;
+        [Tooltip("Allow fluid to leave the open top when tilted.")]
+        [SerializeField] private bool spillOverRim = true;
 
         private Transform _visualTransform;
         private MeshFilter _visualMeshFilter;
         private Material _runtimeVisualMaterial;
         private Mesh _bucketMesh;
+        private Matrix4x4 _lastLocalToWorld;
+        private bool _hasLastLocalToWorld;
 
         public float Radius => radius;
         public float Height => height;
@@ -85,12 +89,14 @@ namespace SwingingPaintBucket.Scene
             }
         }
 
-        private void LateUpdate()
+        private void Update()
         {
-            if (continuouslyUpdate && pipeline != null)
+            if (!continuouslyUpdate || pipeline == null)
             {
-                ApplyToPipeline();
+                return;
             }
+
+            ApplyToPipeline();
         }
 
         /// <summary>
@@ -108,7 +114,25 @@ namespace SwingingPaintBucket.Scene
                 return;
             }
 
-            pipeline.SetContainerFluid(Center, radius, FloorY, RimY, restitution, friction, wallStiffness);
+            Vector3 floorPivot = transform.position;
+            Matrix4x4 localToWorld = ContainerOrientedBounds.BuildLocalToWorld(floorPivot, transform.rotation);
+            if (_hasLastLocalToWorld)
+            {
+                pipeline.ApplyContainerRigidRotation(_lastLocalToWorld, localToWorld, Time.deltaTime);
+            }
+
+            _lastLocalToWorld = localToWorld;
+            _hasLastLocalToWorld = true;
+
+            pipeline.SetContainerFluidOriented(
+                floorPivot,
+                transform.rotation,
+                radius,
+                height,
+                restitution,
+                friction,
+                wallStiffness,
+                spillOverRim: spillOverRim);
         }
 
         private void OnValidate()

@@ -12,6 +12,12 @@ namespace HarmonicEngine.Infrastructure.Management
         private int _hashRebuildsThisSecond;
         private int _hashSubstepsThisSecond;
         private int _hashFramesThisSecond;
+        private float _sortLogAccumulator;
+        private int _sortOpsThisSecond;
+        private long _sortDispatchSumThisSecond;
+        private uint _sortActiveCountLast;
+        private bool _radixSortAnnounced;
+        private bool _bitonicSortAnnounced;
 
         private const int MaxSubstepsBetweenHashRebuilds = 64;
 
@@ -65,9 +71,8 @@ namespace HarmonicEngine.Infrastructure.Management
             }
 
             var particles = GpuParticleReadbackUtility.ReadParticles(particleSoa, (int)activeCount);
-            var keys = new GridKeyPair[sortSize];
+            var keys = ReadSortedGridPairs(sortSize);
             var ranges = new HashCellGridRange[sortSize];
-            gridKeys.GetData(keys);
             cellRanges.GetData(ranges);
 
             float smoothingRadius = SmoothingRadius;
@@ -98,52 +103,179 @@ namespace HarmonicEngine.Infrastructure.Management
             ComputeBuffer.CopyCount(_pingPong.ReadSet.CounterBuffer, _indirectArgsBuffer, sizeof(int) * 3);
             DispatchIndirectArgsSetup();
 
+            bool radixActive = UseRadixSortActive;
+            int generateGroups = Mathf.CeilToInt(_frameSortSize / 64f);
+            int clearGroups = Mathf.CeilToInt(_frameSortSize / 256f);
+
             using (MarkerGrid.Auto())
             {
                 spatialHashGridShader.SetBuffer(_kernelGridClear, CellStartEndBufferId, _cellStartEndBuffer);
-                spatialHashGridShader.SetInt(PaddedGridSizeId, _paddedSortSize);
+                spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
                 spatialHashGridShader.SetInt(GridResolutionId, _frameSortSize);
-                int clearGroups = Mathf.CeilToInt(_paddedSortSize / 256f);
                 spatialHashGridShader.Dispatch(_kernelGridClear, clearGroups, 1, 1);
 
-                spatialHashGridShader.SetBuffer(_kernelGridGenerate, GridKeyValueBufferId, _gridKeyValueBuffer);
                 spatialHashGridShader.SetBuffer(_kernelGridGenerate, Block0Id, positionBlock0);
+                spatialHashGridShader.SetBuffer(_kernelGridGenerate, SortKeysId, _sortKeysBuffer);
+                spatialHashGridShader.SetBuffer(_kernelGridGenerate, SortValuesId, _sortValuesBuffer);
+                spatialHashGridShader.SetBuffer(_kernelGridGenerate, GridKeyValueBufferId, _gridKeyValueBuffer);
                 spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
                 spatialHashGridShader.SetInt(ActiveParticleCountId, (int)activeCount);
                 spatialHashGridShader.SetInt(GridResolutionId, _frameSortSize);
                 spatialHashGridShader.SetFloat(CellSizeId, cellSize);
-                int generateGroups = Mathf.CeilToInt(_frameSortSize / 64f);
+                spatialHashGridShader.SetInt(UseSplitSortOutputId, radixActive ? 1 : 0);
                 spatialHashGridShader.Dispatch(_kernelGridGenerate, generateGroups, 1, 1);
             }
 
-            using (MarkerSort.Auto())
+            if (radixActive)
             {
-                int bitonicGroups = Mathf.CeilToInt(_frameSortSize / 256f);
-                for (int level = 2; level <= _frameSortSize; level <<= 1)
+                using (MarkerRadixSort.Auto())
                 {
-                    for (int levelMask = level >> 1; levelMask > 0; levelMask >>= 1)
-                    {
-                        spatialHashGridShader.SetBuffer(_kernelGridBitonic, GridKeyValueBufferId, _gridKeyValueBuffer);
-                        spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
-                        spatialHashGridShader.SetInt(BitonicLevelId, level);
-                        spatialHashGridShader.SetInt(BitonicLevelMaskId, levelMask);
-                        spatialHashGridShader.SetInt(BitonicWidthId, _frameSortSize);
-                        spatialHashGridShader.Dispatch(_kernelGridBitonic, bitonicGroups, 1, 1);
-                    }
+                    RunRadixSort();
+                }
+            }
+            else
+            {
+                using (MarkerSort.Auto())
+                {
+                    RunBitonicSort();
                 }
             }
 
-            spatialHashGridShader.SetBuffer(_kernelGridBuildRanges, GridKeyValueBufferId, _gridKeyValueBuffer);
+            MaybeLogSortDiagnostic(activeCount);
+
             spatialHashGridShader.SetBuffer(_kernelGridBuildRanges, CellStartEndBufferId, _cellStartEndBuffer);
+            spatialHashGridShader.SetBuffer(_kernelGridBuildRanges, GridKeyValueBufferId, _gridKeyValueBuffer);
             spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
+            spatialHashGridShader.SetInt(UseSplitSortKeysId, 0);
             using (MarkerBuildRanges.Auto())
             {
-                spatialHashGridShader.Dispatch(
-                    _kernelGridBuildRanges,
-                    Mathf.CeilToInt(_frameSortSize / 64f),
-                    1,
-                    1);
+                spatialHashGridShader.Dispatch(_kernelGridBuildRanges, generateGroups, 1, 1);
             }
+        }
+
+        private void RunRadixSort()
+        {
+            _gpuRadixSort.SortPairBuffers(
+                _sortKeysBuffer,
+                _sortValuesBuffer,
+                _sortTempKeysBuffer,
+                _sortTempValuesBuffer,
+                _frameSortSize,
+                _gridKeyValueBuffer);
+        }
+
+        private void RunBitonicSort()
+        {
+            int bitonicGroups = Mathf.CeilToInt(_frameSortSize / 256f);
+            for (int level = 2; level <= _frameSortSize; level <<= 1)
+            {
+                for (int levelMask = level >> 1; levelMask > 0; levelMask >>= 1)
+                {
+                    spatialHashGridShader.SetBuffer(_kernelGridBitonic, GridKeyValueBufferId, _gridKeyValueBuffer);
+                    spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
+                    spatialHashGridShader.SetInt(BitonicLevelId, level);
+                    spatialHashGridShader.SetInt(BitonicLevelMaskId, levelMask);
+                    spatialHashGridShader.SetInt(BitonicWidthId, _frameSortSize);
+                    spatialHashGridShader.Dispatch(_kernelGridBitonic, bitonicGroups, 1, 1);
+                }
+            }
+        }
+
+        private void MaybeLogSortDiagnostic(uint activeCount)
+        {
+            bool usingRadix = useRadixSort && _gpuRadixSort != null;
+            string channel = usePBF ? "PBF" : "SPH";
+            if (usingRadix && !_radixSortAnnounced)
+            {
+                _radixSortAnnounced = true;
+                LogSortTelemetry(
+                    $"[{channel} RADIX] enabled passes={GpuRadixSort.PassCount} radixBits={GpuRadixSort.RadixBits} "
+                    + $"dispatchesPerSort={GpuRadixSort.DispatchesPerFullSort}");
+            }
+            else if (!usingRadix && !_bitonicSortAnnounced)
+            {
+                _bitonicSortAnnounced = true;
+                LogSortTelemetry(
+                    $"[{channel} BITONIC] fallback sort active (useRadixSort=false or shader missing)");
+            }
+
+            int dispatches = usingRadix
+                ? _gpuRadixSort.LastDispatchCount
+                : CountBitonicDispatches(_frameSortSize);
+            _sortOpsThisSecond++;
+            _sortDispatchSumThisSecond += dispatches;
+            _sortActiveCountLast = activeCount;
+
+            if (usePBF)
+            {
+                return;
+            }
+
+            _sortLogAccumulator += Time.unscaledDeltaTime;
+            if (_sortLogAccumulator < 1f)
+            {
+                return;
+            }
+
+            FlushSortTelemetry(channel);
+            _sortLogAccumulator = 0f;
+        }
+
+        private void FlushSortTelemetry(string channel)
+        {
+            if (_sortOpsThisSecond <= 0)
+            {
+                return;
+            }
+
+            bool usingRadix = useRadixSort && _gpuRadixSort != null;
+            int threadGroups = Mathf.CeilToInt(_frameSortSize / (float)GpuRadixSort.BucketCount);
+            float avgDispatches = _sortDispatchSumThisSecond / (float)_sortOpsThisSecond;
+            string tag = usingRadix ? "RADIX" : "BITONIC";
+            LogSortTelemetry(
+                $"[{channel} {tag}] sortsInWindow={_sortOpsThisSecond} sortSize={_frameSortSize} padded={_paddedSortSize} "
+                + $"active={_sortActiveCountLast} dispatches/sort={avgDispatches:F0} threadGroups={threadGroups}");
+
+            _sortOpsThisSecond = 0;
+            _sortDispatchSumThisSecond = 0;
+        }
+
+        private void LogSortTelemetry(string message, bool warning = false)
+        {
+            if (usePBF)
+            {
+                LogPbfTelemetry(message, warning);
+            }
+            else
+            {
+                LogSphTelemetry(message, warning);
+            }
+        }
+
+        private static int CountBitonicDispatches(int sortSize)
+        {
+            if (sortSize < 2)
+            {
+                return 0;
+            }
+
+            int count = 0;
+            for (int level = 2; level <= sortSize; level <<= 1)
+            {
+                for (int levelMask = level >> 1; levelMask > 0; levelMask >>= 1)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private GridKeyPair[] ReadSortedGridPairs(int sortSize)
+        {
+            var pairs = new GridKeyPair[sortSize];
+            _gridKeyValueBuffer.GetData(pairs);
+            return pairs;
         }
 
         private void MaybeLogStencilNeighborCount()

@@ -78,7 +78,7 @@ namespace HarmonicEngine.Domain.IO
 
         private static void WritePayload(byte[] payload, string filePath)
         {
-            string? dir = Path.GetDirectoryName(filePath);
+            string dir = Path.GetDirectoryName(filePath);
             if (!string.IsNullOrEmpty(dir))
             {
                 Directory.CreateDirectory(dir);

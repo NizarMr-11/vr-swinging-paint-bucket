@@ -24,7 +24,8 @@ namespace HarmonicEngine.Tests.PlayMode
                 fallingShader: settings.fallingFluidWorldShader,
                 eulerianShader: settings.eulerianDragGridShader,
                 integrateShader: settings.streamCompactionIntegrateShader,
-                pbfShader: settings.pbfSolverShader);
+                pbfShader: settings.pbfSolverShader,
+                radixShader: settings.radixSortShader);
             return pipeline;
         }
 

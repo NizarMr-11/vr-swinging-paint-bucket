@@ -19,6 +19,8 @@
 //  and must have included SphCommon.hlsl first.
 // =============================================================================
 
+#include "SortedGridAccess.hlsl"
+
 void ForEachNeighbor(
     uint particleIndex,
     bool useDensityCache,
@@ -61,7 +63,7 @@ void ForEachNeighbor(
 
         for (int sortedIndex = range.StartIndex; sortedIndex <= range.EndIndex; sortedIndex++)
         {
-            GridKeyPair pair = _SortedGridKeyValueBuffer[sortedIndex];
+            GridKeyPair pair = HarmonicLoadSortedGridPair(sortedIndex);
             if (pair.CellHash == 0xFFFFFFFFu)
             {
                 continue;

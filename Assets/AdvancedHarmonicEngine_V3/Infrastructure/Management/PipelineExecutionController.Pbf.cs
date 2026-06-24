@@ -11,6 +11,9 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly ProfilerMarker MarkerPbfSolve = new("Harmonic.PbfSolve");
         private static readonly ProfilerMarker MarkerPbfApply = new("Harmonic.PbfApply");
 
+        private float ResolvePbfEpsilon(float smoothingRadius) =>
+            pbfEpsilonScale / Mathf.Pow(smoothingRadius, 4f);
+
         private void ExecuteContainerPbfFrame(uint activeCount, float deltaTime)
         {
             deltaTime = Mathf.Min(deltaTime, containerFluid.maxTimeStep);
@@ -29,6 +32,7 @@ namespace HarmonicEngine.Infrastructure.Management
             _lastFallingQuantizeCount = 0;
 
             MaybeSampleParticlePositions(_pingPong.ReadSet, _cachedInternalCount, "containerPbf");
+            MaybeLogPbfConvergence();
             MaybeLogPbfTelemetry(deltaTime, steps, subDt);
 
             if (!perfDiagnosticsMuted)
@@ -51,7 +55,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 BindReadSoa(pbfSolverShader, _kernelPbfPredict, _pingPong.ReadSet);
                 pbfSolverShader.SetBuffer(_kernelPbfPredict, OldBlock0Id, _pbfScratch.OldBlock0);
                 pbfSolverShader.SetBuffer(_kernelPbfPredict, PredictedBlock0Id, _pbfScratch.PredictedBlock0);
-                pbfSolverShader.SetBuffer(_kernelPbfPredict, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
+                BindSortedGridForPhysics(pbfSolverShader, _kernelPbfPredict);
                 pbfSolverShader.SetBuffer(_kernelPbfPredict, CellStartEndBufferId, _cellStartEndBuffer);
                 pbfSolverShader.SetInt(ActiveParticleCountId, (int)activeCount);
                 pbfSolverShader.DispatchIndirect(_kernelPbfPredict, _indirectArgsBuffer, 0);
@@ -64,7 +68,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 using (MarkerPbfDensity.Auto())
                 {
                     pbfSolverShader.SetBuffer(_kernelPbfDensity, PredictedBlock0Id, _pbfScratch.PredictedBlock0);
-                    pbfSolverShader.SetBuffer(_kernelPbfDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
+                    BindSortedGridForPhysics(pbfSolverShader, _kernelPbfDensity);
                     pbfSolverShader.SetBuffer(_kernelPbfDensity, CellStartEndBufferId, _cellStartEndBuffer);
                     BindDensityCacheRw(pbfSolverShader, _kernelPbfDensity);
                     pbfSolverShader.SetInt(ActiveParticleCountId, (int)activeCount);
@@ -74,10 +78,11 @@ namespace HarmonicEngine.Infrastructure.Management
                 using (MarkerPbfLambda.Auto())
                 {
                     pbfSolverShader.SetBuffer(_kernelPbfLambda, PredictedBlock0Id, _pbfScratch.PredictedBlock0);
-                    pbfSolverShader.SetBuffer(_kernelPbfLambda, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
+                    BindSortedGridForPhysics(pbfSolverShader, _kernelPbfLambda);
                     pbfSolverShader.SetBuffer(_kernelPbfLambda, CellStartEndBufferId, _cellStartEndBuffer);
                     BindDensityCacheRead(pbfSolverShader, _kernelPbfLambda);
                     pbfSolverShader.SetBuffer(_kernelPbfLambda, LambdasId, _pbfScratch.Lambdas);
+                    pbfSolverShader.SetBuffer(_kernelPbfLambda, GradSqSumId, _pbfScratch.GradSqSum);
                     pbfSolverShader.SetInt(ActiveParticleCountId, (int)activeCount);
                     pbfSolverShader.DispatchIndirect(_kernelPbfLambda, _indirectArgsBuffer, 0);
                 }
@@ -85,7 +90,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 using (MarkerPbfSolve.Auto())
                 {
                     pbfSolverShader.SetBuffer(_kernelPbfSolve, PredictedBlock0Id, _pbfScratch.PredictedBlock0);
-                    pbfSolverShader.SetBuffer(_kernelPbfSolve, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
+                    BindSortedGridForPhysics(pbfSolverShader, _kernelPbfSolve);
                     pbfSolverShader.SetBuffer(_kernelPbfSolve, CellStartEndBufferId, _cellStartEndBuffer);
                     pbfSolverShader.SetBuffer(_kernelPbfSolve, LambdasId, _pbfScratch.Lambdas);
                     pbfSolverShader.SetInt(ActiveParticleCountId, (int)activeCount);
@@ -116,15 +121,21 @@ namespace HarmonicEngine.Infrastructure.Management
             shader.SetFloat(ParticleMassId, ResolveContainerParticleMass());
             shader.SetFloat(RestDensityId, sphSolver.RestDensity);
             shader.SetFloat(ViscosityId, containerFluid.viscosity);
-            shader.SetFloat(PbfEpsilonId, 600f / (smoothingRadius * smoothingRadius));
+            shader.SetFloat(PbfEpsilonId, ResolvePbfEpsilon(smoothingRadius));
+            shader.SetFloat(PbfRelaxationId, pbfRelaxation);
+            shader.SetFloat(PbfVelocityDampingId, pbfVelocityDamping);
+            shader.SetFloat(PbfMaxPositionDeltaId, pbfMaxPositionDelta);
+            shader.SetFloat(CohesionStrengthId, pbfCohesion);
             shader.SetVector(GravityId, gravity);
             shader.SetVector(ContainerCenterId, containerFluid.center);
             shader.SetFloat(ContainerRadiusId, containerFluid.radius);
             shader.SetFloat(ContainerFloorYId, containerFluid.floorY);
+            shader.SetFloat(ContainerRimYId, containerFluid.rimY);
             shader.SetFloat(ContainerRestitutionId, containerFluid.restitution);
             shader.SetFloat(ContainerFrictionId, containerFluid.friction);
             shader.SetFloat(DeltaTimeId, deltaTime);
             shader.SetInt(MaxParticleCountId, maxCapacity);
+            ApplyContainerPbfUniforms(shader);
         }
     }
 }

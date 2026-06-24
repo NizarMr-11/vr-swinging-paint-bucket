@@ -36,8 +36,46 @@ namespace HarmonicEngine.Infrastructure.Management
         public bool usePBF;
         public int pbfIterations;
         public float epsilon;
+        public float pbfEpsilonScale;
+        public float pbfRelaxation;
+        public float pbfVelocityDamping;
+        public float pbfMaxPositionDelta;
+        public float pbfCohesion;
         public float smoothingRadius;
         public float restDensity;
+    }
+
+    /// <summary>GPU solver and pipeline tuning captured in run manifest.json.</summary>
+    public struct HarmonicRuntimeTuningSnapshot
+    {
+        public float cellSize;
+        public float latticeSpacing;
+        public float latticeSpacingScale;
+        public int latticeSpawnMaxCount;
+        public float smoothingRadius;
+        public float restDensity;
+        public float particleMass;
+        public float particleMassOverride;
+        public float speedOfSound;
+        public float gasConstantK;
+        public float viscosity;
+        public float velocityDamping;
+        public float maxSpeed;
+        public int substeps;
+        public float maxTimeStep;
+        public int maxCflSubsteps;
+        public float colorDiffusionRate;
+        public bool usePBF;
+        public int pbfIterations;
+        public float epsilon;
+        public float pbfEpsilonScale;
+        public float pbfRelaxation;
+        public float pbfVelocityDamping;
+        public float pbfMaxPositionDelta;
+        public float pbfCohesion;
+        public bool dynamicSortSizing;
+        public int minSortSize;
+        public bool spillOverRim;
     }
 
     public struct HarmonicSimulationInitSnapshot

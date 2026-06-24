@@ -34,12 +34,14 @@ namespace HarmonicEngine.Infrastructure.Management
         [Header("Compute Shaders")]
         [SerializeField] private ComputeShader argumentUtilityShader;
         [SerializeField] private ComputeShader spatialHashGridShader;
+        [SerializeField] private ComputeShader radixSortShader;
         [SerializeField] private ComputeShader streamCompactionShader;
         [SerializeField] private ComputeShader streamCompactionIntegrateShader;
         [SerializeField] private ComputeShader dataCompactionShader;
         [SerializeField] private ComputeShader fallingFluidWorldShader;
         [SerializeField] private ComputeShader eulerianDragGridShader;
         [SerializeField] private ComputeShader pbfSolverShader;
+        [SerializeField] private ComputeShader containerRigidCarryShader;
 
         [Header("Scene References")]
         [SerializeField] private Transform bucketTransform;
@@ -86,13 +88,22 @@ namespace HarmonicEngine.Infrastructure.Management
 
         [Header("World falling only (no container)")]
         [SerializeField] private bool worldFallingOnly;
-        [SerializeField] private bool driveWorldParticlesFromPipelineRoot = true;
 
         [Header("Container fluid (world-space SPH in a cylinder)")]
         [SerializeField] private ContainerFluidSettings containerFluid = new();
         [Tooltip("Use Position Based Fluids instead of WCSPH for container fluid.")]
         [SerializeField] private bool usePBF = true;
         [SerializeField, Range(1, 8)] private int pbfIterations = 3;
+        [Tooltip("PBF epsilon numerator: epsilon = scale / h^4. Default 0.006 → ε≈960 at h=0.05.")]
+        [SerializeField, Min(1e-8f)] private float pbfEpsilonScale = 0.006f;
+        [Tooltip("Position-correction over-relaxation ω. 1.0 = standard Jacobi; >1 amplifies corrections.")]
+        [SerializeField, Range(1f, 2.5f)] private float pbfRelaxation = 1f;
+        [Tooltip("Per-frame velocity damping in ApplyPositionsKernel. 0.85 = 15% energy loss per substep.")]
+        [SerializeField, Range(0.5f, 0.99f)] private float pbfVelocityDamping = 0.85f;
+        [Tooltip("Max position correction magnitude per PBF solve iteration (meters).")]
+        [SerializeField, Min(0.001f)] private float pbfMaxPositionDelta = 0.015f;
+        [Tooltip("Spiky-kernel cohesion in PredictPositionsKernel. Pulls particles across voids (Macklin & Müller 2013 §5). 0 = off.")]
+        [SerializeField, Range(0f, 1f)] private float pbfCohesion = 0.3f;
 
         [Header("Color mixing")]
         [Tooltip("SPH color diffusion coefficient. 0 = colors stay distinct; higher = neighbors blend faster (marbling -> uniform mix).")]
@@ -103,6 +114,8 @@ namespace HarmonicEngine.Infrastructure.Management
         [SerializeField] private bool dynamicSortSizing = true;
         [Tooltip("Lower bound for the per-frame padded sort/grid size (power of two).")]
         [SerializeField] private int minSortSize = 256;
+        [Tooltip("Use 6-bit LSD radix sort instead of bitonic sort for spatial-hash key ordering.")]
+        [SerializeField] private bool useRadixSort = true;
         [Tooltip("Disable per-frame GPU read-back sampling and verbose stage logging for clean perf runs.")]
         [HideInInspector] private bool perfDiagnosticsMuted;
         [Tooltip("Max CFL substeps per container-fluid frame. Needs ~80 at c=8, h=0.01, dt=8ms; cap must exceed sonic+velocity CFL.")]
@@ -114,6 +127,8 @@ namespace HarmonicEngine.Infrastructure.Management
         [SerializeField] private bool useLatticeSpawn;
         [Tooltip("Max particles for container lattice fill (prevents over-packing the fill region).")]
         [SerializeField, Min(1)] private int latticeSpawnMaxCount = 3000;
+        [Tooltip("Lattice site spacing = CellSize × scale. PBF (Macklin) uses h/2 = 0.5 so neighbors sit inside Spiky support.")]
+        [SerializeField, Range(0.1f, 1f)] private float latticeSpacingScale = 0.5f;
         [SerializeField] private int testParticleCount = 2048;
         [SerializeField] private float testSpawnRadius = 0.2f;
 
@@ -142,12 +157,25 @@ namespace HarmonicEngine.Infrastructure.Management
         public bool ContainerFluidEnabled => containerFluid.enabled;
         public bool UsePbf => usePBF;
         public int PbfIterations => pbfIterations;
+        public float PbfRelaxation => pbfRelaxation;
         public float CellSize => cellSize;
+        public float LatticeSpacing => cellSize * latticeSpacingScale;
         public float SmoothingRadius => sphSolver.SmoothingRadius(cellSize);
         public float RestDensity => sphSolver.RestDensity;
         public float SpeedOfSound => speedOfSound;
         public float ContainerFloorY => containerFluid.floorY;
         public bool IsSimulationActive => simulationActive;
+        public bool UseRadixSort => useRadixSort;
+        public int LastRadixSortDispatchCount => _gpuRadixSort?.LastDispatchCount ?? 0;
+
+        public void SetUseRadixSort(bool enabled)
+        {
+            useRadixSort = enabled;
+            _radixSortAnnounced = false;
+            _bitonicSortAnnounced = false;
+        }
+
+        public void SetDynamicSortSizing(bool enabled) => dynamicSortSizing = enabled;
 
         public void SetSimulationMode(HarmonicSimulationMode mode) => simulationMode = mode;
 
@@ -162,6 +190,7 @@ namespace HarmonicEngine.Infrastructure.Management
             SyncSpeedOfSoundToSolver();
             ResolveIntegrateShader();
             ResolvePbfShader();
+            ResolveRadixSortShader();
             InitializeBuffers();
             CacheKernels();
             _lastBucketPosition = GetBucketPosition();
@@ -202,6 +231,25 @@ namespace HarmonicEngine.Infrastructure.Management
                 Debug.LogWarning(
                     "[HarmonicPipeline] pbfSolverShader is not assigned. "
                     + "Assign PbfSolver.compute or disable usePBF.");
+            }
+        }
+
+        private void ResolveRadixSortShader()
+        {
+            if (radixSortShader != null)
+            {
+                return;
+            }
+
+#if UNITY_EDITOR
+            radixSortShader = UnityEditor.AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/RadixSort.compute");
+#endif
+            if (radixSortShader == null && useRadixSort)
+            {
+                Debug.LogWarning(
+                    "[HarmonicPipeline] radixSortShader is not assigned. "
+                    + "Assign RadixSort.compute or disable useRadixSort.");
             }
         }
 

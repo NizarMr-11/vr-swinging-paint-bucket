@@ -55,12 +55,17 @@ namespace HarmonicEngine.Diagnostics
     }
 
     [System.Serializable]
-    public sealed class HarmonicRunManifestSph
+    public sealed class HarmonicRunManifestRuntime
     {
         public float cellSize;
+        public float latticeSpacing;
+        public float latticeSpacingScale;
+        public int latticeSpawnMaxCount;
         public float smoothingRadius;
-        public float speedOfSound;
         public float restDensity;
+        public float particleMass;
+        public float particleMassOverride;
+        public float speedOfSound;
         public float gasConstantK;
         public float viscosity;
         public float velocityDamping;
@@ -69,17 +74,17 @@ namespace HarmonicEngine.Diagnostics
         public float maxTimeStep;
         public int maxCflSubsteps;
         public float colorDiffusionRate;
-        public float particleMass;
-    }
-
-    [System.Serializable]
-    public sealed class HarmonicRunManifestPbf
-    {
         public bool usePBF;
         public int pbfIterations;
         public float epsilon;
-        public float smoothingRadius;
-        public float restDensity;
+        public float pbfEpsilonScale;
+        public float pbfRelaxation;
+        public float pbfVelocityDamping;
+        public float pbfMaxPositionDelta;
+        public float pbfCohesion;
+        public bool dynamicSortSizing;
+        public int minSortSize;
+        public bool spillOverRim;
     }
 
     [System.Serializable]
@@ -179,15 +184,20 @@ namespace HarmonicEngine.Diagnostics
             };
         }
 
-        public static HarmonicRunManifestSph BuildSph(PipelineExecutionController pipeline)
+        public static HarmonicRunManifestRuntime BuildRuntime(PipelineExecutionController pipeline)
         {
-            HarmonicSphTuningSnapshot tuning = pipeline.ReadSphTuning();
-            return new HarmonicRunManifestSph
+            HarmonicRuntimeTuningSnapshot tuning = pipeline.ReadRuntimeSnapshot();
+            return new HarmonicRunManifestRuntime
             {
                 cellSize = tuning.cellSize,
+                latticeSpacing = tuning.latticeSpacing,
+                latticeSpacingScale = tuning.latticeSpacingScale,
+                latticeSpawnMaxCount = tuning.latticeSpawnMaxCount,
                 smoothingRadius = tuning.smoothingRadius,
-                speedOfSound = tuning.speedOfSound,
                 restDensity = tuning.restDensity,
+                particleMass = tuning.particleMass,
+                particleMassOverride = tuning.particleMassOverride,
+                speedOfSound = tuning.speedOfSound,
                 gasConstantK = tuning.gasConstantK,
                 viscosity = tuning.viscosity,
                 velocityDamping = tuning.velocityDamping,
@@ -196,20 +206,17 @@ namespace HarmonicEngine.Diagnostics
                 maxTimeStep = tuning.maxTimeStep,
                 maxCflSubsteps = tuning.maxCflSubsteps,
                 colorDiffusionRate = tuning.colorDiffusionRate,
-                particleMass = tuning.particleMass
-            };
-        }
-
-        public static HarmonicRunManifestPbf BuildPbf(PipelineExecutionController pipeline)
-        {
-            HarmonicPbfTuningSnapshot tuning = pipeline.ReadPbfTuning();
-            return new HarmonicRunManifestPbf
-            {
                 usePBF = tuning.usePBF,
                 pbfIterations = tuning.pbfIterations,
                 epsilon = tuning.epsilon,
-                smoothingRadius = tuning.smoothingRadius,
-                restDensity = tuning.restDensity
+                pbfEpsilonScale = tuning.pbfEpsilonScale,
+                pbfRelaxation = tuning.pbfRelaxation,
+                pbfVelocityDamping = tuning.pbfVelocityDamping,
+                pbfMaxPositionDelta = tuning.pbfMaxPositionDelta,
+                pbfCohesion = tuning.pbfCohesion,
+                dynamicSortSizing = tuning.dynamicSortSizing,
+                minSortSize = tuning.minSortSize,
+                spillOverRim = tuning.spillOverRim
             };
         }
 

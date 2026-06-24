@@ -135,4 +135,33 @@ float CubicSplineLaplacian(float r, float h)
     return 0.0;
 }
 
+// -----------------------------------------------------------------------------
+//  Spiky kernel (support radius h) — used by PBF position constraints (Macklin & Müller 2013).
+// -----------------------------------------------------------------------------
+float SpikyKernel(float r, float h)
+{
+    if (r > h)
+    {
+        return 0.0;
+    }
+
+    float h6 = h * h * h * h * h * h;
+    float coeff = 15.0 / (3.14159265 * h6);
+    float hmr = h - r;
+    return coeff * hmr * hmr * hmr;
+}
+
+float3 SpikyGradient(float3 diff, float r, float h)
+{
+    if (r > h || r < 1e-6)
+    {
+        return float3(0, 0, 0);
+    }
+
+    float h6 = h * h * h * h * h * h;
+    float coeff = -45.0 / (3.14159265 * h6);
+    float hmr = h - r;
+    return coeff * hmr * hmr * (diff / r);
+}
+
 #endif // HARMONIC_SPH_COMMON_INCLUDED

@@ -207,6 +207,56 @@ namespace HarmonicEngine.Diagnostics
             return new ScalarStats(min, max, sum / count);
         }
 
+        public static ScalarStats ComputePbfGradSqImpliedStats(
+            float[] densities,
+            float[] lambdas,
+            float restDensity,
+            float epsilon)
+        {
+            if (densities == null || lambdas == null || densities.Length == 0 || restDensity <= 0f)
+            {
+                return new ScalarStats(0f, 0f, 0f);
+            }
+
+            int count = math.min(densities.Length, lambdas.Length);
+            float min = float.MaxValue;
+            float max = float.MinValue;
+            float sum = 0f;
+            int valid = 0;
+            for (int i = 0; i < count; i++)
+            {
+                if (!float.IsFinite(densities[i]) || !float.IsFinite(lambdas[i]))
+                {
+                    continue;
+                }
+
+                float lambda = lambdas[i];
+                if (math.abs(lambda) <= 1e-6f)
+                {
+                    continue;
+                }
+
+                float constraint = densities[i] / restDensity - 1f;
+                float gradSq = -constraint / lambda - epsilon;
+                if (!float.IsFinite(gradSq) || gradSq < 0f)
+                {
+                    continue;
+                }
+
+                min = math.min(min, gradSq);
+                max = math.max(max, gradSq);
+                sum += gradSq;
+                valid++;
+            }
+
+            if (valid == 0)
+            {
+                return new ScalarStats(0f, 0f, 0f);
+            }
+
+            return new ScalarStats(min, max, sum / valid);
+        }
+
         public static bool IsFinite(in FluidParticle particle)
         {
             return IsFiniteFloat3(particle.Position)

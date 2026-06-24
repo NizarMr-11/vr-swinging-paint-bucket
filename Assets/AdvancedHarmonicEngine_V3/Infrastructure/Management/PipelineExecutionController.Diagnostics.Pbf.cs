@@ -5,6 +5,9 @@ namespace HarmonicEngine.Infrastructure.Management
 {
     public partial class PipelineExecutionController
     {
+        private const float PbfConvergeWindowSeconds = 2f;
+        private const int PbfConvergeFrameInterval = 5;
+
         private float _pbfLogAccumulator;
         private bool _hasPbfColumnSample;
         private float _pbfColumnMinY;
@@ -74,6 +77,113 @@ namespace HarmonicEngine.Infrastructure.Management
                 canvasHitCount: _lastCanvasHitCount));
         }
 
+        private bool TrySamplePbfScalars(
+            float epsilon,
+            float rho0,
+            out GpuParticleReadbackUtility.ScalarStats constraintStats,
+            out GpuParticleReadbackUtility.ScalarStats lambdaStats,
+            out GpuParticleReadbackUtility.ScalarStats gradSqStats,
+            out GpuParticleReadbackUtility.ScalarStats gradSqImpliedStats)
+        {
+            constraintStats = default;
+            lambdaStats = default;
+            gradSqStats = default;
+            gradSqImpliedStats = default;
+
+            if (perfDiagnosticsMuted
+                || _bufferDensityCacheDensities == null
+                || _pbfScratch?.Lambdas == null
+                || _pbfScratch.GradSqSum == null
+                || _cachedInternalCount == 0)
+            {
+                return false;
+            }
+
+            int sampleCount = Mathf.Min(positionSampleCount, (int)_cachedInternalCount);
+            int[] indices = BuildStratifiedSampleIndices((int)_cachedInternalCount, sampleCount);
+            float[] densities = GpuParticleReadbackUtility.ReadFloatBufferSample(
+                _bufferDensityCacheDensities,
+                indices);
+            float[] lambdas = GpuParticleReadbackUtility.ReadFloatBufferSample(
+                _pbfScratch.Lambdas,
+                indices);
+            float[] gradSq = GpuParticleReadbackUtility.ReadFloatBufferSample(
+                _pbfScratch.GradSqSum,
+                indices);
+
+            constraintStats = GpuParticleReadbackUtility.ComputePbfConstraintStats(densities, rho0);
+            lambdaStats = GpuParticleReadbackUtility.ComputeScalarStats(lambdas, useAbs: true);
+            gradSqStats = GpuParticleReadbackUtility.ComputeScalarStats(gradSq);
+            gradSqImpliedStats = GpuParticleReadbackUtility.ComputePbfGradSqImpliedStats(
+                densities,
+                lambdas,
+                rho0,
+                epsilon);
+            return true;
+        }
+
+        private void LogPbfScalarTelemetry(float epsilon, float rho0)
+        {
+            if (!TrySamplePbfScalars(
+                    epsilon,
+                    rho0,
+                    out GpuParticleReadbackUtility.ScalarStats constraintStats,
+                    out GpuParticleReadbackUtility.ScalarStats lambdaStats,
+                    out GpuParticleReadbackUtility.ScalarStats gradSqStats,
+                    out GpuParticleReadbackUtility.ScalarStats gradSqImpliedStats))
+            {
+                return;
+            }
+
+            LogPbfTelemetry(
+                $"[PBF CONSTRAINT] avgC={constraintStats.Avg:F4} maxC={constraintStats.Max:F4} minC={constraintStats.Min:F4}");
+            LogPbfTelemetry(
+                $"[PBF LAMBDA] avgAbsLambda={lambdaStats.Avg:F6} maxAbsLambda={lambdaStats.Max:F6}");
+            LogPbfTelemetry(
+                $"[PBF GRADSQ] avgGradSq={gradSqStats.Avg:F4} maxGradSq={gradSqStats.Max:F4} minGradSq={gradSqStats.Min:F4}");
+            LogPbfTelemetry(
+                $"[PBF GRADSQ_IMPLIED] avgGradSq={gradSqImpliedStats.Avg:F4} " +
+                $"(approximate, from per-particle C and lambda)");
+        }
+
+        private void MaybeLogPbfConvergence()
+        {
+            if (!usePBF
+                || mutePbfTelemetry
+                || !HarmonicDiagnosticHub.Enabled
+                || HarmonicDiagnosticHub.Session == null)
+            {
+                return;
+            }
+
+            var session = HarmonicDiagnosticHub.Session;
+            if (session.ElapsedSeconds >= PbfConvergeWindowSeconds
+                || session.FrameIndex % PbfConvergeFrameInterval != 0)
+            {
+                return;
+            }
+
+            float h = SmoothingRadius;
+            float epsilon = ResolvePbfEpsilon(h);
+            float rho0 = sphSolver.RestDensity;
+
+            if (!TrySamplePbfScalars(
+                    epsilon,
+                    rho0,
+                    out GpuParticleReadbackUtility.ScalarStats constraintStats,
+                    out GpuParticleReadbackUtility.ScalarStats lambdaStats,
+                    out GpuParticleReadbackUtility.ScalarStats gradSqStats,
+                    out _))
+            {
+                return;
+            }
+
+            float avgY = _hasPbfColumnSample ? _pbfColumnAvgY : 0f;
+            LogPbfTelemetry(
+                $"[PBF CONVERGE] frame={session.FrameIndex} avgC={constraintStats.Avg:F4} " +
+                $"avgAbsLambda={lambdaStats.Avg:F6} avgGradSq={gradSqStats.Avg:F4} avgY={avgY:F2}");
+        }
+
         private void MaybeLogPbfTelemetry(float deltaTime, int substeps, float subDt)
         {
             if (!usePBF || mutePbfTelemetry)
@@ -90,37 +200,19 @@ namespace HarmonicEngine.Infrastructure.Management
             _pbfLogAccumulator = 0f;
 
             float h = SmoothingRadius;
-            float epsilon = 600f / (h * h);
+            float epsilon = ResolvePbfEpsilon(h);
             float rho0 = sphSolver.RestDensity;
 
             LogPbfTelemetry(
                 $"[PBF FRAME] active={_cachedInternalCount} substeps={substeps} pbfIters={pbfIterations} " +
-                $"h={h:F4} epsilon={epsilon:F1} rho0={rho0:F1} subDt={subDt:F6} sortSize={_frameSortSize}");
+                $"relaxation={pbfRelaxation:F2} velDamp={pbfVelocityDamping:F2} maxDelta={pbfMaxPositionDelta:F3} " +
+                $"cohesion={pbfCohesion:F3} " +
+                $"h={h:F4} epsilon={epsilon:F2} rho0={rho0:F1} " +
+                $"subDt={subDt:F6} sortSize={_frameSortSize} sortAlgo={(UseRadixSort ? "radix" : "bitonic")}");
 
-            if (!perfDiagnosticsMuted
-                && _bufferDensityCacheDensities != null
-                && _pbfScratch?.Lambdas != null
-                && _cachedInternalCount > 0)
-            {
-                int sampleCount = Mathf.Min(positionSampleCount, (int)_cachedInternalCount);
-                int[] indices = BuildStratifiedSampleIndices((int)_cachedInternalCount, sampleCount);
-                float[] densities = GpuParticleReadbackUtility.ReadFloatBufferSample(
-                    _bufferDensityCacheDensities,
-                    indices);
-                float[] lambdas = GpuParticleReadbackUtility.ReadFloatBufferSample(
-                    _pbfScratch.Lambdas,
-                    indices);
+            FlushSortTelemetry("PBF");
 
-                GpuParticleReadbackUtility.ScalarStats constraintStats =
-                    GpuParticleReadbackUtility.ComputePbfConstraintStats(densities, rho0);
-                LogPbfTelemetry(
-                    $"[PBF CONSTRAINT] avgC={constraintStats.Avg:F4} maxC={constraintStats.Max:F4} minC={constraintStats.Min:F4}");
-
-                GpuParticleReadbackUtility.ScalarStats lambdaStats =
-                    GpuParticleReadbackUtility.ComputeScalarStats(lambdas, useAbs: true);
-                LogPbfTelemetry(
-                    $"[PBF LAMBDA] avgAbsLambda={lambdaStats.Avg:F4} maxAbsLambda={lambdaStats.Max:F4}");
-            }
+            LogPbfScalarTelemetry(epsilon, rho0);
 
             if (_hasPbfColumnSample)
             {

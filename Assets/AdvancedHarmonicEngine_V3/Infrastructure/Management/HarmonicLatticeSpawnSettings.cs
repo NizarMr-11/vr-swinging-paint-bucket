@@ -11,7 +11,7 @@ namespace HarmonicEngine.Infrastructure.Management
     public sealed class HarmonicLatticeSpawnSettings
     {
         public Vector3 center = Vector3.zero;
-        [Tooltip("World spacing between lattice sites. 0 = use pipeline CellSize.")]
+        [Tooltip("World spacing between lattice sites. 0 = use pipeline LatticeSpacing (CellSize × latticeSpacingScale).")]
         [Min(0f)] public float spacing;
         public int3 gridDimensions = new int3(10, 10, 10);
         public float restDensity = 1000f;
