@@ -2,6 +2,7 @@ using System;
 using HarmonicEngine.Diagnostics;
 using HarmonicEngine.Domain.Models;
 using HarmonicEngine.Domain.Solvers;
+using HarmonicEngine.Infrastructure.Rendering;
 using UnityEngine;
 
 namespace HarmonicEngine.Infrastructure.Management
@@ -79,6 +80,7 @@ namespace HarmonicEngine.Infrastructure.Management
 
         [Header("SPH Parameters")]
         [SerializeField] private SphFluidSolverCore sphSolver = new();
+        [SerializeField] private HarmonicFluidProfile fluidProfile;
         [SerializeField, Min(1f)] private float speedOfSound = 12f;
 
         [Header("Particle Ingestion")]
@@ -167,6 +169,9 @@ namespace HarmonicEngine.Infrastructure.Management
         public bool IsSimulationActive => simulationActive;
         public bool UseRadixSort => useRadixSort;
         public int LastRadixSortDispatchCount => _gpuRadixSort?.LastDispatchCount ?? 0;
+        public HarmonicFluidProfile FluidProfile => fluidProfile;
+
+        public void SetFluidProfile(HarmonicFluidProfile profile) => fluidProfile = profile;
 
         public void SetUseRadixSort(bool enabled)
         {
@@ -185,6 +190,8 @@ namespace HarmonicEngine.Infrastructure.Management
 
         public void SetCellSize(float value) => cellSize = Mathf.Max(0.01f, value);
 
+        private HarmonicScreenSpaceFluidRenderer _fluidProfileRenderer;
+
         private void Awake()
         {
             SyncSpeedOfSoundToSolver();
@@ -193,6 +200,7 @@ namespace HarmonicEngine.Infrastructure.Management
             ResolveRadixSortShader();
             InitializeBuffers();
             CacheKernels();
+            ApplyFluidProfileIfAssigned();
             _lastBucketPosition = GetBucketPosition();
         }
 
@@ -263,10 +271,24 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private void Update()
         {
+            ApplyFluidProfileIfAssigned();
+
             if (autoRunPipeline)
             {
                 ExecutePipelineFrame(Time.deltaTime);
             }
+        }
+
+        private void ApplyFluidProfileIfAssigned()
+        {
+            if (fluidProfile == null)
+            {
+                return;
+            }
+
+            _fluidProfileRenderer ??= GetComponent<HarmonicScreenSpaceFluidRenderer>()
+                ?? FindFirstObjectByType<HarmonicScreenSpaceFluidRenderer>();
+            fluidProfile.ApplyTo(this, _fluidProfileRenderer);
         }
 
         public int AppendParticles(FluidParticle[] particles, int count)

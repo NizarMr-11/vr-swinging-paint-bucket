@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8a1b2c3d4e5478091a2b3c4d5e6f701, type: 3}
+  m_Name: Water
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Domain.Models.HarmonicFluidProfile
+  thickness: 0.1
+  surfaceTension: 0.35
+  bounciness: 0.4
+  incompressibility: 0.3
+  adhesion: 0.1
+  visualGloss: 0.6
+  derivedViscosity: 5.4
+  derivedDamping: 0.95
+  derivedCohesion: 0.33
+  derivedIterations: 1
+  derivedMaxPositionDelta: 0.01375
+  derivedRestitution: 0.4
+  derivedFriction: 0.96999997
+  derivedThicknessWeight: 0.025999999
+  derivedThicknessAbsorption: 2.8
+  derivedBlurRadius: 3.05
+  derivedBlurFalloff: 0.0475
+  derivedSpecularPower: 280
+  derivedSpecularIntensity: 1.4000001

@@ -177,7 +177,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 1925811267}
+  - {fileID: 1133594367}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -208,7 +208,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 114675546}
-  m_Mesh: {fileID: 1949524800}
+  m_Mesh: {fileID: 1813301502}
 --- !u!21 &215974579
 Material:
   serializedVersion: 8
@@ -449,6 +449,7 @@ MonoBehaviour:
   canvasAbsorbPaintWeightScale: 1
   simulationMode: 0
   qualityTier: 2
+  fluidProfile: {fileID: 11400000, guid: a1b2c3d4e5f6478091a2b3c4d5e6f801, type: 2}
   speedOfSound: 12
   useExternalParticleIngestion: 1
   autoRunPipeline: 1
@@ -860,6 +861,39 @@ MonoBehaviour:
   fluidVisualController: {fileID: 963194231}
   initialMode: 1
   showModeHint: 1
+--- !u!21 &1133594367
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Legacy Shaders/Transparent/Diffuse
+  m_Shader: {fileID: 30, guid: 0000000000000000f000000000000000, type: 0}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats: []
+    m_Colors:
+    - _Color: {r: 0.82, g: 0.84, b: 0.88, a: 0.3}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
 --- !u!21 &1376947134
 Material:
   serializedVersion: 8
@@ -965,106 +999,7 @@ MonoBehaviour:
   tiltSpeed: 45
   maxPitchDegrees: 75
   requirePlayMode: 1
---- !u!1 &1863052269
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1863052271}
-  - component: {fileID: 1863052270}
-  m_Layer: 0
-  m_Name: SpawnVolume_Primary
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1863052270
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1863052269}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f8e3a1b2c4d5678901234abcdef56789, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Management.ParticleSpawnVolume
-  pipeline: {fileID: 539074082}
-  shapeType: 1
-  shapeSource: {fileID: 0}
-  meshFilter: {fileID: 0}
-  boxSize: {x: 1, y: 1, z: 1}
-  sphereRadius: 0.22
-  capsuleRadius: 0.5
-  capsuleHeight: 2
-  cylinderRadius: 0.5
-  cylinderHeight: 2
-  particleCount: 1536
-  restDensity: 1000
-  initialVelocity: {x: 0, y: 0, z: 0}
-  spawnPriority: 10
-  spawnColor: {r: 1, g: 0.35, b: 0.15, a: 1}
-  seed: 12345
-  meshMaxAttemptsPerPoint: 32
-  emitOnStart: 0
-  clearBeforeEmit: 1
-  activateSimulationOnEmit: 1
-  drawGizmo: 1
-  drawGizmoWhenNotSelected: 1
---- !u!4 &1863052271
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1863052269}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.002, y: 0.471, z: 0.038}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2100000002}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!21 &1925811267
-Material:
-  serializedVersion: 8
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: Legacy Shaders/Transparent/Diffuse
-  m_Shader: {fileID: 30, guid: 0000000000000000f000000000000000, type: 0}
-  m_Parent: {fileID: 0}
-  m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
-  m_InvalidKeywords: []
-  m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap: {}
-  disabledShaderPasses: []
-  m_LockedProperties: 
-  m_SavedProperties:
-    serializedVersion: 3
-    m_TexEnvs:
-    - _MainTex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    m_Ints: []
-    m_Floats: []
-    m_Colors:
-    - _Color: {r: 0.82, g: 0.84, b: 0.88, a: 0.3}
-  m_BuildTextureStacks: []
-  m_AllowLocking: 1
---- !u!43 &1949524800
+--- !u!43 &1813301502
 Mesh:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1242,6 +1177,72 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!1 &1863052269
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1863052271}
+  - component: {fileID: 1863052270}
+  m_Layer: 0
+  m_Name: SpawnVolume_Primary
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1863052270
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1863052269}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8e3a1b2c4d5678901234abcdef56789, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Management.ParticleSpawnVolume
+  pipeline: {fileID: 539074082}
+  shapeType: 1
+  shapeSource: {fileID: 0}
+  meshFilter: {fileID: 0}
+  boxSize: {x: 1, y: 1, z: 1}
+  sphereRadius: 0.22
+  capsuleRadius: 0.5
+  capsuleHeight: 2
+  cylinderRadius: 0.5
+  cylinderHeight: 2
+  particleCount: 1536
+  restDensity: 1000
+  initialVelocity: {x: 0, y: 0, z: 0}
+  spawnPriority: 10
+  spawnColor: {r: 1, g: 0.35, b: 0.15, a: 1}
+  seed: 12345
+  meshMaxAttemptsPerPoint: 32
+  emitOnStart: 0
+  clearBeforeEmit: 1
+  activateSimulationOnEmit: 1
+  drawGizmo: 1
+  drawGizmoWhenNotSelected: 1
+--- !u!4 &1863052271
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1863052269}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.002, y: 0.471, z: 0.038}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2100000002}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2100000001
 GameObject:
   m_ObjectHideFlags: 0

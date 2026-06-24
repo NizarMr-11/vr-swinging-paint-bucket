@@ -61,6 +61,42 @@ namespace HarmonicEngine.Infrastructure.Rendering
 
         public bool RenderingEnabled { get; set; } = true;
 
+        public float ThicknessWeight
+        {
+            get => thicknessWeight;
+            set => thicknessWeight = Mathf.Clamp(value, 0.001f, 0.2f);
+        }
+
+        public float ThicknessAbsorption
+        {
+            get => thicknessAbsorption;
+            set => thicknessAbsorption = Mathf.Max(0.1f, value);
+        }
+
+        public float BlurRadius
+        {
+            get => blurRadius;
+            set => blurRadius = Mathf.Max(0.5f, value);
+        }
+
+        public float BlurFalloff
+        {
+            get => blurFalloff;
+            set => blurFalloff = Mathf.Max(0.001f, value);
+        }
+
+        public float SpecularPower
+        {
+            get => specularPower;
+            set => specularPower = Mathf.Max(1f, value);
+        }
+
+        public float SpecularIntensity
+        {
+            get => specularIntensity;
+            set => specularIntensity = Mathf.Clamp(value, 0f, 2f);
+        }
+
         public void SetPipeline(PipelineExecutionController controller) => pipeline = controller;
 
         private void Awake()

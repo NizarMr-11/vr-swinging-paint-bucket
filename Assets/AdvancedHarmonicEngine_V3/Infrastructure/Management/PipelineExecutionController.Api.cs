@@ -7,6 +7,20 @@ namespace HarmonicEngine.Infrastructure.Management
     {
         public void SetContainerParticleMass(float mass) => containerFluid.particleMass = Mathf.Max(0f, mass);
 
+        public void SetContainerViscosity(float value) => containerFluid.viscosity = Mathf.Max(0f, value);
+
+        public void SetContainerRestitution(float value) => containerFluid.restitution = Mathf.Clamp01(value);
+
+        public void SetContainerFriction(float value) => containerFluid.friction = Mathf.Clamp01(value);
+
+        public void SetPbfIterations(int value) => pbfIterations = Mathf.Clamp(value, 1, 8);
+
+        public void SetPbfCohesion(float value) => pbfCohesion = Mathf.Clamp01(value);
+
+        public void SetPbfVelocityDamping(float value) => pbfVelocityDamping = Mathf.Clamp(value, 0.5f, 0.99f);
+
+        public void SetPbfMaxPositionDelta(float value) => pbfMaxPositionDelta = Mathf.Max(0.001f, value);
+
         /// <summary>
         /// Enable/disable the world-space SPH container path. When enabled the pipeline confines
         /// particles to an open-top cylinder and runs full SPH on them in world space.

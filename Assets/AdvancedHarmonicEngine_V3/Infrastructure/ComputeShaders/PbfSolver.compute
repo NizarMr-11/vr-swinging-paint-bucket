@@ -387,16 +387,6 @@ void PbfClampToContainer(inout float3 pos, inout float3 vel)
 
     if (_ContainerSpillEnabled == 0)
     {
-        float ceilingY = _ContainerRimY + 0.3;
-        if (pos.y > ceilingY)
-        {
-            pos.y = ceilingY;
-            if (vel.y > 0.0)
-            {
-                vel.y = -vel.y * 0.1;
-            }
-        }
-
         if (pos.y > _ContainerRimY + 2.0
             || length(pos.xz - _ContainerCenter.xz) > _ContainerRadius + 2.0)
         {

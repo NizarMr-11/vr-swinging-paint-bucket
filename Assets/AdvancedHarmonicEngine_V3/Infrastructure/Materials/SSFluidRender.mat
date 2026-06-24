@@ -25,15 +25,15 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _BlurFalloff: 0.05
-    - _BlurRadius: 3
+    - _BlurFalloff: 0.0475
+    - _BlurRadius: 3.05
     - _MaxEyeDepth: 12
     - _NormalScale: 100
-    - _SpecularIntensity: 1.5
-    - _SpecularPower: 250
+    - _SpecularIntensity: 1.4000001
+    - _SpecularPower: 280
     - _SplatRadius: 0.0525
-    - _ThicknessAbsorption: 8
-    - _ThicknessWeight: 0.035
+    - _ThicknessAbsorption: 2.8
+    - _ThicknessWeight: 0.025999999
     - _UseParticleColor: 1
     m_Colors:
     - _FluidColor: {r: 0.1, g: 0.4, b: 0.8, a: 1}
