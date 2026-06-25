@@ -10,6 +10,7 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly ProfilerMarker MarkerPbfLambda = new("Harmonic.PbfLambda");
         private static readonly ProfilerMarker MarkerPbfSolve = new("Harmonic.PbfSolve");
         private static readonly ProfilerMarker MarkerPbfApply = new("Harmonic.PbfApply");
+        private static readonly ProfilerMarker MarkerPbfAppendSpilled = new("Harmonic.PbfAppendSpilled");
 
         private float ResolvePbfEpsilon(float smoothingRadius) =>
             pbfEpsilonScale / Mathf.Pow(smoothingRadius, 4f);
@@ -24,12 +25,10 @@ namespace HarmonicEngine.Infrastructure.Management
             {
                 ComputeFrameSortSize(activeCount);
                 BuildSpatialHashGrid(_pingPong.ReadSet, activeCount);
-                RunPbfSubstep(activeCount, subDt);
+                activeCount = RunPbfSubstep(activeCount, subDt);
             }
 
             _cachedInternalCount = SanitizeAndRepairCount(_pingPong.ReadSet);
-            _lastFallingDebugCount = 0;
-            _lastFallingQuantizeCount = 0;
 
             MaybeSampleParticlePositions(_pingPong.ReadSet, _cachedInternalCount, "containerPbf");
             MaybeLogPbfConvergence();
@@ -45,7 +44,7 @@ namespace HarmonicEngine.Infrastructure.Management
             }
         }
 
-        private void RunPbfSubstep(uint activeCount, float deltaTime)
+        private uint RunPbfSubstep(uint activeCount, float deltaTime)
         {
             float smoothingRadius = sphSolver.SmoothingRadius(cellSize);
             ApplyPbfUniforms(pbfSolverShader, smoothingRadius, deltaTime);
@@ -103,14 +102,32 @@ namespace HarmonicEngine.Infrastructure.Management
                 BindReadSoa(pbfSolverShader, _kernelPbfApply, _pingPong.ReadSet);
                 pbfSolverShader.SetBuffer(_kernelPbfApply, OldBlock0Id, _pbfScratch.OldBlock0);
                 pbfSolverShader.SetBuffer(_kernelPbfApply, PredictedBlock0Id, _pbfScratch.PredictedBlock0);
-                BindDensityCacheRead(pbfSolverShader, _kernelPbfApply);
+                BindDensityCacheDensitiesOnly(pbfSolverShader, _kernelPbfApply);
                 BindWriteSoaIndexed(pbfSolverShader, _kernelPbfApply, _pingPong.WriteSet);
+                pbfSolverShader.SetBuffer(_kernelPbfApply, GradSqSumId, _pbfScratch.GradSqSum);
+
                 pbfSolverShader.SetInt(ActiveParticleCountId, (int)activeCount);
                 pbfSolverShader.DispatchIndirect(_kernelPbfApply, _indirectArgsBuffer, 0);
             }
 
+            if (spillOverRim)
+            {
+                using (MarkerPbfAppendSpilled.Auto())
+                {
+                    BindReadSoa(pbfSolverShader, _kernelPbfAppendSpilled, _pingPong.ReadSet);
+                    pbfSolverShader.SetBuffer(_kernelPbfAppendSpilled, OldBlock0Id, _pbfScratch.OldBlock0);
+                    pbfSolverShader.SetBuffer(_kernelPbfAppendSpilled, PredictedBlock0Id, _pbfScratch.PredictedBlock0);
+                    pbfSolverShader.SetBuffer(_kernelPbfAppendSpilled, GradSqSumId, _pbfScratch.GradSqSum);
+                    BindFallingAppendSoa(pbfSolverShader, _kernelPbfAppendSpilled, _soaFalling);
+                    pbfSolverShader.SetInt(ActiveParticleCountId, (int)activeCount);
+                    pbfSolverShader.DispatchIndirect(_kernelPbfAppendSpilled, _indirectArgsBuffer, 0);
+                }
+            }
+
             _pingPong.WriteSet.SetCounterValue(activeCount);
             _pingPong.Swap();
+
+            return SanitizeAndRepairCount(_pingPong.ReadSet);
         }
 
         private void ApplyPbfUniforms(ComputeShader shader, float smoothingRadius, float deltaTime)

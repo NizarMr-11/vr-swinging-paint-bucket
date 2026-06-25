@@ -102,7 +102,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 pbfCohesion = pbf.pbfCohesion,
                 dynamicSortSizing = init.dynamicSortSizing,
                 minSortSize = init.minSortSize,
-                spillOverRim = containerFluid.spillOverRim
+                spillOverRim = spillOverRim
             };
         }
 

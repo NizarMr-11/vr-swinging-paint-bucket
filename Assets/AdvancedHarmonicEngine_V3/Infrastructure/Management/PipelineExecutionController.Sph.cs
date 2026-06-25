@@ -25,8 +25,12 @@ namespace HarmonicEngine.Infrastructure.Management
             }
 
             _pingPong.BeginFrame();
-            _soaFalling.SetCounterValue(0);
-            _soaFallingWorld?.SetCounterValue(0);
+            if (!containerFluid.enabled)
+            {
+                _soaFalling.SetCounterValue(0);
+                _soaFallingWorld?.SetCounterValue(0);
+            }
+
             _bufferCanvasHits?.SetCounterValue(0);
             _lastCanvasHitCount = 0;
 
@@ -58,6 +62,8 @@ namespace HarmonicEngine.Infrastructure.Management
                 {
                     ExecuteContainerFluidFrame(activeCount, deltaTime);
                 }
+
+                ExecuteContainerFallingWorldFrame(deltaTime);
 
                 PublishPipelineFrameDiagnostic(_cachedInternalCount);
                 return;
@@ -221,6 +227,46 @@ namespace HarmonicEngine.Infrastructure.Management
             MaybeSampleParticlePositions(_pingPong.ReadSet, _cachedInternalCount, "worldFalling");
         }
 
+        private void ExecuteContainerFallingWorldFrame(float deltaTime)
+        {
+            uint fallingCount = SanitizeAndRepairCount(_soaFalling);
+            if (fallingCount == 0 || fallingFluidWorldShader == null)
+            {
+                return;
+            }
+
+            _soaFallingWorld.SetCounterValue(0);
+            BindFallingReadSoa(fallingFluidWorldShader, _kernelFallingWorld, _soaFalling);
+            BindFallingWorldAppendSoa(fallingFluidWorldShader, _kernelFallingWorld, _soaFallingWorld);
+            fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, CanvasHitAppendId, _bufferCanvasHits);
+            ApplyFallingWorldUniforms(fallingFluidWorldShader, fallingCount, deltaTime);
+            int groups = Mathf.CeilToInt(fallingCount / 64f);
+            using (MarkerWorldFalling.Auto())
+            {
+                fallingFluidWorldShader.Dispatch(_kernelFallingWorld, groups, 1, 1);
+            }
+
+            _lastCanvasHitCount = FetchActiveCount(_bufferCanvasHits);
+            fallingCount = SanitizeAndRepairCount(_soaFallingWorld);
+            _lastFallingDebugCount = fallingCount;
+            _lastFallingQuantizeCount = fallingCount;
+            SwapFallingParticleBuffers();
+
+            if (verbosePipelineDiagnostics && !perfDiagnosticsMuted)
+            {
+                PublishStageDiagnostic(
+                    "containerFalling",
+                    $"falling={fallingCount} canvasHits={_lastCanvasHitCount} planeY={canvasPlaneY:F2} dt={deltaTime:F4}");
+            }
+        }
+
+        private void SwapFallingParticleBuffers()
+        {
+            (_soaFalling, _soaFallingWorld) = (_soaFallingWorld, _soaFalling);
+            _bufferFalling = _soaFalling.CounterBuffer;
+            _bufferFallingWorld = _soaFallingWorld.CounterBuffer;
+        }
+
         private void ExecuteContainerFluidFrame(uint activeCount, float deltaTime)
         {
             using (MarkerContainerFrame.Auto())
@@ -261,8 +307,6 @@ namespace HarmonicEngine.Infrastructure.Management
                 MaybeLogHashRebuildDiagnostic(hashRebuildsThisFrame, steps, deltaTime);
 
                 _cachedInternalCount = SanitizeAndRepairCount(_pingPong.ReadSet);
-                _lastFallingDebugCount = 0;
-                _lastFallingQuantizeCount = 0;
 
                 MaybeSampleParticlePositions(_pingPong.ReadSet, _cachedInternalCount, "containerFluid");
 

@@ -33,8 +33,6 @@ namespace HarmonicEngine.Infrastructure.Management
         [Range(1, 4)] public int substeps = 2;
 
         [Header("Orientation")]
-        [Tooltip("When true, particles above the rim are not ceiling-clamped and may spill.")]
-        public bool spillOverRim = true;
         public Quaternion orientation = Quaternion.identity;
         [Min(0.05f)] public float height = 1.1f;
 
@@ -56,8 +54,7 @@ namespace HarmonicEngine.Infrastructure.Management
             float newHeight,
             float newRestitution,
             float newFriction,
-            float newWallStiffness,
-            bool spillEnabled)
+            float newWallStiffness)
         {
             orientation = worldRotation;
             height = Mathf.Max(0.05f, newHeight);
@@ -68,7 +65,6 @@ namespace HarmonicEngine.Infrastructure.Management
             restitution = Mathf.Clamp01(newRestitution);
             friction = Mathf.Clamp01(newFriction);
             wallStiffness = Mathf.Max(0f, newWallStiffness);
-            spillOverRim = spillEnabled;
         }
     }
 }

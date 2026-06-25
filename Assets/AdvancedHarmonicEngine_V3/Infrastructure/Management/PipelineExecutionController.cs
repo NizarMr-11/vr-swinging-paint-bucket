@@ -93,6 +93,8 @@ namespace HarmonicEngine.Infrastructure.Management
 
         [Header("Container fluid (world-space SPH in a cylinder)")]
         [SerializeField] private ContainerFluidSettings containerFluid = new();
+        [Tooltip("When enabled, fluid above the open rim transfers to the falling particle sim instead of being clamped.")]
+        [SerializeField] private bool spillOverRim;
         [Tooltip("Use Position Based Fluids instead of WCSPH for container fluid.")]
         [SerializeField] private bool usePBF = true;
         [SerializeField, Range(1, 8)] private int pbfIterations = 3;
@@ -157,6 +159,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public bool WorldFallingOnly => worldFallingOnly;
         public bool CanvasCullingEnabled => canvasCullingEnabled;
         public bool ContainerFluidEnabled => containerFluid.enabled;
+        public bool SpillOverRim => spillOverRim;
         public bool UsePbf => usePBF;
         public int PbfIterations => pbfIterations;
         public float PbfRelaxation => pbfRelaxation;

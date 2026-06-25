@@ -42,8 +42,6 @@ namespace SwingingPaintBucket.Scene
         [SerializeField] private bool enableContainerModeOnStart = true;
         [Tooltip("Re-push bounds every frame so a moving/resized container stays in sync.")]
         [SerializeField] private bool continuouslyUpdate = true;
-        [Tooltip("Allow fluid to leave the open top when tilted.")]
-        [SerializeField] private bool spillOverRim = true;
 
         private Transform _visualTransform;
         private MeshFilter _visualMeshFilter;
@@ -131,8 +129,7 @@ namespace SwingingPaintBucket.Scene
                 height,
                 restitution,
                 friction,
-                wallStiffness,
-                spillOverRim: spillOverRim);
+                wallStiffness);
         }
 
         private void OnValidate()

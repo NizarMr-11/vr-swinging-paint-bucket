@@ -350,6 +350,13 @@ namespace HarmonicEngine.Infrastructure.Rendering
                     DrawSoa(containerSoa, containerCount);
                 }
 
+                if (drawFallingParticles
+                    && pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers containerFallingSoa, out uint containerFallingCount)
+                    && containerFallingCount > 0)
+                {
+                    DrawSoa(containerFallingSoa, containerFallingCount);
+                }
+
                 return;
             }
 

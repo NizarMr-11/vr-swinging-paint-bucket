@@ -13,6 +13,8 @@ namespace HarmonicEngine.Infrastructure.Management
 
         public void SetContainerFriction(float value) => containerFluid.friction = Mathf.Clamp01(value);
 
+        public void SetContainerSpillOverRim(bool enabled) => spillOverRim = enabled;
+
         public void SetPbfIterations(int value) => pbfIterations = Mathf.Clamp(value, 1, 8);
 
         public void SetPbfCohesion(float value) => pbfCohesion = Mathf.Clamp01(value);
@@ -54,7 +56,7 @@ namespace HarmonicEngine.Infrastructure.Management
             containerFluid.ApplyBounds(center, radius, floorY, rimY, restitution, friction, wallStiffness);
             float height = Mathf.Max(0.05f, rimY - floorY);
             Vector3 floorPivot = new Vector3(center.x, floorY, center.z);
-            SetContainerFluidOriented(floorPivot, Quaternion.identity, radius, height, restitution, friction, wallStiffness, containerFluid.spillOverRim);
+            SetContainerFluidOriented(floorPivot, Quaternion.identity, radius, height, restitution, friction, wallStiffness);
         }
 
         /// <summary>Stores a default spawn region used by the parameterless <see cref="SpawnVolume()"/>.</summary>

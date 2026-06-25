@@ -34,7 +34,7 @@ namespace HarmonicEngine.Tests
             pipeline.SetContainerFluidEnabled(true);
 
             HarmonicRuntimeTuningSnapshot tuning = pipeline.ReadRuntimeSnapshot();
-            Assert.IsTrue(tuning.spillOverRim);
+            Assert.IsFalse(tuning.spillOverRim);
 
             Object.DestroyImmediate(go);
         }

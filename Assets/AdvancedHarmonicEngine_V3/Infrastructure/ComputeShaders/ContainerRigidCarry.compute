@@ -3,8 +3,11 @@
 uint _ActiveParticleCount;
 uint _MaxParticleCount;
 float4x4 _ContainerRotationDelta;
+float4x4 _ContainerWorldToLocal;
 float3 _ContainerAngularVelocityWorld;
 float3 _ContainerFloorPivot;
+float _ContainerHeight;
+float _ContainerRadius;
 
 RWStructuredBuffer<float4> _Block0;
 RWStructuredBuffer<float4> _Block1;
@@ -22,6 +25,12 @@ void ContainerRigidCarryKernel(uint3 id : SV_DispatchThreadID)
     float4 block1 = _Block1[i];
     float3 pos = block0.xyz;
     float3 vel = block1.xyz;
+
+    float3 localPos = mul(_ContainerWorldToLocal, float4(pos, 1.0)).xyz;
+    if (localPos.y > _ContainerHeight || length(localPos.xz) > _ContainerRadius)
+    {
+        return;
+    }
 
     float3 newPos = mul(_ContainerRotationDelta, float4(pos, 1.0)).xyz;
     float3 arm = pos - _ContainerFloorPivot;

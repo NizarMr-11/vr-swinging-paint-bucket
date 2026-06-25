@@ -55,6 +55,7 @@ namespace HarmonicEngine.Infrastructure.Management
         private int _kernelPbfLambda;
         private int _kernelPbfSolve;
         private int _kernelPbfApply;
+        private int _kernelPbfAppendSpilled;
 
         private static readonly int IndirectArgsBufferId = Shader.PropertyToID("_IndirectArgsBuffer");
         private static readonly int CellStartEndBufferId = Shader.PropertyToID("_CellStartEndBuffer");
@@ -300,6 +301,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 _kernelPbfLambda = pbfSolverShader.FindKernel("ComputeLambdaKernel");
                 _kernelPbfSolve = pbfSolverShader.FindKernel("SolvePositionsKernel");
                 _kernelPbfApply = pbfSolverShader.FindKernel("ApplyPositionsKernel");
+                _kernelPbfAppendSpilled = pbfSolverShader.FindKernel("AppendSpilledKernel");
             }
 
             if (containerRigidCarryShader != null)
@@ -536,6 +538,11 @@ namespace HarmonicEngine.Infrastructure.Management
         {
             shader.SetBuffer(kernel, DensityCacheDensitiesId, _bufferDensityCacheDensities);
             shader.SetBuffer(kernel, DensityCachePressuresId, _bufferDensityCachePressures);
+        }
+
+        private void BindDensityCacheDensitiesOnly(ComputeShader shader, int kernel)
+        {
+            shader.SetBuffer(kernel, DensityCacheDensitiesId, _bufferDensityCacheDensities);
         }
 
         private bool UseRadixSortActive => useRadixSort && _gpuRadixSort != null;

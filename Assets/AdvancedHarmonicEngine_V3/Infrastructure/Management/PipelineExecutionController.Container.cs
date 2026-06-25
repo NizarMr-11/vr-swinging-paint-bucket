@@ -19,8 +19,7 @@ namespace HarmonicEngine.Infrastructure.Management
             float height,
             float restitution,
             float friction,
-            float wallStiffness,
-            bool spillOverRim = true)
+            float wallStiffness)
         {
             containerFluid.ApplyOrientedBounds(
                 floorPivotWorld,
@@ -29,8 +28,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 height,
                 restitution,
                 friction,
-                wallStiffness,
-                spillOverRim);
+                wallStiffness);
 
             _containerFloorPivot = floorPivotWorld;
             _containerLocalToWorld = ContainerOrientedBounds.BuildLocalToWorld(floorPivotWorld, worldRotation);
@@ -80,6 +78,9 @@ namespace HarmonicEngine.Infrastructure.Management
                 containerRigidCarryShader.SetInt(ActiveParticleCountId, (int)activeCount);
                 containerRigidCarryShader.SetInt(MaxParticleCountId, maxCapacity);
                 containerRigidCarryShader.SetMatrix(ContainerRotationDeltaId, rotationDelta);
+                containerRigidCarryShader.SetMatrix(ContainerWorldToLocalId, _containerWorldToLocal);
+                containerRigidCarryShader.SetFloat(ContainerHeightId, containerFluid.height);
+                containerRigidCarryShader.SetFloat(ContainerRadiusId, containerFluid.radius);
                 containerRigidCarryShader.SetVector(ContainerAngularVelocityWorldId, angularVelocity);
                 containerRigidCarryShader.SetVector(ContainerFloorPivotId, _containerFloorPivot);
                 containerRigidCarryShader.SetBuffer(_kernelContainerRigidCarry, Block0Id, _pingPong.ReadSet.Block0);
@@ -94,7 +95,7 @@ namespace HarmonicEngine.Infrastructure.Management
             shader.SetMatrix(ContainerLocalToWorldId, _containerLocalToWorld);
             shader.SetMatrix(ContainerWorldToLocalId, _containerWorldToLocal);
             shader.SetFloat(ContainerHeightId, containerFluid.height);
-            shader.SetInt(ContainerSpillEnabledId, containerFluid.spillOverRim ? 1 : 0);
+            shader.SetInt(ContainerSpillEnabledId, spillOverRim ? 1 : 0);
             shader.SetInt(ContainerUsesOrientationId, 1);
             shader.SetVector(ContainerFloorPivotId, _containerFloorPivot);
         }

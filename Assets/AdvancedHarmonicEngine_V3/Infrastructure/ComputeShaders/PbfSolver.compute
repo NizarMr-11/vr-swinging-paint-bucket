@@ -3,6 +3,7 @@
 #pragma kernel ComputeLambdaKernel
 #pragma kernel SolvePositionsKernel
 #pragma kernel ApplyPositionsKernel
+#pragma kernel AppendSpilledKernel
 
 #include "Include/SphCommon.hlsl"
 #include "Include/SphSoaAccess.hlsl"
@@ -19,6 +20,11 @@ RWStructuredBuffer<float4> _WriteBlock0;
 RWStructuredBuffer<float4> _WriteBlock1;
 RWStructuredBuffer<uint> _WritePackedColors;
 RWStructuredBuffer<float> _WriteWetness;
+
+AppendStructuredBuffer<float4> _FallingBlock0;
+AppendStructuredBuffer<float4> _FallingBlock1;
+AppendStructuredBuffer<uint> _FallingPackedColors;
+AppendStructuredBuffer<float> _FallingWetness;
 
 float _DeltaTime;
 uint _ActiveParticleCount;
@@ -156,7 +162,6 @@ void PredictPositionsKernel(uint3 id : SV_DispatchThreadID)
 
     float3 pos = SphLoadPosition(i);
     float3 vel = SphLoadVelocity(i);
-    vel *= _PbfVelocityDamping;
 
     _OldBlock0[i] = float4(pos, 0.0);
 
@@ -332,7 +337,7 @@ void PbfClampToContainer(inout float3 pos, inout float3 vel)
             localVel.z *= _ContainerFriction;
         }
 
-        if (localPos.y <= _ContainerHeight)
+        if (_ContainerSpillEnabled == 0 && localPos.y <= _ContainerHeight)
         {
             float2 rel = localPos.xz;
             float d = length(rel);
@@ -371,7 +376,7 @@ void PbfClampToContainer(inout float3 pos, inout float3 vel)
     float2 relWorld = pos.xz - _ContainerCenter.xz;
     float dWorld = length(relWorld);
     bool belowRim = pos.y <= _ContainerRimY;
-    if (belowRim && dWorld > _ContainerRadius && dWorld > 1e-5)
+    if (_ContainerSpillEnabled == 0 && belowRim && dWorld > _ContainerRadius && dWorld > 1e-5)
     {
         float2 n = relWorld / dWorld;
         pos.xz = _ContainerCenter.xz + n * _ContainerRadius;
@@ -396,6 +401,23 @@ void PbfClampToContainer(inout float3 pos, inout float3 vel)
     }
 }
 
+bool PbfShouldSpill(float3 worldPos)
+{
+    if (_ContainerSpillEnabled == 0)
+    {
+        return false;
+    }
+
+    if (_ContainerUsesOrientation != 0)
+    {
+        float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
+        return localPos.y > _ContainerHeight && length(localPos.xz) > _ContainerRadius;
+    }
+
+    float2 rel = worldPos.xz - _ContainerCenter.xz;
+    return worldPos.y > _ContainerRimY && length(rel) > _ContainerRadius;
+}
+
 [numthreads(64, 1, 1)]
 void ApplyPositionsKernel(uint3 id : SV_DispatchThreadID)
 {
@@ -417,8 +439,47 @@ void ApplyPositionsKernel(uint3 id : SV_DispatchThreadID)
     uint packedColor = SphLoadPackedColor(i);
     float wetness = SphLoadWetness(i);
 
+    if (PbfShouldSpill(newPos))
+    {
+        _GradSqSum[i] = 1.0;
+        _OldBlock0[i] = float4(vel, density);
+        newPos = float3(99999.0, 99999.0, 99999.0);
+        vel = float3(0.0, 0.0, 0.0);
+    }
+    else if (_ContainerSpillEnabled != 0)
+    {
+        _GradSqSum[i] = 0.0;
+    }
+
     _WriteBlock0[i] = float4(newPos, density);
     _WriteBlock1[i] = float4(vel, pressure);
     _WritePackedColors[i] = packedColor;
     _WriteWetness[i] = wetness;
+}
+
+[numthreads(64, 1, 1)]
+void AppendSpilledKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount || i >= _MaxParticleCount)
+    {
+        return;
+    }
+
+    if (_GradSqSum[i] < 0.5)
+    {
+        return;
+    }
+
+    float3 pos = _PredictedBlock0[i].xyz;
+    float3 vel = _OldBlock0[i].xyz;
+    float density = _OldBlock0[i].w;
+    float pressure = 0.0;
+    uint packedColor = SphLoadPackedColor(i);
+    float wetness = SphLoadWetness(i);
+
+    _FallingBlock0.Append(float4(pos, density));
+    _FallingBlock1.Append(float4(vel, pressure));
+    _FallingPackedColors.Append(packedColor);
+    _FallingWetness.Append(wetness);
 }

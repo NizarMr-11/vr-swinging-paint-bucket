@@ -90,7 +90,7 @@ namespace HarmonicEngine.Tests
             Assert.AreEqual(1f, tuning.pbfRelaxation, 1e-3f);
             Assert.AreEqual(0.015f, tuning.pbfMaxPositionDelta, 1e-6f);
             Assert.AreEqual(0.3f, tuning.pbfCohesion, 1e-6f);
-            Assert.IsTrue(tuning.spillOverRim);
+            Assert.IsFalse(tuning.spillOverRim);
             Assert.AreEqual(0.006f / Mathf.Pow(0.05f, 4f), tuning.epsilon, 1f);
 
             HarmonicRunManifestRuntime manifestRuntime = HarmonicRunManifestSnapshotBuilder.BuildRuntime(pipeline);
@@ -99,7 +99,7 @@ namespace HarmonicEngine.Tests
             Assert.AreEqual(tuning.epsilon, manifestRuntime.epsilon, 0.5f);
             Assert.AreEqual(1f, manifestRuntime.pbfRelaxation, 1e-3f);
             Assert.AreEqual(tuning.particleMass, manifestRuntime.particleMass, 1e-6f);
-            Assert.IsTrue(manifestRuntime.spillOverRim);
+            Assert.IsFalse(manifestRuntime.spillOverRim);
 
             string tempRoot = Path.Combine(Path.GetTempPath(), "PbfDiagnosticsTests_" + System.Guid.NewGuid().ToString("N"));
             string runDirectory = Path.Combine(tempRoot, "run_pbf");

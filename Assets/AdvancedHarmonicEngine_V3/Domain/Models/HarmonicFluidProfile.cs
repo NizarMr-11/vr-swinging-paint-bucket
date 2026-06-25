@@ -79,12 +79,12 @@ namespace HarmonicEngine.Domain.Models
 
         public void RebuildDerived()
         {
-            derivedViscosity = 3.375f + thickness * 20.25f;
-            derivedDamping = Mathf.Clamp(0.99f - thickness * 0.4f, 0.5f, 0.99f);
+            derivedViscosity = Mathf.Lerp(6f, 25f, thickness);
+            derivedDamping = Mathf.Lerp(0.90f, 0.75f, thickness);
             derivedCohesion = Mathf.Clamp01(0.05f + surfaceTension * 0.8f);
             derivedIterations = Mathf.Max(2, Mathf.Clamp(Mathf.RoundToInt(incompressibility * 10f / 3f), 1, 8));
-            derivedMaxPositionDelta = 0.01f + incompressibility * 0.0125f;
-            derivedRestitution = Mathf.Clamp01(bounciness);
+            derivedMaxPositionDelta = Mathf.Min(0.01f + incompressibility * 0.0125f, 0.005f);
+            derivedRestitution = Mathf.Lerp(0.0f, 0.3f, bounciness);
             derivedFriction = Mathf.Clamp01(1f - adhesion * 0.3f);
 
             derivedThicknessWeight = Mathf.Lerp(0.02f, 0.08f, thickness);

@@ -21,7 +21,7 @@ MonoBehaviour:
   derivedViscosity: 5.4
   derivedDamping: 0.95
   derivedCohesion: 0.33
-  derivedIterations: 1
+  derivedIterations: 2
   derivedMaxPositionDelta: 0.01375
   derivedRestitution: 0.4
   derivedFriction: 0.96999997
