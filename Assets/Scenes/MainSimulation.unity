@@ -349,7 +349,7 @@ Transform:
   m_GameObject: {fileID: 963194225}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalPosition: {x: 0, y: -5, z: -3}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -475,6 +475,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 534981f4e1b0a884d9c55e5d40994eeb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Canvas.CanvasController
+  SurfaceType: 0
   TextureWidth: 1024
   TextureHeight: 1024
 --- !u!1 &1821530838
@@ -664,10 +665,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Pendulum.PendulumSimulator
   RopeLength: 5
-  Gravity: 9.81
-  DampingCoefficient: 0.05
-  InitialAngleDegrees: 45
-  InitialAngularVelocity: 0
+  Mass: 7.3
+  Gravity: 10.1
+  DampingCoefficient: 0.144
+  InitialAngleDegrees: -19
+  InitialPhiDegrees: 155
+  InitialAngularVelocity: 6
   PivotPoint: {x: 0, y: 0, z: 0}
 --- !u!4 &2072273976
 Transform:

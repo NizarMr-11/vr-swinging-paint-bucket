@@ -1,11 +1,15 @@
 using UnityEngine;
 using System.IO;
 using UnityEngine.InputSystem;
+using SwingingPaintBucket.Materials;
 
 namespace SwingingPaintBucket.Canvas
 {
     public class CanvasController : MonoBehaviour
     {
+        [Header("نوع السطح")]
+        public CanvasSurfaceType SurfaceType = CanvasSurfaceType.Fabric;
+
         [Header("canvas quality")]
         public int TextureWidth = 1024;
         public int TextureHeight = 1024;
@@ -54,6 +58,8 @@ namespace SwingingPaintBucket.Canvas
 
         public void OnParticleHit(Vector3 hitPosition, Color color, float viscosity)
         {
+            //Testgggg
+            Debug.Log($"[Canvas] Hit recieved at {hitPosition}, color = {color}");
             float u = (hitPosition.x - transform.position.x + _canvasWidth * 0.5f) / _canvasWidth;
             float v = (hitPosition.z - transform.position.z + _canvasHeight * 0.5f) / _canvasHeight;
 
@@ -66,7 +72,17 @@ namespace SwingingPaintBucket.Canvas
 
             int pixelX = (int)(u * TextureWidth);
             int pixelY = (int)(v * TextureHeight);
-            int baseRadius = Mathf.Max(2, (int)(10f / viscosity));
+            int baseRadius = Mathf.Max(15, (int)(60f / viscosity));
+
+            
+            float spread = CanvasSurfacePreset.GetSpreadMultiplier(SurfaceType);
+            float opacity = CanvasSurfacePreset.GetOpacityMultiplier(SurfaceType);
+
+            int finalRadius = Mathf.Max(2, (int)(baseRadius * spread));
+            color.a = color.a * opacity;
+
+           
+            DrawSplat(pixelX, pixelY, finalRadius, color);
 
             Vector2 currentHitPixel = new Vector2(pixelX, pixelY);
 

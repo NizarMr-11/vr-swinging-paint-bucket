@@ -99,7 +99,7 @@ private void ApplySavedSettingsToSimulation()
         private void Start()
         {
             // Logic updates can happen in Start
-            if (_bucket != null) _selectedPaintColor = _bucket.PaintColor;
+            if (_bucket != null) _selectedPaintColor = _bucket.CurrentPaintColor;
         }
 
         // Creates a simple white pixel sprite to use for all UI images
@@ -800,8 +800,24 @@ private void ApplyNewSettings()
                 _bucket.DischargeCoefficent = _dischargeSlider.value;
                 _bucket.PaintLossRate = _paintLossSlider.value;
                 _bucket.AbsorptionRate = _absorptionSlider.value;
-                _bucket.PaintColor = _selectedPaintColor;
+                _bucket.PaintColors = CreateSolidGradient(_selectedPaintColor);
             }
+
+        }
+        private Gradient CreateSolidGradient(Color color)
+        {
+            Gradient gradient = new Gradient();
+            gradient.SetKeys(
+                new GradientColorKey[] {
+            new GradientColorKey(color, 0f),
+            new GradientColorKey(color, 1f)
+                },
+                new GradientAlphaKey[] {
+            new GradientAlphaKey(1f, 0f),
+            new GradientAlphaKey(1f, 1f)
+                }
+            );
+            return gradient;
         }
     }
 }
