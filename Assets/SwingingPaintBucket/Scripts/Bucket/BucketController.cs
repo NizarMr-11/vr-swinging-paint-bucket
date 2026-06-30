@@ -144,5 +144,13 @@ namespace SwingingPaintBucket.Bucket
             PaintLossRate = BucketMaterialPreset.GetPaintLossRate(MaterialType);
             AbsorptionRate = BucketMaterialPreset.GetAbsorptionRate(MaterialType);
         }
+
+        /// <summary>
+        /// Sync internal paint volume with InitialPaintVolume (used by UI after applying new values)
+        /// </summary>
+        public void SyncPaintVolume()
+        {
+            _paintVolume = InitialPaintVolume;
+        }
     }
 }

@@ -1,23 +1,3 @@
-// ============================================================
-// File : PendulumSimulator.cs
-// Folder : Scripts/Pendulum/
-// Purpose : Simulates spherical pendulum movement (swinging bucket)
-//           without any use of Unity Physics
-//
-// Equations Used:
-//   α = -(g / L) × sin(θ) - (b × ω)     Angular acceleration with damping
-//   ω = ω + α × dt                        Update angular velocity
-//   θ = θ + ω × dt                        Update angle
-//   x = L × sin(θ)                        Convert to 3D space
-//   y = -L × cos(θ)
-//
-// Why FixedUpdate and not Update?
-//   FixedUpdate is called every 0.02 seconds constantly regardless of device speed
-//   This is necessary because physics equations depend on constant and reliable dt
-//
-// Dependencies : SimulationConstants
-// ============================================================
-
 using UnityEngine;
 using SwingingPaintBucket.Core;
 
@@ -25,114 +5,101 @@ namespace SwingingPaintBucket.Pendulum
 {
     public class PendulumSimulator : MonoBehaviour
     {
-        // ---- Adjustable settings from Inspector ----
-
-        [Header("Rope Properties")]
-        [Tooltip("Rope length in meters")]
-        [Range(0.5f, 20f)]
+        [Header("خصائص الحبل")]
         public float RopeLength = 5f;
 
-        [Header("Environment")]
-        [Tooltip("Gravity value — can be changed to simulate different environments")]
+        [Header("Pendulum")]
+        [Range(0.1f, 50f)]
+        public float Mass = 1f;
+
+        [Header("البيئة")]
         [Range(0f, 20f)]
         public float Gravity = SimulationConstants.DefaultGravity;
 
-        [Tooltip("Damping coefficient — represents air resistance and rope friction")]
         [Range(0f, 1f)]
         public float DampingCoefficient = 0.05f;
 
-        [Header("Initial State")]
-        [Tooltip("Initial angle in degrees")]
+        [Header("الحالة الابتدائية")]
         [Range(-180f, 180f)]
         public float InitialAngleDegrees = 45f;
-
-        [Tooltip("Initial angular velocity")]
+        public float InitialPhiDegrees = 0f;
         public float InitialAngularVelocity = 0f;
 
-        [Header("Pivot Point")]
+        [Header("نقطة التعليق")]
         public Vector3 PivotPoint = Vector3.zero;
 
-        // ---- Internal simulation variables ----
-
-        /// <summary>Current angle in radians</summary>
         private float _theta;
-
-        /// <summary>Current angular velocity</summary>
         private float _omega;
+        private float _phi;
+        private float _phiOmega;
 
-        // ---- Properties for external reading ----
-
-        /// <summary>Current angle — read from BucketController to generate particles</summary>
         public float Theta => _theta;
-
-        /// <summary>Current angular velocity</summary>
         public float Omega => _omega;
+        public float Phi => _phi;
+        public float PhiOmega => _phiOmega;
 
-        /// <summary>
-        /// Bucket velocity as a 3D vector
-        /// Derived from position equations:
-        ///   x = L × sin(θ)  →  vx = L × cos(θ) × ω
-        ///   y = -L × cos(θ) →  vy = L × sin(θ) × ω
-        /// </summary>
-        public Vector3 BucketVelocity
-        {
-            get
-            {
-                float vx = RopeLength * Mathf.Cos(_theta) * _omega;
-                float vy = RopeLength * Mathf.Sin(_theta) * _omega;
-                return new Vector3(vx, vy, 0f);
+        public Vector3 BucketVelocity {
+            get {
+                float sinT = Mathf.Sin(_theta);
+                float cosT = Mathf.Cos(_theta);
+                float sinP = Mathf.Sin(_phi);
+                float cosP = Mathf.Cos(_phi);
+
+                float vx = RopeLength * (_omega * cosT * cosP
+                          - _phiOmega * sinT * sinP);
+                float vy = RopeLength * _omega * sinT;
+                float vz = RopeLength * (_omega * cosT * sinP
+                          + _phiOmega * sinT * cosP);
+
+                return new Vector3(vx, vy, vz);
             }
         }
 
-        // ---- Unity Methods ----
+        public Vector3 Momentum => BucketVelocity * Mass;
 
         private void Start()
         {
-            // Convert angle from degrees to radians
             _theta = InitialAngleDegrees * Mathf.Deg2Rad;
             _omega = InitialAngularVelocity;
+            _phi = InitialPhiDegrees * Mathf.Deg2Rad;
+            _phiOmega = 0f;
         }
 
         private void FixedUpdate()
         {
             float dt = Time.fixedDeltaTime;
+            float sinTheta = Mathf.Sin(_theta);
+            float cosTheta = Mathf.Cos(_theta);
+            float cosPhi = Mathf.Cos(_phi);
+            float sinPhi = Mathf.Sin(_phi);
+            float safeSin = Mathf.Max(Mathf.Abs(sinTheta), 0.001f);
 
-            // 1. Calculate angular acceleration
-            //    First component  : -(g/L) × sin(θ)  Gravity force returning to center
-            //    Second component : -(b × ω)          Damping force opposing motion
-            float angularAcceleration = -(Gravity / RopeLength) * Mathf.Sin(_theta)
-                                        - (DampingCoefficient * _omega);
+            float thetaAcc = -(Gravity / RopeLength) * sinTheta
+                             + _phiOmega * _phiOmega * sinTheta * cosTheta
+                             - DampingCoefficient * _omega;
 
-            // 2. Update angular velocity
-            _omega += angularAcceleration * dt;
+            float phiAcc = -2f * _omega * _phiOmega * cosTheta / safeSin
+                           - DampingCoefficient * _phiOmega;
 
-            // 3. Update angle
+            _omega += thetaAcc * dt;
+            _phiOmega += phiAcc * dt;
+
             _theta += _omega * dt;
+            _phi += _phiOmega * dt;
 
-            // 4. Convert angle to position in space and move the GameObject
-            UpdatePosition();
+            float x = RopeLength * sinTheta * cosPhi;
+            float y = -RopeLength * cosTheta;
+            float z = RopeLength * sinTheta * sinPhi;
+
+            transform.position = PivotPoint + new Vector3(x, y, z);
         }
 
-        // ---- Private Methods ----
-
-        private void UpdatePosition()
-        {
-            float x = RopeLength * Mathf.Sin(_theta);
-            float y = -RopeLength * Mathf.Cos(_theta);
-
-            transform.position = PivotPoint + new Vector3(x, y, 0f);
-        }
-
-        // ---- Public Methods ----
-
-        /// <summary>
-        /// Reset the pendulum to its initial state
-        /// </summary>
         public void ResetSimulation()
         {
             _theta = InitialAngleDegrees * Mathf.Deg2Rad;
-            _omega = InitialAngularVelocity;
-            UpdatePosition();
+            _omega = 0f;
+            _phi = InitialPhiDegrees * Mathf.Deg2Rad;
+            _phiOmega = 0f;
         }
     }
 }

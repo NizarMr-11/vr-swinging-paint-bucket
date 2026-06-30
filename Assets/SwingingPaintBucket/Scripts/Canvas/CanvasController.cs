@@ -1,11 +1,15 @@
 using UnityEngine;
 using System.IO;
 using UnityEngine.InputSystem;
+using SwingingPaintBucket.Materials;
 
 namespace SwingingPaintBucket.Canvas
 {
     public class CanvasController : MonoBehaviour
     {
+        [Header("نوع السطح")]
+        public CanvasSurfaceType SurfaceType = CanvasSurfaceType.Fabric;
+
         [Header("canvas quality")]
         public int TextureWidth = 1024;
         public int TextureHeight = 1024;
@@ -61,6 +65,8 @@ namespace SwingingPaintBucket.Canvas
 
         public void OnParticleHit(Vector3 hitPosition, Color color, float viscosity)
         {
+            //Testgggg
+            Debug.Log($"[Canvas] Hit recieved at {hitPosition}, color = {color}");
             float u = (hitPosition.x - transform.position.x + _canvasWidth * 0.5f) / _canvasWidth;
             float v = (hitPosition.z - transform.position.z + _canvasHeight * 0.5f) / _canvasHeight;
 
@@ -74,9 +80,16 @@ namespace SwingingPaintBucket.Canvas
             int pixelX = (int)(u * TextureWidth);
             int pixelY = (int)(v * TextureHeight);
 
-            // ---- NEW PHYSICS-DRIVEN RADIUS MATH ----
-            float calculatedRadius = (10f / viscosity) * MaterialSpreadMultiplier * ParticleImpactSize;
+            // ---- COMBINED PHYSICS MATH (Nizar's Presets + marzouki's Physics) ----
+            float spread = CanvasSurfacePreset.GetSpreadMultiplier(SurfaceType);
+            float opacity = CanvasSurfacePreset.GetOpacityMultiplier(SurfaceType);
+            color.a = color.a * opacity;
+
+            float calculatedRadius = (10f / viscosity) * spread * ParticleImpactSize;
             int baseRadius = Mathf.Max(2, (int)calculatedRadius);
+
+
+            
 
             Vector2 currentHitPixel = new Vector2(pixelX, pixelY);
 
@@ -184,6 +197,25 @@ namespace SwingingPaintBucket.Canvas
 
             File.WriteAllBytes(filePath, textureBytes);
             Debug.Log($"[CanvasSaver] Artwork successfully saved to: {filePath}");
+        }
+
+        // دالة حساب المساحة الحقيقية الملوّنة
+        public float CalculateRealPaintedArea()
+        {
+            int paintedPixels = 0;
+            float colorThreshold = 0.95f;
+
+            for (int i = 0; i < _pixels.Length; i++)
+            {
+                if (_pixels[i].r < colorThreshold || _pixels[i].g < colorThreshold || _pixels[i].b < colorThreshold)
+                {
+                    paintedPixels++;
+                }
+            }
+
+            float paintedRatio = (float)paintedPixels / _pixels.Length;
+            float realArea = paintedRatio * _canvasWidth * _canvasHeight;
+            return realArea;
         }
     }
 }
