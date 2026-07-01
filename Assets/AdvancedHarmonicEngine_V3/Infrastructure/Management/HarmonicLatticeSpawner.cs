@@ -10,7 +10,7 @@ namespace HarmonicEngine.Infrastructure.Management
     /// </summary>
     public static class HarmonicLatticeSpawner
     {
-        public static int SpawnLattice(PipelineExecutionController pipeline, HarmonicLatticeSpawnSettings settings)
+        public static int SpawnLattice(HarmonicPipelineController pipeline, HarmonicLatticeSpawnSettings settings)
         {
             if (pipeline == null || settings == null)
             {
@@ -63,7 +63,7 @@ namespace HarmonicEngine.Infrastructure.Management
         /// Uniform lattice inside an open-top cylinder: floorY to fillTopY, horizontal radius limit.
         /// </summary>
         public static int SpawnContainerCylinderFill(
-            PipelineExecutionController pipeline,
+            HarmonicPipelineController pipeline,
             Vector3 center,
             float floorY,
             float fillTopY,

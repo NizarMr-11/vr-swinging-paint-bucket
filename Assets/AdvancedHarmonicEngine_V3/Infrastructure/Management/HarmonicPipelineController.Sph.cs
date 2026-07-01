@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HarmonicEngine.Infrastructure.Management
 {
-    public partial class PipelineExecutionController
+    public partial class HarmonicPipelineController
     {
         private float _estimatedMaxSpeed = 5f;
         private float _cflLogAccumulator;
@@ -17,65 +17,11 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly ProfilerMarker MarkerContainerFrame = new("Harmonic.ContainerFluidFrame");
         private static readonly ProfilerMarker MarkerWorldFalling = new("Harmonic.WorldFalling");
 
-        public void ExecutePipelineFrame(float deltaTime)
-        {
-            if (!simulationActive || simulationMode == HarmonicSimulationMode.BakePlayback || !AreShadersReady())
-            {
-                return;
-            }
-
-            _pingPong.BeginFrame();
-            if (!containerFluid.enabled)
-            {
-                _soaFalling.SetCounterValue(0);
-                _soaFallingWorld?.SetCounterValue(0);
-            }
-
-            _bufferCanvasHits?.SetCounterValue(0);
-            _lastCanvasHitCount = 0;
-
-            uint activeCount = SanitizeAndRepairCount(_pingPong.ReadSet);
-            _cachedInternalCount = activeCount;
-            if (activeCount == 0)
-            {
-                _lastFallingQuantizeCount = 0;
-                _lastFallingDebugCount = 0;
-                _pingPong.Swap();
-                PublishPipelineFrameDiagnostic(0);
-                return;
-            }
-
-            if (worldFallingOnly)
-            {
-                ExecuteWorldFallingOnlyFrame(activeCount, deltaTime);
-                PublishPipelineFrameDiagnostic(_cachedInternalCount);
-                return;
-            }
-
-            if (containerFluid.enabled)
-            {
-                if (usePBF)
-                {
-                    ExecuteContainerPbfFrame(activeCount, deltaTime);
-                }
-                else
-                {
-                    ExecuteContainerFluidFrame(activeCount, deltaTime);
-                }
-
-                ExecuteContainerFallingWorldFrame(deltaTime);
-
-                PublishPipelineFrameDiagnostic(_cachedInternalCount);
-                return;
-            }
-
-            ExecuteBucketSphFrame(activeCount, deltaTime);
-            PublishPipelineFrameDiagnostic(_cachedInternalCount);
-        }
+        public void ExecutePipelineFrame(float deltaTime) => _simulationFrameRouter.Execute(this, deltaTime);
 
         public void ExecuteContainerSphDensityForVerification()
         {
-            if (!AreShadersReady() || _pingPong == null || !containerFluid.enabled)
+            if (!AreShadersReady() || _pingPong == null || !openTopCylinder.enabled)
             {
                 return;
             }
@@ -91,20 +37,20 @@ namespace HarmonicEngine.Infrastructure.Management
             BuildSpatialHashGrid(_pingPong.ReadSet, activeCount);
 
             float smoothingRadius = sphSolver.SmoothingRadius(cellSize);
-            ApplyContainerSphUniforms(streamCompactionShader, smoothingRadius);
+            ApplyContainerSphUniforms(wcsphDensityShader, smoothingRadius);
 
             using (MarkerDensity.Auto())
             {
-                BindReadSoa(streamCompactionShader, _kernelDensity, _pingPong.ReadSet);
-                streamCompactionShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
-                streamCompactionShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
-                BindDensityCacheRw(streamCompactionShader, _kernelDensity);
-                streamCompactionShader.SetInt(ActiveParticleCountId, (int)activeCount);
-                streamCompactionShader.DispatchIndirect(_kernelDensity, _indirectArgsBuffer, 0);
+                BindReadSoa(wcsphDensityShader, _kernelDensity, _pingPong.ReadSet);
+                wcsphDensityShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
+                wcsphDensityShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
+                BindDensityCacheRw(wcsphDensityShader, _kernelDensity);
+                wcsphDensityShader.SetInt(ActiveParticleCountId, (int)activeCount);
+                wcsphDensityShader.DispatchIndirect(_kernelDensity, _indirectArgsBuffer, 0);
             }
         }
 
-        private void ExecuteBucketSphFrame(uint activeCount, float deltaTime)
+        private void ExecuteBucketSphFrameInternal(uint activeCount, float deltaTime)
         {
             float smoothingRadius = sphSolver.SmoothingRadius(cellSize);
             Matrix4x4 localToWorld = GetLocalToWorldMatrix();
@@ -121,29 +67,29 @@ namespace HarmonicEngine.Infrastructure.Management
             ComputeFrameSortSize(activeCount);
             BuildSpatialHashGrid(_pingPong.ReadSet, activeCount);
 
-            ApplySphUniforms(streamCompactionShader, smoothingRadius, localToWorld, bucketVelocity, angularVelocityWorld, angularAccelerationWorld);
+            ApplySphUniforms(wcsphDensityShader, smoothingRadius, localToWorld, bucketVelocity, angularVelocityWorld, angularAccelerationWorld);
             using (MarkerDensity.Auto())
             {
-                BindReadSoa(streamCompactionShader, _kernelDensity, particleSourceForSph);
-                streamCompactionShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
-                streamCompactionShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
-                BindDensityCacheRw(streamCompactionShader, _kernelDensity);
-                streamCompactionShader.SetInt(ActiveParticleCountId, (int)activeCount);
-                streamCompactionShader.DispatchIndirect(_kernelDensity, _indirectArgsBuffer, 0);
+                BindReadSoa(wcsphDensityShader, _kernelDensity, particleSourceForSph);
+                wcsphDensityShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
+                wcsphDensityShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
+                BindDensityCacheRw(wcsphDensityShader, _kernelDensity);
+                wcsphDensityShader.SetInt(ActiveParticleCountId, (int)activeCount);
+                wcsphDensityShader.DispatchIndirect(_kernelDensity, _indirectArgsBuffer, 0);
             }
 
-            ApplySphUniforms(streamCompactionIntegrateShader, smoothingRadius, localToWorld, bucketVelocity, angularVelocityWorld, angularAccelerationWorld);
+            ApplySphUniforms(wcsphIntegrationShader, smoothingRadius, localToWorld, bucketVelocity, angularVelocityWorld, angularAccelerationWorld);
             using (MarkerIntegration.Auto())
             {
-                BindReadSoa(streamCompactionIntegrateShader, _kernelIntegration, particleSourceForSph);
-                BindDensityCacheRead(streamCompactionIntegrateShader, _kernelIntegration);
-                streamCompactionIntegrateShader.SetBuffer(_kernelIntegration, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
-                streamCompactionIntegrateShader.SetBuffer(_kernelIntegration, CellStartEndBufferId, _cellStartEndBuffer);
-                BindInternalAppendSoa(streamCompactionIntegrateShader, _kernelIntegration, _pingPong.WriteSet);
-                BindFallingAppendSoa(streamCompactionIntegrateShader, _kernelIntegration, _soaFalling);
-                streamCompactionIntegrateShader.SetInt(ActiveParticleCountId, (int)activeCount);
-                streamCompactionIntegrateShader.SetFloat(DeltaTimeId, deltaTime);
-                streamCompactionIntegrateShader.DispatchIndirect(_kernelIntegration, _indirectArgsBuffer, 0);
+                BindReadSoa(wcsphIntegrationShader, _kernelIntegration, particleSourceForSph);
+                BindDensityCacheRead(wcsphIntegrationShader, _kernelIntegration);
+                wcsphIntegrationShader.SetBuffer(_kernelIntegration, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
+                wcsphIntegrationShader.SetBuffer(_kernelIntegration, CellStartEndBufferId, _cellStartEndBuffer);
+                BindInternalAppendSoa(wcsphIntegrationShader, _kernelIntegration, _pingPong.WriteSet);
+                BindFallingAppendSoa(wcsphIntegrationShader, _kernelIntegration, _soaFalling);
+                wcsphIntegrationShader.SetInt(ActiveParticleCountId, (int)activeCount);
+                wcsphIntegrationShader.SetFloat(DeltaTimeId, deltaTime);
+                wcsphIntegrationShader.DispatchIndirect(_kernelIntegration, _indirectArgsBuffer, 0);
             }
 
             uint fallingCount = SanitizeCount(FetchActiveCount(_soaFalling));
@@ -156,7 +102,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 BindFallingReadSoa(fallingFluidWorldShader, _kernelFallingWorld, _soaFalling);
                 BindFallingWorldAppendSoa(fallingFluidWorldShader, _kernelFallingWorld, _soaFallingWorld);
                 fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, CanvasHitAppendId, _bufferCanvasHits);
-                ApplyFallingWorldUniforms(fallingFluidWorldShader, fallingCount, deltaTime);
+                ApplyFallingWorldUniformsInternal(fallingFluidWorldShader, fallingCount, deltaTime);
                 int fallingGroups = Mathf.CeilToInt(fallingCount / 64f);
                 fallingFluidWorldShader.Dispatch(_kernelFallingWorld, fallingGroups, 1, 1);
 
@@ -187,7 +133,7 @@ namespace HarmonicEngine.Infrastructure.Management
             _pingPong.Swap();
         }
 
-        private void ExecuteWorldFallingOnlyFrame(uint activeCount, float deltaTime)
+        private void ExecuteWorldFallingOnlyFrameInternal(uint activeCount, float deltaTime)
         {
             _lastFallingDebugCount = activeCount;
             _lastFallingQuantizeCount = activeCount;
@@ -202,7 +148,7 @@ namespace HarmonicEngine.Infrastructure.Management
             BindFallingReadSoa(fallingFluidWorldShader, _kernelFallingWorld, _pingPong.ReadSet);
             BindFallingWorldAppendSoa(fallingFluidWorldShader, _kernelFallingWorld, _pingPong.WriteSet);
             fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, CanvasHitAppendId, _bufferCanvasHits);
-            ApplyFallingWorldUniforms(fallingFluidWorldShader, activeCount, deltaTime);
+            ApplyFallingWorldUniformsInternal(fallingFluidWorldShader, activeCount, deltaTime);
             int groups = Mathf.CeilToInt(activeCount / 64f);
             using (MarkerWorldFalling.Auto())
             {
@@ -218,60 +164,20 @@ namespace HarmonicEngine.Infrastructure.Management
             if (verbosePipelineDiagnostics && !perfDiagnosticsMuted)
             {
                 int lost = (int)activeCount - (int)_cachedInternalCount - (int)_lastCanvasHitCount;
-                PublishStageDiagnostic(
+                PublishStageDiagnosticInternal(
                     "worldFalling",
                     $"in={activeCount} survived={_cachedInternalCount} canvasHits={_lastCanvasHitCount} lost={lost} " +
                     $"culling={canvasCullingEnabled} planeY={canvasPlaneY:F2} dt={deltaTime:F4}");
             }
 
-            MaybeSampleParticlePositions(_pingPong.ReadSet, _cachedInternalCount, "worldFalling");
+            MaybeSampleParticlePositionsInternal(_pingPong.ReadSet, _cachedInternalCount, "worldFalling");
         }
 
-        private void ExecuteContainerFallingWorldFrame(float deltaTime)
-        {
-            uint fallingCount = SanitizeAndRepairCount(_soaFalling);
-            if (fallingCount == 0 || fallingFluidWorldShader == null)
-            {
-                return;
-            }
-
-            _soaFallingWorld.SetCounterValue(0);
-            BindFallingReadSoa(fallingFluidWorldShader, _kernelFallingWorld, _soaFalling);
-            BindFallingWorldAppendSoa(fallingFluidWorldShader, _kernelFallingWorld, _soaFallingWorld);
-            fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, CanvasHitAppendId, _bufferCanvasHits);
-            ApplyFallingWorldUniforms(fallingFluidWorldShader, fallingCount, deltaTime);
-            int groups = Mathf.CeilToInt(fallingCount / 64f);
-            using (MarkerWorldFalling.Auto())
-            {
-                fallingFluidWorldShader.Dispatch(_kernelFallingWorld, groups, 1, 1);
-            }
-
-            _lastCanvasHitCount = FetchActiveCount(_bufferCanvasHits);
-            fallingCount = SanitizeAndRepairCount(_soaFallingWorld);
-            _lastFallingDebugCount = fallingCount;
-            _lastFallingQuantizeCount = fallingCount;
-            SwapFallingParticleBuffers();
-
-            if (verbosePipelineDiagnostics && !perfDiagnosticsMuted)
-            {
-                PublishStageDiagnostic(
-                    "containerFalling",
-                    $"falling={fallingCount} canvasHits={_lastCanvasHitCount} planeY={canvasPlaneY:F2} dt={deltaTime:F4}");
-            }
-        }
-
-        private void SwapFallingParticleBuffers()
-        {
-            (_soaFalling, _soaFallingWorld) = (_soaFallingWorld, _soaFalling);
-            _bufferFalling = _soaFalling.CounterBuffer;
-            _bufferFallingWorld = _soaFallingWorld.CounterBuffer;
-        }
-
-        private void ExecuteContainerFluidFrame(uint activeCount, float deltaTime)
+        private void ExecuteContainerFluidFrameInternal(uint activeCount, float deltaTime)
         {
             using (MarkerContainerFrame.Auto())
             {
-                deltaTime = Mathf.Min(deltaTime, containerFluid.maxTimeStep);
+                deltaTime = Mathf.Min(deltaTime, openTopCylinder.maxTimeStep);
 
                 float h = sphSolver.SmoothingRadius(cellSize);
                 float c = sphSolver.SpeedOfSound;
@@ -308,14 +214,14 @@ namespace HarmonicEngine.Infrastructure.Management
 
                 _cachedInternalCount = SanitizeAndRepairCount(_pingPong.ReadSet);
 
-                MaybeSampleParticlePositions(_pingPong.ReadSet, _cachedInternalCount, "containerFluid");
+                MaybeSampleParticlePositionsInternal(_pingPong.ReadSet, _cachedInternalCount, "openTopCylinder");
 
                 if (!perfDiagnosticsMuted)
                 {
-                    PublishStageDiagnostic(
-                        "containerFluid",
-                        $"active={_cachedInternalCount} sortSize={_frameSortSize} R={containerFluid.radius:F2} " +
-                        $"floorY={containerFluid.floorY:F2} rimY={containerFluid.rimY:F2} substeps={steps} dtCfl={dtCfl:F6} cflRatio={cflRatio:F2}");
+                    PublishStageDiagnosticInternal(
+                        "openTopCylinder",
+                        $"active={_cachedInternalCount} sortSize={_frameSortSize} R={openTopCylinder.radius:F2} " +
+                        $"floorY={openTopCylinder.floorY:F2} rimY={openTopCylinder.rimY:F2} substeps={steps} dtCfl={dtCfl:F6} cflRatio={cflRatio:F2}");
                 }
             }
         }
@@ -324,35 +230,35 @@ namespace HarmonicEngine.Infrastructure.Management
         {
             float smoothingRadius = sphSolver.SmoothingRadius(cellSize);
 
-            ApplyContainerSphUniforms(streamCompactionShader, smoothingRadius);
+            ApplyContainerSphUniforms(wcsphDensityShader, smoothingRadius);
             using (MarkerDensity.Auto())
             {
-                BindReadSoa(streamCompactionShader, _kernelDensity, _pingPong.ReadSet);
-                streamCompactionShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
-                streamCompactionShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
-                BindDensityCacheRw(streamCompactionShader, _kernelDensity);
-                streamCompactionShader.SetInt(ActiveParticleCountId, (int)activeCount);
-                streamCompactionShader.DispatchIndirect(_kernelDensity, _indirectArgsBuffer, 0);
+                BindReadSoa(wcsphDensityShader, _kernelDensity, _pingPong.ReadSet);
+                wcsphDensityShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
+                wcsphDensityShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
+                BindDensityCacheRw(wcsphDensityShader, _kernelDensity);
+                wcsphDensityShader.SetInt(ActiveParticleCountId, (int)activeCount);
+                wcsphDensityShader.DispatchIndirect(_kernelDensity, _indirectArgsBuffer, 0);
             }
 
-            ApplyContainerSphUniforms(streamCompactionIntegrateShader, smoothingRadius);
+            ApplyContainerSphUniforms(wcsphIntegrationShader, smoothingRadius);
             using (MarkerIntegration.Auto())
             {
-                BindReadSoa(streamCompactionIntegrateShader, _kernelContainerIntegration, _pingPong.ReadSet);
-                BindDensityCacheRead(streamCompactionIntegrateShader, _kernelContainerIntegration);
-                streamCompactionIntegrateShader.SetBuffer(_kernelContainerIntegration, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
-                streamCompactionIntegrateShader.SetBuffer(_kernelContainerIntegration, CellStartEndBufferId, _cellStartEndBuffer);
-                BindWriteSoaIndexed(streamCompactionIntegrateShader, _kernelContainerIntegration, _pingPong.WriteSet);
-                streamCompactionIntegrateShader.SetInt(ActiveParticleCountId, (int)activeCount);
-                streamCompactionIntegrateShader.SetFloat(DeltaTimeId, deltaTime);
-                streamCompactionIntegrateShader.DispatchIndirect(_kernelContainerIntegration, _indirectArgsBuffer, 0);
+                BindReadSoa(wcsphIntegrationShader, _kernelContainerIntegration, _pingPong.ReadSet);
+                BindDensityCacheRead(wcsphIntegrationShader, _kernelContainerIntegration);
+                wcsphIntegrationShader.SetBuffer(_kernelContainerIntegration, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
+                wcsphIntegrationShader.SetBuffer(_kernelContainerIntegration, CellStartEndBufferId, _cellStartEndBuffer);
+                BindWriteSoaIndexed(wcsphIntegrationShader, _kernelContainerIntegration, _pingPong.WriteSet);
+                wcsphIntegrationShader.SetInt(ActiveParticleCountId, (int)activeCount);
+                wcsphIntegrationShader.SetFloat(DeltaTimeId, deltaTime);
+                wcsphIntegrationShader.DispatchIndirect(_kernelContainerIntegration, _indirectArgsBuffer, 0);
             }
 
             _pingPong.WriteSet.SetCounterValue(activeCount);
             _pingPong.Swap();
         }
 
-        private void ApplyFallingWorldUniforms(ComputeShader shader, uint fallingCount, float deltaTime)
+        private void ApplyFallingWorldUniformsInternal(ComputeShader shader, uint fallingCount, float deltaTime)
         {
             shader.SetInt(FallingCountId, (int)fallingCount);
             shader.SetFloat(DeltaTimeId, deltaTime);
@@ -374,29 +280,29 @@ namespace HarmonicEngine.Infrastructure.Management
             shader.SetFloat(CellSizeId, cellSize);
             shader.SetFloat(SmoothingRadiusId, smoothingRadius);
             shader.SetFloat(ParticleMassId, ResolveContainerParticleMass());
-            shader.SetFloat(GasConstantKId, containerFluid.gasConstantK);
+            shader.SetFloat(GasConstantKId, openTopCylinder.gasConstantK);
             shader.SetFloat(StiffnessBId, sphSolver.StiffnessB);
             shader.SetFloat(RestDensityId, sphSolver.RestDensity);
-            shader.SetFloat(ViscosityId, containerFluid.viscosity);
+            shader.SetFloat(ViscosityId, openTopCylinder.viscosity);
             shader.SetVector(GravityId, gravity);
-            shader.SetVector(ContainerCenterId, containerFluid.center);
-            shader.SetFloat(ContainerRadiusId, containerFluid.radius);
-            shader.SetFloat(ContainerFloorYId, containerFluid.floorY);
-            shader.SetFloat(ContainerRimYId, containerFluid.rimY);
-            shader.SetFloat(ContainerRestitutionId, containerFluid.restitution);
-            shader.SetFloat(ContainerFrictionId, containerFluid.friction);
-            shader.SetFloat(ContainerWallStiffnessId, containerFluid.wallStiffness);
-            shader.SetFloat(ContainerDampingId, containerFluid.velocityDamping);
-            shader.SetFloat(ContainerMaxSpeedId, containerFluid.maxSpeed);
+            shader.SetVector(ContainerCenterId, openTopCylinder.center);
+            shader.SetFloat(ContainerRadiusId, openTopCylinder.radius);
+            shader.SetFloat(ContainerFloorYId, openTopCylinder.floorY);
+            shader.SetFloat(ContainerRimYId, openTopCylinder.rimY);
+            shader.SetFloat(ContainerRestitutionId, openTopCylinder.restitution);
+            shader.SetFloat(ContainerFrictionId, openTopCylinder.friction);
+            shader.SetFloat(ContainerWallStiffnessId, openTopCylinder.wallStiffness);
+            shader.SetFloat(ContainerDampingId, openTopCylinder.velocityDamping);
+            shader.SetFloat(ContainerMaxSpeedId, openTopCylinder.maxSpeed);
             shader.SetFloat(ColorDiffusionRateId, colorDiffusionRate);
             shader.SetInt(MaxParticleCountId, maxCapacity);
         }
 
         private float ResolveContainerParticleMass()
         {
-            if (containerFluid.particleMass > 0f)
+            if (openTopCylinder.particleMass > 0f)
             {
-                return containerFluid.particleMass;
+                return openTopCylinder.particleMass;
             }
 
             float spacing = LatticeSpacing;

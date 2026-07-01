@@ -25,6 +25,16 @@ namespace HarmonicEngine.Tests.EditorSupport
             var existing = AssetDatabase.LoadAssetAtPath<HarmonicPipelineTestSettings>(resourcePath);
             if (existing != null)
             {
+                if (existing.wcsphDensityShader == null || existing.wcsphIntegrationShader == null)
+                {
+                    existing.wcsphDensityShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                        "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/WcsphDensity.compute");
+                    existing.wcsphIntegrationShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                        "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/WcsphIntegration.compute");
+                    EditorUtility.SetDirty(existing);
+                    AssetDatabase.SaveAssets();
+                }
+
                 return;
             }
 
@@ -35,10 +45,10 @@ namespace HarmonicEngine.Tests.EditorSupport
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/SpatialHashGridIndirect.compute");
             settings.radixSortShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/RadixSort.compute");
-            settings.streamCompactionShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
-                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/StreamCompactionPingPong.compute");
-            settings.streamCompactionIntegrateShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
-                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/StreamCompactionIntegrate.compute");
+            settings.wcsphDensityShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/WcsphDensity.compute");
+            settings.wcsphIntegrationShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/WcsphIntegration.compute");
             settings.pbfSolverShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
                 "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/PbfSolver.compute");
             settings.dataCompactionShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(

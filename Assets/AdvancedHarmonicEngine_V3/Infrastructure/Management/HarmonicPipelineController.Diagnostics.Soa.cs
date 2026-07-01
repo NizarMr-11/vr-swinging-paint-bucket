@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace HarmonicEngine.Infrastructure.Management
 {
-    public partial class PipelineExecutionController
+    public partial class HarmonicPipelineController
     {
         public bool TryGetInternalParticleSoa(out ParticleSoaBuffers soa, out uint count)
         {
@@ -60,7 +60,7 @@ namespace HarmonicEngine.Infrastructure.Management
             return indices;
         }
 
-        private void MaybeSampleParticlePositions(ParticleSoaBuffers soa, uint activeCount, string stage)
+        private void MaybeSampleParticlePositionsInternal(ParticleSoaBuffers soa, uint activeCount, string stage)
         {
             if (positionSampleInterval <= 0 || soa == null || activeCount == 0)
             {
@@ -118,7 +118,7 @@ namespace HarmonicEngine.Infrastructure.Management
             }
 
             float3 p0 = _diagSampleBuffer[0].Position;
-            PublishStageDiagnostic(
+            PublishStageDiagnosticInternal(
                 $"{stage}.sample",
                 $"n={sampleCount} minY={minY:F2} maxY={maxY:F2} avgY={(sumY / sampleCount):F2} " +
                 $"avgSpeed={(sumSpeed / sampleCount):F2} p0=({p0.x:F2},{p0.y:F2},{p0.z:F2})");

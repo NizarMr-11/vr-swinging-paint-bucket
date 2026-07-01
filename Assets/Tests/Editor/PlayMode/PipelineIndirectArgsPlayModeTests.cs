@@ -21,7 +21,7 @@ namespace HarmonicEngine.Tests.PlayMode
 
             yield return PlayModeTestUtility.EnsurePlayMode();
 
-            PipelineExecutionController pipeline = TestPipelineFactory.CreatePipeline(capacity: 4096, autoRun: false);
+            HarmonicPipelineController pipeline = TestPipelineFactory.CreatePipeline(capacity: 4096, autoRun: false);
             yield return null;
 
             var batch = new FluidParticle[32];

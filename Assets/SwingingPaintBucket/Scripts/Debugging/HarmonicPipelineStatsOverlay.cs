@@ -12,7 +12,7 @@ namespace SwingingPaintBucket.Debugging
     [DisallowMultipleComponent]
     public class HarmonicPipelineStatsOverlay : MonoBehaviour
     {
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
 
         public bool IsVisible => false;
 
@@ -24,7 +24,7 @@ namespace SwingingPaintBucket.Debugging
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
         }
     }

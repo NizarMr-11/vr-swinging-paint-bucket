@@ -74,7 +74,7 @@ namespace HarmonicEngine.Diagnostics
         public float maxTimeStep;
         public int maxCflSubsteps;
         public float colorDiffusionRate;
-        public bool usePBF;
+        public bool openTopCylinderUsePbf;
         public int pbfIterations;
         public float epsilon;
         public float pbfEpsilonScale;
@@ -84,7 +84,7 @@ namespace HarmonicEngine.Diagnostics
         public float pbfCohesion;
         public bool dynamicSortSizing;
         public int minSortSize;
-        public bool spillOverRim;
+        public bool transferExteriorParticlesToFalling;
     }
 
     [System.Serializable]
@@ -148,10 +148,10 @@ namespace HarmonicEngine.Diagnostics
         }
 
         public static HarmonicRunManifestBucket BuildBucket(
-            PipelineExecutionController pipeline,
+            HarmonicPipelineController pipeline,
             string sceneContainerName)
         {
-            ContainerFluidSettings container = pipeline.ReadContainerFluid();
+            OpenTopCylinderSettings container = pipeline.ReadContainerFluid();
             return new HarmonicRunManifestBucket
             {
                 sceneContainerName = sceneContainerName ?? string.Empty,
@@ -168,7 +168,7 @@ namespace HarmonicEngine.Diagnostics
             };
         }
 
-        public static HarmonicRunManifestBucketNozzle BuildBucketNozzle(PipelineExecutionController pipeline)
+        public static HarmonicRunManifestBucketNozzle BuildBucketNozzle(HarmonicPipelineController pipeline)
         {
             HarmonicBucketNozzleSnapshot nozzle = pipeline.ReadBucketNozzle();
             return new HarmonicRunManifestBucketNozzle
@@ -184,7 +184,7 @@ namespace HarmonicEngine.Diagnostics
             };
         }
 
-        public static HarmonicRunManifestRuntime BuildRuntime(PipelineExecutionController pipeline)
+        public static HarmonicRunManifestRuntime BuildRuntime(HarmonicPipelineController pipeline)
         {
             HarmonicRuntimeTuningSnapshot tuning = pipeline.ReadRuntimeSnapshot();
             return new HarmonicRunManifestRuntime
@@ -206,7 +206,7 @@ namespace HarmonicEngine.Diagnostics
                 maxTimeStep = tuning.maxTimeStep,
                 maxCflSubsteps = tuning.maxCflSubsteps,
                 colorDiffusionRate = tuning.colorDiffusionRate,
-                usePBF = tuning.usePBF,
+                openTopCylinderUsePbf = tuning.openTopCylinderUsePbf,
                 pbfIterations = tuning.pbfIterations,
                 epsilon = tuning.epsilon,
                 pbfEpsilonScale = tuning.pbfEpsilonScale,
@@ -216,11 +216,11 @@ namespace HarmonicEngine.Diagnostics
                 pbfCohesion = tuning.pbfCohesion,
                 dynamicSortSizing = tuning.dynamicSortSizing,
                 minSortSize = tuning.minSortSize,
-                spillOverRim = tuning.spillOverRim
+                transferExteriorParticlesToFalling = tuning.transferExteriorParticlesToFalling
             };
         }
 
-        public static HarmonicRunManifestSimulation BuildSimulation(PipelineExecutionController pipeline)
+        public static HarmonicRunManifestSimulation BuildSimulation(HarmonicPipelineController pipeline)
         {
             HarmonicSimulationInitSnapshot init = pipeline.ReadSimulationInitSnapshot();
             return new HarmonicRunManifestSimulation
@@ -244,7 +244,7 @@ namespace HarmonicEngine.Diagnostics
         }
 
         public static HarmonicRunManifestParticles BuildParticles(
-            PipelineExecutionController pipeline,
+            HarmonicPipelineController pipeline,
             HarmonicRunSpawnInfo spawn)
         {
             spawn ??= pipeline.LastRunSpawnInfo ?? new HarmonicRunSpawnInfo();
@@ -272,7 +272,7 @@ namespace HarmonicEngine.Diagnostics
         }
 
         public static HarmonicRunManifestInitConditions BuildInitConditions(
-            PipelineExecutionController pipeline,
+            HarmonicPipelineController pipeline,
             bool spawnLatticeOnStart)
         {
             HarmonicSimulationInitSnapshot init = pipeline.ReadSimulationInitSnapshot();

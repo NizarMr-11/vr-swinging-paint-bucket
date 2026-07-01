@@ -3,15 +3,15 @@ using UnityEngine;
 
 namespace HarmonicEngine.Infrastructure.Management
 {
-    public partial class PipelineExecutionController
+    public partial class HarmonicPipelineController
     {
         private HarmonicRunSpawnInfo _lastRunSpawnInfo;
 
         public HarmonicRunSpawnInfo LastRunSpawnInfo => _lastRunSpawnInfo;
 
-        public ContainerFluidSettings ReadContainerFluid()
+        public OpenTopCylinderSettings ReadContainerFluid()
         {
-            return JsonUtility.FromJson<ContainerFluidSettings>(JsonUtility.ToJson(containerFluid));
+            return JsonUtility.FromJson<OpenTopCylinderSettings>(JsonUtility.ToJson(openTopCylinder));
         }
 
         public HarmonicBucketNozzleSnapshot ReadBucketNozzle()
@@ -38,12 +38,12 @@ namespace HarmonicEngine.Infrastructure.Management
                 smoothingRadius = SmoothingRadius,
                 speedOfSound = speedOfSound,
                 restDensity = sphSolver.RestDensity,
-                gasConstantK = containerFluid.enabled ? containerFluid.gasConstantK : sphSolver.GasConstantK,
-                viscosity = containerFluid.enabled ? containerFluid.viscosity : sphSolver.Viscosity,
-                velocityDamping = containerFluid.velocityDamping,
-                maxSpeed = containerFluid.maxSpeed,
-                substeps = containerFluid.substeps,
-                maxTimeStep = containerFluid.maxTimeStep,
+                gasConstantK = openTopCylinder.enabled ? openTopCylinder.gasConstantK : sphSolver.GasConstantK,
+                viscosity = openTopCylinder.enabled ? openTopCylinder.viscosity : sphSolver.Viscosity,
+                velocityDamping = openTopCylinder.velocityDamping,
+                maxSpeed = openTopCylinder.maxSpeed,
+                substeps = openTopCylinder.substeps,
+                maxTimeStep = openTopCylinder.maxTimeStep,
                 maxCflSubsteps = maxCflSubsteps,
                 colorDiffusionRate = colorDiffusionRate,
                 particleMass = ResolveContainerParticleMass()
@@ -55,7 +55,7 @@ namespace HarmonicEngine.Infrastructure.Management
             float h = SmoothingRadius;
             return new HarmonicPbfTuningSnapshot
             {
-                usePBF = usePBF,
+                openTopCylinderUsePbf = openTopCylinderUsePbf,
                 pbfIterations = pbfIterations,
                 epsilon = ResolvePbfEpsilon(h),
                 pbfEpsilonScale = pbfEpsilonScale,
@@ -82,7 +82,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 smoothingRadius = sph.smoothingRadius,
                 restDensity = sph.restDensity,
                 particleMass = sph.particleMass,
-                particleMassOverride = containerFluid.particleMass,
+                particleMassOverride = openTopCylinder.particleMass,
                 speedOfSound = sph.speedOfSound,
                 gasConstantK = sph.gasConstantK,
                 viscosity = sph.viscosity,
@@ -92,7 +92,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 maxTimeStep = sph.maxTimeStep,
                 maxCflSubsteps = sph.maxCflSubsteps,
                 colorDiffusionRate = sph.colorDiffusionRate,
-                usePBF = pbf.usePBF,
+                openTopCylinderUsePbf = pbf.openTopCylinderUsePbf,
                 pbfIterations = pbf.pbfIterations,
                 epsilon = pbf.epsilon,
                 pbfEpsilonScale = pbf.pbfEpsilonScale,
@@ -102,7 +102,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 pbfCohesion = pbf.pbfCohesion,
                 dynamicSortSizing = init.dynamicSortSizing,
                 minSortSize = init.minSortSize,
-                spillOverRim = spillOverRim
+                transferExteriorParticlesToFalling = transferExteriorParticlesToFalling
             };
         }
 
@@ -114,7 +114,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 qualityTier = qualityTier,
                 simulationActive = simulationActive,
                 worldFallingOnly = worldFallingOnly,
-                containerFluidEnabled = containerFluid.enabled,
+                containerFluidEnabled = openTopCylinder.enabled,
                 useExternalIngestion = useExternalParticleIngestion,
                 autoRunPipeline = autoRunPipeline,
                 gravity = gravity,

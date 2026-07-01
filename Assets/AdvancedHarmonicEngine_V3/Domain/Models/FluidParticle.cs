@@ -10,7 +10,7 @@ namespace HarmonicEngine.Domain.Models
     // Color rides inside the struct so Append/Consume stream compaction never
     // separates it from its particle. Must match the HLSL FluidParticle in
     // Infrastructure/ComputeShaders/Include/SphCommon.hlsl and the ComputeBuffer
-    // stride in PipelineExecutionController.
+    // stride in HarmonicPipelineController.
     [StructLayout(LayoutKind.Sequential, Size = 48)]
     public struct FluidParticle
     {

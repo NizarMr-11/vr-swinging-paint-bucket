@@ -10,7 +10,7 @@ namespace HarmonicEngine.Infrastructure.Management
     [DefaultExecutionOrder(100)]
     public class HarmonicParticleSpawnDirector : MonoBehaviour
     {
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private bool spawnLatticeOnStart = true;
         [SerializeField] private bool spawnAllOnStart;
         [Tooltip("When spawning volumes, disable active ParticleRainDirector components so they do not overwrite the lab setup.")]
@@ -20,7 +20,7 @@ namespace HarmonicEngine.Infrastructure.Management
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
         }
 
@@ -71,7 +71,7 @@ namespace HarmonicEngine.Infrastructure.Management
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             EnsureContainerReady();
@@ -83,7 +83,7 @@ namespace HarmonicEngine.Infrastructure.Management
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             if (pipeline == null)

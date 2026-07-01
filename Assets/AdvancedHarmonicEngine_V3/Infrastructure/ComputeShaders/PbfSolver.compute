@@ -15,6 +15,7 @@ RWStructuredBuffer<float4> _PredictedBlock0;
 RWStructuredBuffer<float> _DensityCacheDensities;
 RWStructuredBuffer<float> _Lambdas;
 RWStructuredBuffer<float> _GradSqSum;
+RWStructuredBuffer<float> _SpillTransferFlags;
 
 RWStructuredBuffer<float4> _WriteBlock0;
 RWStructuredBuffer<float4> _WriteBlock1;
@@ -55,6 +56,7 @@ float _ContainerFriction;
 uint _MaxParticleCount;
 
 #include "Include/PbfNeighborQuery.hlsl"
+#include "Include/OpenTopCylinderBoundary.hlsl"
 
 float3 ComputeXsphViscosity(uint particleIndex, float3 selfPos, float3 selfVel)
 {
@@ -318,106 +320,6 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
     _PredictedBlock0[i] = float4(selfPos, 0.0);
 }
 
-void PbfClampToContainer(inout float3 pos, inout float3 vel)
-{
-    if (_ContainerUsesOrientation != 0)
-    {
-        float3 localPos = mul(_ContainerWorldToLocal, float4(pos, 1.0)).xyz;
-        float3 localVel = mul((float3x3)_ContainerWorldToLocal, vel);
-
-        if (localPos.y < 0.0)
-        {
-            localPos.y = 0.0;
-            if (localVel.y < 0.0)
-            {
-                localVel.y = -localVel.y * _ContainerRestitution;
-            }
-
-            localVel.x *= _ContainerFriction;
-            localVel.z *= _ContainerFriction;
-        }
-
-        if (_ContainerSpillEnabled == 0 && localPos.y <= _ContainerHeight)
-        {
-            float2 rel = localPos.xz;
-            float d = length(rel);
-            if (d > _ContainerRadius && d > 1e-5)
-            {
-                float2 n = rel / d;
-                localPos.xz = n * _ContainerRadius;
-
-                float vn = dot(localVel.xz, n);
-                if (vn > 0.0)
-                {
-                    float2 vNormal = vn * n;
-                    float2 vTangent = localVel.xz - vNormal;
-                    localVel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
-                }
-            }
-        }
-
-        pos = mul(_ContainerLocalToWorld, float4(localPos, 1.0)).xyz;
-        vel = mul((float3x3)_ContainerLocalToWorld, localVel);
-        return;
-    }
-
-    if (pos.y < _ContainerFloorY)
-    {
-        pos.y = _ContainerFloorY;
-        if (vel.y < 0.0)
-        {
-            vel.y = -vel.y * _ContainerRestitution;
-        }
-
-        vel.x *= _ContainerFriction;
-        vel.z *= _ContainerFriction;
-    }
-
-    float2 relWorld = pos.xz - _ContainerCenter.xz;
-    float dWorld = length(relWorld);
-    bool belowRim = pos.y <= _ContainerRimY;
-    if (_ContainerSpillEnabled == 0 && belowRim && dWorld > _ContainerRadius && dWorld > 1e-5)
-    {
-        float2 n = relWorld / dWorld;
-        pos.xz = _ContainerCenter.xz + n * _ContainerRadius;
-
-        float vn = dot(vel.xz, n);
-        if (vn > 0.0)
-        {
-            float2 vNormal = vn * n;
-            float2 vTangent = vel.xz - vNormal;
-            vel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
-        }
-    }
-
-    if (_ContainerSpillEnabled == 0)
-    {
-        if (pos.y > _ContainerRimY + 2.0
-            || length(pos.xz - _ContainerCenter.xz) > _ContainerRadius + 2.0)
-        {
-            pos = float3(99999.0, 99999.0, 99999.0);
-            vel = float3(0.0, 0.0, 0.0);
-        }
-    }
-}
-
-bool PbfShouldSpill(float3 worldPos)
-{
-    if (_ContainerSpillEnabled == 0)
-    {
-        return false;
-    }
-
-    if (_ContainerUsesOrientation != 0)
-    {
-        float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
-        return localPos.y > _ContainerHeight && length(localPos.xz) > _ContainerRadius;
-    }
-
-    float2 rel = worldPos.xz - _ContainerCenter.xz;
-    return worldPos.y > _ContainerRimY && length(rel) > _ContainerRadius;
-}
-
 [numthreads(64, 1, 1)]
 void ApplyPositionsKernel(uint3 id : SV_DispatchThreadID)
 {
@@ -428,27 +330,45 @@ void ApplyPositionsKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float3 oldPos = _OldBlock0[i].xyz;
-    float3 newPos = _PredictedBlock0[i].xyz;
-    float3 vel = (newPos - oldPos) / max(_DeltaTime, 1e-6);
-    vel *= _PbfVelocityDamping;
-
-    PbfClampToContainer(newPos, vel);
-
-    float density = _DensityCacheDensities[i];
-    float pressure = 0.0;
+    float3 predictedPos = _PredictedBlock0[i].xyz;
     uint packedColor = SphLoadPackedColor(i);
     float wetness = SphLoadWetness(i);
 
-    if (PbfShouldSpill(newPos))
+    // Slots that already spilled are parked at 99999. Keep them dead: without this guard they
+    // pass OtcShouldTransferToFalling() again every frame and re-append to the falling buffer
+    // endlessly (runaway respawns).
+    if (PbfIsQuarantined(predictedPos))
     {
-        _GradSqSum[i] = 1.0;
-        _OldBlock0[i] = float4(vel, density);
+        _SpillTransferFlags[i] = 0.0;
+        _WriteBlock0[i] = float4(99999.0, 99999.0, 99999.0, 0.0);
+        _WriteBlock1[i] = float4(0.0, 0.0, 0.0, 0.0);
+        _WritePackedColors[i] = packedColor;
+        _WriteWetness[i] = wetness;
+        return;
+    }
+
+    float3 vel = (predictedPos - oldPos) / max(_DeltaTime, 1e-6);
+    vel *= _PbfVelocityDamping;
+
+    float3 newPos = predictedPos;
+    OtcClampToContainer(newPos, vel);
+
+    float density = _DensityCacheDensities[i];
+    float pressure = 0.0;
+
+    if (OtcShouldTransferToFalling(newPos))
+    {
+        _SpillTransferFlags[i] = 1.0;
+        // Hand the CLAMPED spawn position + velocity to AppendSpilledKernel so the falling
+        // particle appears exactly where it left the cup (no teleport back to the predicted pos).
+        _OldBlock0[i] = float4(newPos, density);
+        _PredictedBlock0[i] = float4(vel, pressure);
         newPos = float3(99999.0, 99999.0, 99999.0);
         vel = float3(0.0, 0.0, 0.0);
     }
     else if (_ContainerSpillEnabled != 0)
     {
-        _GradSqSum[i] = 0.0;
+        _SpillTransferFlags[i] = 0.0;
     }
 
     _WriteBlock0[i] = float4(newPos, density);
@@ -466,15 +386,17 @@ void AppendSpilledKernel(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    if (_GradSqSum[i] < 0.5)
+    if (_SpillTransferFlags[i] < 0.5)
     {
         return;
     }
 
-    float3 pos = _PredictedBlock0[i].xyz;
-    float3 vel = _OldBlock0[i].xyz;
+    // Spawn state stashed by ApplyPositionsKernel: OldBlock0 = (clamped pos, density),
+    // PredictedBlock0 = (velocity, pressure).
+    float3 pos = _OldBlock0[i].xyz;
     float density = _OldBlock0[i].w;
-    float pressure = 0.0;
+    float3 vel = _PredictedBlock0[i].xyz;
+    float pressure = _PredictedBlock0[i].w;
     uint packedColor = SphLoadPackedColor(i);
     float wetness = SphLoadWetness(i);
 

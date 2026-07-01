@@ -16,7 +16,7 @@ namespace SwingingPaintBucket.Particles
     [DisallowMultipleComponent]
     public class HarmonicCanvasHitBridge : MonoBehaviour
     {
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private CanvasController canvas;
         [SerializeField] private HighScaleFramePresenter impastoPresenter;
         [SerializeField] private BucketController bucket;
@@ -29,7 +29,7 @@ namespace SwingingPaintBucket.Particles
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             if (canvas == null)
@@ -44,7 +44,7 @@ namespace SwingingPaintBucket.Particles
         }
 
         public void Bind(
-            PipelineExecutionController harmonicPipeline,
+            HarmonicPipelineController harmonicPipeline,
             CanvasController canvasController,
             HighScaleFramePresenter presenter,
             BucketController bucketController)

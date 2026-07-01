@@ -10,7 +10,7 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
     [ExecuteAlways]
     public class HarmonicParticleDebugRenderer : MonoBehaviour
     {
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private Material particleDebugMaterial;
         [SerializeField] private bool drawInternalParticles = true;
         [SerializeField] private bool drawFallingParticles = true;
@@ -29,13 +29,13 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
         private static readonly int ColorId = Shader.PropertyToID("_Color");
         private static readonly int UseParticleColorId = Shader.PropertyToID("_UseParticleColor");
 
-        public void SetPipeline(PipelineExecutionController controller) => pipeline = controller;
+        public void SetPipeline(HarmonicPipelineController controller) => pipeline = controller;
 
         private void OnValidate()
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             if (particleDebugMaterial == null)

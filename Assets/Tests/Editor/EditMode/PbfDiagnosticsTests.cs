@@ -32,7 +32,7 @@ namespace HarmonicEngine.Tests
         public void ResolveContainerParticleMass_UsesLatticeSpacing()
         {
             var go = new GameObject("mass-pipeline");
-            var pipeline = go.AddComponent<PipelineExecutionController>();
+            var pipeline = go.AddComponent<HarmonicPipelineController>();
             pipeline.SetCellSize(0.05f);
 
             float mass = pipeline.ReadSphTuning().particleMass;
@@ -47,7 +47,7 @@ namespace HarmonicEngine.Tests
         public void LatticeSpacing_DefaultScale_IsHalfCellSize()
         {
             var go = new GameObject("lattice-spacing-pipeline");
-            var pipeline = go.AddComponent<PipelineExecutionController>();
+            var pipeline = go.AddComponent<HarmonicPipelineController>();
             pipeline.SetCellSize(0.05f);
 
             Assert.AreEqual(0.025f, pipeline.LatticeSpacing, 1e-6f);
@@ -59,7 +59,7 @@ namespace HarmonicEngine.Tests
         public void ResolvePbfEpsilon_AtH05_IsOrderOfMagnitude960()
         {
             var go = new GameObject("pbf-epsilon-pipeline");
-            var pipeline = go.AddComponent<PipelineExecutionController>();
+            var pipeline = go.AddComponent<HarmonicPipelineController>();
             pipeline.SetCellSize(0.05f);
 
             float epsilon = pipeline.ReadPbfTuning().epsilon;
@@ -75,12 +75,12 @@ namespace HarmonicEngine.Tests
         public void HarmonicRunManifestRuntime_BuildsFromPipeline()
         {
             var go = new GameObject("runtime-manifest-pipeline");
-            var pipeline = go.AddComponent<PipelineExecutionController>();
+            var pipeline = go.AddComponent<HarmonicPipelineController>();
             pipeline.SetCellSize(0.05f);
             pipeline.SetUsePbf(true);
 
             HarmonicRuntimeTuningSnapshot tuning = pipeline.ReadRuntimeSnapshot();
-            Assert.IsTrue(tuning.usePBF);
+            Assert.IsTrue(tuning.openTopCylinderUsePbf);
             Assert.AreEqual(3, tuning.pbfIterations);
             Assert.AreEqual(1000f, tuning.restDensity, 1e-3f);
             Assert.AreEqual(0.05f, tuning.cellSize, 1e-4f);
@@ -90,16 +90,16 @@ namespace HarmonicEngine.Tests
             Assert.AreEqual(1f, tuning.pbfRelaxation, 1e-3f);
             Assert.AreEqual(0.015f, tuning.pbfMaxPositionDelta, 1e-6f);
             Assert.AreEqual(0.3f, tuning.pbfCohesion, 1e-6f);
-            Assert.IsFalse(tuning.spillOverRim);
+            Assert.IsFalse(tuning.transferExteriorParticlesToFalling);
             Assert.AreEqual(0.006f / Mathf.Pow(0.05f, 4f), tuning.epsilon, 1f);
 
             HarmonicRunManifestRuntime manifestRuntime = HarmonicRunManifestSnapshotBuilder.BuildRuntime(pipeline);
-            Assert.IsTrue(manifestRuntime.usePBF);
+            Assert.IsTrue(manifestRuntime.openTopCylinderUsePbf);
             Assert.AreEqual(3, manifestRuntime.pbfIterations);
             Assert.AreEqual(tuning.epsilon, manifestRuntime.epsilon, 0.5f);
             Assert.AreEqual(1f, manifestRuntime.pbfRelaxation, 1e-3f);
             Assert.AreEqual(tuning.particleMass, manifestRuntime.particleMass, 1e-6f);
-            Assert.IsFalse(manifestRuntime.spillOverRim);
+            Assert.IsFalse(manifestRuntime.transferExteriorParticlesToFalling);
 
             string tempRoot = Path.Combine(Path.GetTempPath(), "PbfDiagnosticsTests_" + System.Guid.NewGuid().ToString("N"));
             string runDirectory = Path.Combine(tempRoot, "run_pbf");
@@ -118,7 +118,7 @@ namespace HarmonicEngine.Tests
 
                 string json = File.ReadAllText(Path.Combine(runDirectory, HarmonicRunManifest.FileName));
                 StringAssert.Contains("\"runtime\"", json);
-                StringAssert.Contains("\"usePBF\": true", json);
+                StringAssert.Contains("\"openTopCylinderUsePbf\": true", json);
                 StringAssert.Contains("\"pbfIterations\": 3", json);
                 StringAssert.Contains("\"cellSize\"", json);
                 StringAssert.Contains("\"latticeSpacing\"", json);

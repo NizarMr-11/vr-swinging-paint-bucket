@@ -14,7 +14,7 @@ namespace SwingingPaintBucket.Scene
     public class ParticleRainDirector : MonoBehaviour
     {
         [Header("References")]
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private CanvasController canvas;
 
         [Header("Container pooling")]
@@ -79,7 +79,7 @@ namespace SwingingPaintBucket.Scene
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             if (canvas == null)

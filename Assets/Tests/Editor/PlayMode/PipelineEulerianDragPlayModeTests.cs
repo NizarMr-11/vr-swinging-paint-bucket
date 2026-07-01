@@ -36,7 +36,7 @@ namespace HarmonicEngine.Tests.PlayMode
 
             foreach (bool dragEnabled in new[] { false, true })
             {
-                PipelineExecutionController pipeline = TestPipelineFactory.CreatePipeline(capacity: capacity, autoRun: false);
+                HarmonicPipelineController pipeline = TestPipelineFactory.CreatePipeline(capacity: capacity, autoRun: false);
                 pipeline.SetEnableEulerianDrag(dragEnabled);
                 yield return null;
 

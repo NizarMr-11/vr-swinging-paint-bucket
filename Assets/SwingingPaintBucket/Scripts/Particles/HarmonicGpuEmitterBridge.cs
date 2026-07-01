@@ -11,12 +11,12 @@ namespace SwingingPaintBucket.Particles
     [DisallowMultipleComponent]
     public class HarmonicGpuEmitterBridge : MonoBehaviour
     {
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private Transform bucketTransform;
 
         private FluidParticle[] _batch;
 
-        public void Bind(PipelineExecutionController controller, Transform bucket)
+        public void Bind(HarmonicPipelineController controller, Transform bucket)
         {
             pipeline = controller;
             bucketTransform = bucket;

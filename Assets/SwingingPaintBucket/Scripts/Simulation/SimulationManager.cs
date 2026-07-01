@@ -17,7 +17,7 @@ namespace SwingingPaintBucket.Simulation
 
         [Header("Harmonic V3 GPU Pipeline")]
         public bool UseHarmonicGpuPipeline = true;
-        public PipelineExecutionController HarmonicPipeline;
+        public HarmonicPipelineController HarmonicPipeline;
         public HighScaleFramePresenter ImpastoPresenter;
         public HarmonicBakeRecorder BakeRecorder;
         public HarmonicBakePlaybackDriver BakePlayback;
@@ -99,7 +99,7 @@ namespace SwingingPaintBucket.Simulation
         {
             if (HarmonicPipeline == null)
             {
-                HarmonicPipeline = FindFirstObjectByType<PipelineExecutionController>();
+                HarmonicPipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             if (HarmonicPipeline == null)

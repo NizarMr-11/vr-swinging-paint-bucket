@@ -95,7 +95,7 @@ namespace HarmonicEngine.Tests.PlayMode
                 $"Radix {radixMs:F3}ms not 3x faster than bitonic {bitonicMs:F3}ms");
         }
 
-        private static bool ValidateCellRanges(PipelineExecutionController pipeline)
+        private static bool ValidateCellRanges(HarmonicPipelineController pipeline)
         {
             if (!pipeline.TryGetSpatialHashBuffers(out ComputeBuffer gridKeys, out ComputeBuffer cellRanges, out int sortSize))
             {

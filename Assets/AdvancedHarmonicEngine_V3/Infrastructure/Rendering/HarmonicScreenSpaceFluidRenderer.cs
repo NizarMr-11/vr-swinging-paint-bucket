@@ -13,7 +13,7 @@ namespace HarmonicEngine.Infrastructure.Rendering
     [DisallowMultipleComponent]
     public sealed class HarmonicScreenSpaceFluidRenderer : MonoBehaviour
     {
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private Material fluidMaterial;
         [SerializeField] private bool drawInternalParticles = true;
         [SerializeField] private bool drawFallingParticles = true;
@@ -97,14 +97,14 @@ namespace HarmonicEngine.Infrastructure.Rendering
             set => specularIntensity = Mathf.Clamp(value, 0f, 2f);
         }
 
-        public void SetPipeline(PipelineExecutionController controller) => pipeline = controller;
+        public void SetPipeline(HarmonicPipelineController controller) => pipeline = controller;
 
         private void Awake()
         {
             _camera = GetComponent<Camera>();
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             EnsureMaterial();

@@ -29,7 +29,7 @@ namespace SwingingPaintBucket.Debugging
                 return;
             }
 
-            var pipeline = FindFirstObjectByType<PipelineExecutionController>();
+            var pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             var hostGo = pipeline != null ? pipeline.gameObject : gameObject;
 
             if (hostGo.GetComponent<HarmonicPipelineDiagnosticsController>() == null

@@ -6,6 +6,8 @@ Unity-based simulation of swinging paint bucket motion and canvas drawing for th
 
 AdvancedHarmonicEngine_V3 provides a GPU SPH paint simulation with impasto canvas rendering, bake/playback modes, and quality presets (100k–5M particles).
 
+**Engine index:** [Assets/AdvancedHarmonicEngine_V3/README.md](Assets/AdvancedHarmonicEngine_V3/README.md)
+
 See [docs/architecure.md](docs/architecure.md), [docs/full-implementation-plan.md](docs/full-implementation-plan.md), [docs/hardware-requirements.md](docs/hardware-requirements.md), and **[docs/harmonic-engine-api.md](docs/harmonic-engine-api.md)** (Unity integration guide).
 
 **Developer docs:** [neighbor queries & spatial hashing](docs/neighbor-queries-and-spatial-hashing.md) · [configuration API](docs/configuration-api.md) · [engine communication](docs/engine-communication.md) · [paint color & lifecycle](docs/paint-color-and-lifecycle.md) · [testing strategy](docs/testing-strategy.md) · [debugging & rendering](docs/debugging-and-rendering.md) · [architecture divergences](docs/architecture-divergences.md)

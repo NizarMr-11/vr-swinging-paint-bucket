@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace HarmonicEngine.Infrastructure.Management
 {
-    public partial class PipelineExecutionController
+    public partial class HarmonicPipelineController
     {
         private bool _stencilNeighborCountLogged;
         private float _hashLogAccumulator;
@@ -95,58 +95,12 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private void BuildSpatialHashGrid(ParticleSoaBuffers read, uint activeCount)
         {
-            BuildSpatialHashGrid(read.Block0, activeCount);
+            _spatialHashPass.Build(this, read, activeCount);
         }
 
         private void BuildSpatialHashGrid(ComputeBuffer positionBlock0, uint activeCount)
         {
-            ComputeBuffer.CopyCount(_pingPong.ReadSet.CounterBuffer, _indirectArgsBuffer, sizeof(int) * 3);
-            DispatchIndirectArgsSetup();
-
-            bool radixActive = UseRadixSortActive;
-            int generateGroups = Mathf.CeilToInt(_frameSortSize / 64f);
-            int clearGroups = Mathf.CeilToInt(_frameSortSize / 256f);
-
-            using (MarkerGrid.Auto())
-            {
-                spatialHashGridShader.SetBuffer(_kernelGridClear, CellStartEndBufferId, _cellStartEndBuffer);
-                spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
-                spatialHashGridShader.SetInt(GridResolutionId, _frameSortSize);
-                spatialHashGridShader.Dispatch(_kernelGridClear, clearGroups, 1, 1);
-
-                spatialHashGridShader.SetBuffer(_kernelGridGenerate, Block0Id, positionBlock0);
-                spatialHashGridShader.SetBuffer(_kernelGridGenerate, GridKeyValueBufferId, _gridKeyValueBuffer);
-                spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
-                spatialHashGridShader.SetInt(ActiveParticleCountId, (int)activeCount);
-                spatialHashGridShader.SetInt(GridResolutionId, _frameSortSize);
-                spatialHashGridShader.SetFloat(CellSizeId, cellSize);
-                spatialHashGridShader.Dispatch(_kernelGridGenerate, generateGroups, 1, 1);
-            }
-
-            if (radixActive)
-            {
-                using (MarkerRadixSort.Auto())
-                {
-                    RunRadixSort();
-                }
-            }
-            else
-            {
-                using (MarkerSort.Auto())
-                {
-                    RunBitonicSort();
-                }
-            }
-
-            MaybeLogSortDiagnostic(activeCount);
-
-            spatialHashGridShader.SetBuffer(_kernelGridBuildRanges, CellStartEndBufferId, _cellStartEndBuffer);
-            spatialHashGridShader.SetBuffer(_kernelGridBuildRanges, GridKeyValueBufferId, _gridKeyValueBuffer);
-            spatialHashGridShader.SetInt(PaddedGridSizeId, _frameSortSize);
-            using (MarkerBuildRanges.Auto())
-            {
-                spatialHashGridShader.Dispatch(_kernelGridBuildRanges, generateGroups, 1, 1);
-            }
+            _spatialHashPass.Build(this, positionBlock0, activeCount);
         }
 
         private void RunRadixSort()
@@ -177,10 +131,10 @@ namespace HarmonicEngine.Infrastructure.Management
             }
         }
 
-        private void MaybeLogSortDiagnostic(uint activeCount)
+        private void MaybeLogSortDiagnosticInternal(uint activeCount)
         {
             bool usingRadix = useRadixSort && _gpuRadixSort != null;
-            string channel = usePBF ? "PBF" : "SPH";
+            string channel = openTopCylinderUsePbf ? "PBF" : "SPH";
             if (usingRadix && !_radixSortAnnounced)
             {
                 _radixSortAnnounced = true;
@@ -202,7 +156,7 @@ namespace HarmonicEngine.Infrastructure.Management
             _sortDispatchSumThisSecond += dispatches;
             _sortActiveCountLast = activeCount;
 
-            if (usePBF)
+            if (openTopCylinderUsePbf)
             {
                 return;
             }
@@ -238,7 +192,7 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private void LogSortTelemetry(string message, bool warning = false)
         {
-            if (usePBF)
+            if (openTopCylinderUsePbf)
             {
                 LogPbfTelemetry(message, warning);
             }

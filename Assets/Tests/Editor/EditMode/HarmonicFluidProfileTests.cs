@@ -40,7 +40,7 @@ namespace HarmonicEngine.Tests
             profile.VisualGloss = 0.7f;
 
             var go = new GameObject("fluid-profile-pipeline");
-            var pipeline = go.AddComponent<PipelineExecutionController>();
+            var pipeline = go.AddComponent<HarmonicPipelineController>();
             pipeline.SetContainerFluidEnabled(true);
             profile.ApplyTo(pipeline, null);
 
@@ -50,7 +50,7 @@ namespace HarmonicEngine.Tests
             Assert.AreEqual(0.37f, tuning.pbfCohesion, 1e-3f);
             Assert.AreEqual(2, tuning.pbfIterations);
             Assert.AreEqual(0.0175f, tuning.pbfMaxPositionDelta, 1e-4f);
-            Assert.IsTrue(tuning.usePBF);
+            Assert.IsTrue(tuning.openTopCylinderUsePbf);
 
             Object.DestroyImmediate(go);
             Object.DestroyImmediate(profile);

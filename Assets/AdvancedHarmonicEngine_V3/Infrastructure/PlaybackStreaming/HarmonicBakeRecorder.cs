@@ -12,7 +12,7 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
     /// </summary>
     public class HarmonicBakeRecorder : MonoBehaviour
     {
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private string outputDirectory = "HarmonicBakeFrames";
         [SerializeField] private bool recordEveryFrame;
         [SerializeField] private int recordEveryNthFrame = 2;

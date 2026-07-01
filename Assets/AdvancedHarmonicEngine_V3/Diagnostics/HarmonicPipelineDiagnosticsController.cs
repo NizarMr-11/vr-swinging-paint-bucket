@@ -20,7 +20,7 @@ namespace HarmonicEngine.Diagnostics
 
         private void Awake()
         {
-            var pipeline = GetComponent<PipelineExecutionController>();
+            var pipeline = GetComponent<HarmonicPipelineController>();
             var host = GetComponent<HarmonicDiagnosticHost>() ?? gameObject.AddComponent<HarmonicDiagnosticHost>();
 
             if (pipeline != null)

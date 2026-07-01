@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace HarmonicEngine.Infrastructure.Management
 {
-    public partial class PipelineExecutionController
+    public partial class HarmonicPipelineController
     {
         private const float PbfConvergeWindowSeconds = 2f;
         private const int PbfConvergeFrameInterval = 5;
@@ -146,9 +146,9 @@ namespace HarmonicEngine.Infrastructure.Management
                 $"(approximate, from per-particle C and lambda)");
         }
 
-        private void MaybeLogPbfConvergence()
+        private void MaybeLogPbfConvergenceInternal()
         {
-            if (!usePBF
+            if (!openTopCylinderUsePbf
                 || mutePbfTelemetry
                 || !HarmonicDiagnosticHub.Enabled
                 || HarmonicDiagnosticHub.Session == null)
@@ -184,9 +184,9 @@ namespace HarmonicEngine.Infrastructure.Management
                 $"avgAbsLambda={lambdaStats.Avg:F6} avgGradSq={gradSqStats.Avg:F4} avgY={avgY:F2}");
         }
 
-        private void MaybeLogPbfTelemetry(float deltaTime, int substeps, float subDt)
+        private void MaybeLogPbfTelemetryInternal(float deltaTime, int substeps, float subDt)
         {
-            if (!usePBF || mutePbfTelemetry)
+            if (!openTopCylinderUsePbf || mutePbfTelemetry)
             {
                 return;
             }

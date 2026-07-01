@@ -17,7 +17,7 @@ namespace HarmonicEngine.Infrastructure.Management
         /// Samples <paramref name="region"/> and appends the resulting colored particles.
         /// Returns the number actually appended (clamped to remaining capacity).
         /// </summary>
-        public static int Spawn(PipelineExecutionController pipeline, HarmonicSpawnRegion region)
+        public static int Spawn(HarmonicPipelineController pipeline, HarmonicSpawnRegion region)
         {
             if (pipeline == null || region == null)
             {

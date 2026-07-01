@@ -7,7 +7,7 @@ namespace HarmonicEngine.Infrastructure.Management
     /// World-space open-top cylinder SPH configuration (lab / pooling mode).
     /// </summary>
     [Serializable]
-    public sealed class ContainerFluidSettings
+    public sealed class OpenTopCylinderSettings
     {
         [Tooltip("When true the pipeline runs world-space SPH confined to the cylinder below.")]
         public bool enabled;

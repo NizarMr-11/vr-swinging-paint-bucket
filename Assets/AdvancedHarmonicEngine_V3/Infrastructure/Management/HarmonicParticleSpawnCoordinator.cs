@@ -5,12 +5,12 @@ namespace HarmonicEngine.Infrastructure.Management
 {
     /// <summary>
     /// Spawns all <see cref="ParticleSpawnVolume"/> instances in priority order,
-    /// splitting pipeline capacity proportionally when total requests exceed <see cref="PipelineExecutionController.MaxCapacity"/>.
+    /// splitting pipeline capacity proportionally when total requests exceed <see cref="HarmonicPipelineController.MaxCapacity"/>.
     /// </summary>
     public static class HarmonicParticleSpawnCoordinator
     {
         public static int SpawnAll(
-            PipelineExecutionController pipeline,
+            HarmonicPipelineController pipeline,
             bool clearFirst = true,
             bool activateSimulation = true,
             IReadOnlyList<ParticleSpawnVolume> volumes = null)

@@ -590,7 +590,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fc98b8d9c4300064aa785c12f3565cda, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Management.PipelineExecutionController
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Management.HarmonicPipelineController
   argumentUtilityShader: {fileID: 7200000, guid: 1bfbaadec86da7c429b6aff88700106d, type: 3}
   spatialHashGridShader: {fileID: 7200000, guid: a7b835b402ccbfc4f8c2ca320d1b2344, type: 3}
   radixSortShader: {fileID: 7200000, guid: c4d5e6f7a8b94c0d1e2f3a4b5c6d7e81, type: 3}
@@ -651,7 +651,7 @@ MonoBehaviour:
     substeps: 2
     orientation: {x: 0, y: 0, z: 0, w: 1}
     height: 1.1
-  spillOverRim: 0
+  spillOverRim: 1
   usePBF: 1
   pbfIterations: 2
   pbfEpsilonScale: 0.006

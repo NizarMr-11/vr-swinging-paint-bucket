@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace HarmonicEngine.Infrastructure.Management
 {
-    public partial class PipelineExecutionController
+    public partial class HarmonicPipelineController
     {
         private uint _cachedInternalCount;
         private uint _lastFallingQuantizeCount;
@@ -47,13 +47,13 @@ namespace HarmonicEngine.Infrastructure.Management
                 boolArg0: boolArg0));
         }
 
-        private void PublishPipelineFrameDiagnostic(uint activeCount)
+        private void PublishPipelineFrameDiagnosticInternal(uint activeCount)
         {
             FrameCompleted?.Invoke(new HarmonicFrameInfo(
                 activeCount,
                 _lastCanvasHitCount,
                 _frameSortSize,
-                containerFluid.enabled,
+                openTopCylinder.enabled,
                 worldFallingOnly));
 
             if (!HarmonicDiagnosticHub.Enabled || HarmonicDiagnosticHub.Session == null)
@@ -83,7 +83,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 canvasHitCount: _lastCanvasHitCount));
         }
 
-        private void PublishStageDiagnostic(string stage, string detail)
+        private void PublishStageDiagnosticInternal(string stage, string detail)
         {
             if (!HarmonicDiagnosticHub.Enabled || HarmonicDiagnosticHub.Session == null)
             {
@@ -151,7 +151,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 return 0;
             }
 
-            if (!containerFluid.enabled)
+            if (!openTopCylinder.enabled)
             {
                 SetContainerFluidEnabled(true);
             }
@@ -160,13 +160,13 @@ namespace HarmonicEngine.Infrastructure.Management
             seedTestParticlesOnStart = false;
 
             float spacing = LatticeSpacing;
-            float fillTopY = containerFluid.floorY + (containerFluid.rimY - containerFluid.floorY) * 0.5f;
-            float spawnRadius = containerFluid.radius * 0.9f;
+            float fillTopY = openTopCylinder.floorY + (openTopCylinder.rimY - openTopCylinder.floorY) * 0.5f;
+            float spawnRadius = openTopCylinder.radius * 0.9f;
 
             int spawned = HarmonicLatticeSpawner.SpawnContainerCylinderFill(
                 this,
-                containerFluid.center,
-                containerFluid.floorY,
+                openTopCylinder.center,
+                openTopCylinder.floorY,
                 fillTopY,
                 spawnRadius,
                 spacing,
@@ -198,7 +198,7 @@ namespace HarmonicEngine.Infrastructure.Management
             {
                 Debug.LogWarning(
                     $"[HarmonicPipeline] Lattice spawn produced 0 particles " +
-                    $"(floor={containerFluid.floorY:F2}, fillTop={fillTopY:F2}, radius={spawnRadius:F2}, spacing={spacing:F4}).");
+                    $"(floor={openTopCylinder.floorY:F2}, fillTop={fillTopY:F2}, radius={spawnRadius:F2}, spacing={spacing:F4}).");
             }
 
             return spawned;

@@ -122,8 +122,8 @@ namespace HarmonicEngine.Diagnostics.Aspects
             sb.Append($" radixSortMs={ToMs(_radixSortRecorder):F3}");
             sb.Append($" bitonicSortMs={ToMs(_sortRecorder):F3}");
             sb.Append($" rangesMs={ToMs(_buildRangesRecorder):F3}");
-            bool usePbf = _session.Pipeline != null && _session.Pipeline.UsePbf;
-            if (usePbf)
+            bool openTopCylinderUsePbf = _session.Pipeline != null && _session.Pipeline.UsePbf;
+            if (openTopCylinderUsePbf)
             {
                 sb.Append($" densityMs={ToMs(_pbfDensityRecorder):F3}");
                 sb.Append($" integrationMs={ToMs(_pbfSolveRecorder):F3}");

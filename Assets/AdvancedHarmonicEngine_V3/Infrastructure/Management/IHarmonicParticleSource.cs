@@ -5,7 +5,7 @@ namespace HarmonicEngine.Infrastructure.Management
     /// <summary>
     /// Read-facing contract for the GPU particle pipeline. Consumers (debug renderers,
     /// overlays, bake recorders, tests) should depend on this instead of the concrete
-    /// <see cref="PipelineExecutionController"/> so they only see the safe read surface.
+    /// <see cref="HarmonicPipelineController"/> so they only see the safe read surface.
     ///
     /// All buffer accessors return the post-frame read buffer plus a cached active count
     /// from the last completed <c>ExecutePipelineFrame</c>; read them after the pipeline's
@@ -42,7 +42,7 @@ namespace HarmonicEngine.Infrastructure.Management
     }
 
     /// <summary>
-    /// Push-side frame summary raised by <see cref="PipelineExecutionController.FrameCompleted"/>
+    /// Push-side frame summary raised by <see cref="HarmonicPipelineController.FrameCompleted"/>
     /// at the end of every simulated frame, so listeners can react without polling.
     /// </summary>
     public readonly struct HarmonicFrameInfo

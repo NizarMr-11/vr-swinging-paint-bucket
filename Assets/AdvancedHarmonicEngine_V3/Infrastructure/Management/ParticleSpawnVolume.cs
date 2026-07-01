@@ -13,7 +13,7 @@ namespace HarmonicEngine.Infrastructure.Management
     public class ParticleSpawnVolume : MonoBehaviour
     {
         [Header("Engine")]
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
 
         [Header("Shape")]
         [SerializeField] private ShapeVolumeType shapeType = ShapeVolumeType.Sphere;
@@ -57,7 +57,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public ShapeVolumeType ShapeType => shapeType;
         public int LastEmittedCount { get; private set; }
 
-        public void SetPipeline(PipelineExecutionController controller) => pipeline = controller;
+        public void SetPipeline(HarmonicPipelineController controller) => pipeline = controller;
 
         public void Configure(
             ShapeVolumeType type,
@@ -110,7 +110,7 @@ namespace HarmonicEngine.Infrastructure.Management
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             if (shapeSource == null)

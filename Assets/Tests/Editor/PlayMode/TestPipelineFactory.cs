@@ -6,24 +6,24 @@ namespace HarmonicEngine.Tests.PlayMode
 {
     internal static class TestPipelineFactory
     {
-        public static PipelineExecutionController CreatePipeline(int capacity = 8192, bool autoRun = false)
+        public static HarmonicPipelineController CreatePipeline(int capacity = 8192, bool autoRun = false)
         {
             var settings = Resources.Load<HarmonicPipelineTestSettings>("HarmonicPipelineTestSettings");
             AssertSettings(settings);
 
             var go = new GameObject("TestHarmonicPipeline");
-            var pipeline = go.AddComponent<PipelineExecutionController>();
+            var pipeline = go.AddComponent<HarmonicPipelineController>();
             pipeline.ConfigureAndInitialize(
                 settings.argumentUtilityShader,
                 settings.spatialHashGridShader,
-                settings.streamCompactionShader,
+                settings.wcsphDensityShader,
                 settings.dataCompactionShader,
                 capacity > 0 ? capacity : settings.testCapacity,
                 externalIngestion: true,
                 autoRun: autoRun,
                 fallingShader: settings.fallingFluidWorldShader,
                 eulerianShader: settings.eulerianDragGridShader,
-                integrateShader: settings.streamCompactionIntegrateShader,
+                integrateShader: settings.wcsphIntegrationShader,
                 pbfShader: settings.pbfSolverShader,
                 radixShader: settings.radixSortShader);
             return pipeline;
@@ -34,8 +34,8 @@ namespace HarmonicEngine.Tests.PlayMode
             if (settings == null
                 || settings.argumentUtilityShader == null
                 || settings.spatialHashGridShader == null
-                || settings.streamCompactionShader == null
-                || settings.streamCompactionIntegrateShader == null
+                || settings.wcsphDensityShader == null
+                || settings.wcsphIntegrationShader == null
                 || settings.pbfSolverShader == null
                 || settings.dataCompactionShader == null)
             {

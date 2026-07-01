@@ -22,7 +22,7 @@ namespace HarmonicEngine.Diagnostics
         public static bool InitSnapshotWritten => _initSnapshotWritten;
 
         public static void Initialize(
-            PipelineExecutionController pipeline,
+            HarmonicPipelineController pipeline,
             bool forceReset = false,
             string runDirectoryOverride = null)
         {
@@ -34,7 +34,7 @@ namespace HarmonicEngine.Diagnostics
         }
 
         public static void Initialize(
-            PipelineExecutionController pipeline,
+            HarmonicPipelineController pipeline,
             HarmonicPipelineDiagnosticsSettings settings,
             bool forceReset = false,
             string runDirectoryOverride = null)

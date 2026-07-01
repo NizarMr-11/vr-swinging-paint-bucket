@@ -33,7 +33,7 @@ namespace HarmonicEngine.Infrastructure.Management
 
     public struct HarmonicPbfTuningSnapshot
     {
-        public bool usePBF;
+        public bool openTopCylinderUsePbf;
         public int pbfIterations;
         public float epsilon;
         public float pbfEpsilonScale;
@@ -65,7 +65,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public float maxTimeStep;
         public int maxCflSubsteps;
         public float colorDiffusionRate;
-        public bool usePBF;
+        public bool openTopCylinderUsePbf;
         public int pbfIterations;
         public float epsilon;
         public float pbfEpsilonScale;
@@ -75,7 +75,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public float pbfCohesion;
         public bool dynamicSortSizing;
         public int minSortSize;
-        public bool spillOverRim;
+        public bool transferExteriorParticlesToFalling;
     }
 
     public struct HarmonicSimulationInitSnapshot

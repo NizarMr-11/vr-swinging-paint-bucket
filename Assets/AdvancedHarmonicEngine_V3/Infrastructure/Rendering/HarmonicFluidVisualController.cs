@@ -16,7 +16,7 @@ namespace HarmonicEngine.Infrastructure.Rendering
     [DisallowMultipleComponent]
     public sealed class HarmonicFluidVisualController : MonoBehaviour
     {
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private HarmonicScreenSpaceFluidRenderer screenSpaceRenderer;
         [SerializeField] private HarmonicParticleDebugRenderer debugRenderer;
         [SerializeField] private HarmonicFluidVisualMode visualMode = HarmonicFluidVisualMode.ScreenSpaceFluid;
@@ -55,7 +55,7 @@ namespace HarmonicEngine.Infrastructure.Rendering
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             if (screenSpaceRenderer == null)

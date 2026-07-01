@@ -92,7 +92,7 @@ namespace HarmonicEngine.Diagnostics
                 return;
             }
 
-            PipelineExecutionController pipeline = session.Pipeline;
+            HarmonicPipelineController pipeline = session.Pipeline;
             if (pipeline == null)
             {
                 return;

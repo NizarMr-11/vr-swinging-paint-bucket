@@ -23,7 +23,7 @@ namespace HarmonicEngine.Tests.PlayMode
             yield return PlayModeTestUtility.EnsurePlayMode();
 
             const int capacity = 4096;
-            PipelineExecutionController pipeline = TestPipelineFactory.CreatePipeline(capacity: capacity, autoRun: false);
+            HarmonicPipelineController pipeline = TestPipelineFactory.CreatePipeline(capacity: capacity, autoRun: false);
             yield return null;
 
             var batch = new FluidParticle[64];

@@ -2,8 +2,10 @@ using System;
 using HarmonicEngine.Diagnostics;
 using HarmonicEngine.Domain.Models;
 using HarmonicEngine.Domain.Solvers;
+using HarmonicEngine.Infrastructure.Management.SimulationPasses;
 using HarmonicEngine.Infrastructure.Rendering;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace HarmonicEngine.Infrastructure.Management
 {
@@ -24,7 +26,7 @@ namespace HarmonicEngine.Infrastructure.Management
     /// Communication: pull (the <c>TryGet*</c> buffer accessors / <see cref="IHarmonicParticleSource"/>)
     /// or push (<see cref="FrameCompleted"/>, raised once per simulated frame).
     /// </summary>
-    public partial class PipelineExecutionController : MonoBehaviour, IHarmonicParticleSource
+    public partial class HarmonicPipelineController : MonoBehaviour, IHarmonicParticleSource
     {
         /// <summary>
         /// Raised at the end of every simulated frame (all modes) with a summary snapshot,
@@ -36,8 +38,10 @@ namespace HarmonicEngine.Infrastructure.Management
         [SerializeField] private ComputeShader argumentUtilityShader;
         [SerializeField] private ComputeShader spatialHashGridShader;
         [SerializeField] private ComputeShader radixSortShader;
-        [SerializeField] private ComputeShader streamCompactionShader;
-        [SerializeField] private ComputeShader streamCompactionIntegrateShader;
+        [FormerlySerializedAs("wcsphDensityShader")]
+        [SerializeField] private ComputeShader wcsphDensityShader;
+        [FormerlySerializedAs("wcsphIntegrationShader")]
+        [SerializeField] private ComputeShader wcsphIntegrationShader;
         [SerializeField] private ComputeShader dataCompactionShader;
         [SerializeField] private ComputeShader fallingFluidWorldShader;
         [SerializeField] private ComputeShader eulerianDragGridShader;
@@ -91,12 +95,15 @@ namespace HarmonicEngine.Infrastructure.Management
         [Header("World falling only (no container)")]
         [SerializeField] private bool worldFallingOnly;
 
-        [Header("Container fluid (world-space SPH in a cylinder)")]
-        [SerializeField] private ContainerFluidSettings containerFluid = new();
-        [Tooltip("When enabled, fluid above the open rim transfers to the falling particle sim instead of being clamped.")]
-        [SerializeField] private bool spillOverRim;
-        [Tooltip("Use Position Based Fluids instead of WCSPH for container fluid.")]
-        [SerializeField] private bool usePBF = true;
+        [Header("Open-top cylinder fluid (world-space SPH in a cylinder)")]
+        [FormerlySerializedAs("containerFluid")]
+        [SerializeField] private OpenTopCylinderSettings openTopCylinder = new();
+        [Tooltip("When enabled, fluid outside the cylinder radius transfers to the falling particle sim.")]
+        [FormerlySerializedAs("spillOverRim")]
+        [SerializeField] private bool transferExteriorParticlesToFalling;
+        [Tooltip("Use Position Based Fluids instead of WCSPH for open-top cylinder fluid.")]
+        [FormerlySerializedAs("usePBF")]
+        [SerializeField] private bool openTopCylinderUsePbf = true;
         [SerializeField, Range(1, 8)] private int pbfIterations = 3;
         [Tooltip("PBF epsilon numerator: epsilon = scale / h^4. Default 0.006 → ε≈960 at h=0.05.")]
         [SerializeField, Min(1e-8f)] private float pbfEpsilonScale = 0.006f;
@@ -158,9 +165,9 @@ namespace HarmonicEngine.Infrastructure.Management
         public float CanvasPlaneY => canvasPlaneY;
         public bool WorldFallingOnly => worldFallingOnly;
         public bool CanvasCullingEnabled => canvasCullingEnabled;
-        public bool ContainerFluidEnabled => containerFluid.enabled;
-        public bool SpillOverRim => spillOverRim;
-        public bool UsePbf => usePBF;
+        public bool ContainerFluidEnabled => openTopCylinder.enabled;
+        public bool SpillOverRim => transferExteriorParticlesToFalling;
+        public bool UsePbf => openTopCylinderUsePbf;
         public int PbfIterations => pbfIterations;
         public float PbfRelaxation => pbfRelaxation;
         public float CellSize => cellSize;
@@ -168,7 +175,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public float SmoothingRadius => sphSolver.SmoothingRadius(cellSize);
         public float RestDensity => sphSolver.RestDensity;
         public float SpeedOfSound => speedOfSound;
-        public float ContainerFloorY => containerFluid.floorY;
+        public float ContainerFloorY => openTopCylinder.floorY;
         public bool IsSimulationActive => simulationActive;
         public bool UseRadixSort => useRadixSort;
         public int LastRadixSortDispatchCount => _gpuRadixSort?.LastDispatchCount ?? 0;
@@ -189,11 +196,14 @@ namespace HarmonicEngine.Infrastructure.Management
 
         public void SetGravity(Vector3 value) => gravity = value;
 
-        public void SetUsePbf(bool enabled) => usePBF = enabled;
+        public void SetUsePbf(bool enabled) => openTopCylinderUsePbf = enabled;
 
         public void SetCellSize(float value) => cellSize = Mathf.Max(0.01f, value);
 
         private HarmonicScreenSpaceFluidRenderer _fluidProfileRenderer;
+        private readonly HarmonicSimulationFrameRouter _simulationFrameRouter = new();
+        private readonly SpatialHashBuildPass _spatialHashPass = new();
+        private readonly OpenTopCylinderRigidBodyCarryPass _rigidBodyCarryPass = new();
 
         private void Awake()
         {
@@ -209,20 +219,20 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private void ResolveIntegrateShader()
         {
-            if (streamCompactionIntegrateShader != null)
+            if (wcsphIntegrationShader != null)
             {
                 return;
             }
 
 #if UNITY_EDITOR
-            streamCompactionIntegrateShader = UnityEditor.AssetDatabase.LoadAssetAtPath<ComputeShader>(
-                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/StreamCompactionIntegrate.compute");
+            wcsphIntegrationShader = UnityEditor.AssetDatabase.LoadAssetAtPath<ComputeShader>(
+                "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/WcsphIntegration.compute");
 #endif
-            if (streamCompactionIntegrateShader == null)
+            if (wcsphIntegrationShader == null)
             {
                 Debug.LogError(
-                    "[HarmonicPipeline] streamCompactionIntegrateShader is not assigned. "
-                    + "Assign StreamCompactionIntegrate.compute on the pipeline controller.");
+                    "[HarmonicPipeline] wcsphIntegrationShader is not assigned. "
+                    + "Assign WcsphIntegration.compute on the pipeline controller.");
             }
         }
 
@@ -241,7 +251,7 @@ namespace HarmonicEngine.Infrastructure.Management
             {
                 Debug.LogWarning(
                     "[HarmonicPipeline] pbfSolverShader is not assigned. "
-                    + "Assign PbfSolver.compute or disable usePBF.");
+                    + "Assign PbfSolver.compute or disable openTopCylinderUsePbf.");
             }
         }
 

@@ -30,7 +30,7 @@ namespace SwingingPaintBucket.Simulation
         }
 
         [Header("Engine references")]
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private ParticleSpawnVolume shapeEmitter;
         [Tooltip("When enabled, every ParticleSpawnVolume in the scene is spawned (priority order) when a run starts.")]
         [SerializeField] private bool spawnAllSceneVolumes = true;
@@ -81,7 +81,7 @@ namespace SwingingPaintBucket.Simulation
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             if (shapeEmitter == null)

@@ -66,7 +66,7 @@ namespace HarmonicEngine.Tests
         public void Manifest_InitSnapshot_WritesBucketAndParticles()
         {
             var go = new GameObject("manifest-pipeline");
-            var pipeline = go.AddComponent<PipelineExecutionController>();
+            var pipeline = go.AddComponent<HarmonicPipelineController>();
             pipeline.SetContainerFluid(Vector3.zero, 0.55f, 0f, 1.1f, 0.1f, 0.85f, 400f);
             pipeline.SetCellSize(0.015f);
             pipeline.SetContainerFluidEnabled(true);
@@ -260,7 +260,7 @@ namespace HarmonicEngine.Tests
         public void DiagnosticsController_AppliesSettingsToPipeline()
         {
             var go = new GameObject("pipeline-diagnostics-test");
-            var pipeline = go.AddComponent<PipelineExecutionController>();
+            var pipeline = go.AddComponent<HarmonicPipelineController>();
             var settings = HarmonicPipelineDiagnosticsSettings.CreateDefault();
             settings.frameDiagnosticInterval = 42;
             settings.muteSphTelemetry = true;

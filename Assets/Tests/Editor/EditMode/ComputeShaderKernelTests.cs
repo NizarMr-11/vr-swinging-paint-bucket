@@ -26,17 +26,17 @@ namespace HarmonicEngine.Tests
         }
 
         [Test]
-        public void StreamCompaction_HasDensityPass()
+        public void WcsphDensity_HasDensityPass()
         {
-            var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(TestComputeShaderPaths.StreamCompaction);
+            var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(TestComputeShaderPaths.WcsphDensity);
             Assert.IsNotNull(shader);
             ComputeShaderTestUtility.AssertHasKernel(shader, "ExecuteSphDensityPass");
         }
 
         [Test]
-        public void StreamCompactionIntegrate_HasIntegrationPasses()
+        public void WcsphIntegration_HasIntegrationPasses()
         {
-            var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(TestComputeShaderPaths.StreamCompactionIntegrate);
+            var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(TestComputeShaderPaths.WcsphIntegration);
             Assert.IsNotNull(shader);
             ComputeShaderTestUtility.AssertHasKernel(shader, "ExecuteInternalFluidIntegration");
             ComputeShaderTestUtility.AssertHasKernel(shader, "ExecuteContainerFluidIntegration");

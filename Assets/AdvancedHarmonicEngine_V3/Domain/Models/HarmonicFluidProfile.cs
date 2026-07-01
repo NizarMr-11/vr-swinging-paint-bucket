@@ -95,7 +95,7 @@ namespace HarmonicEngine.Domain.Models
             derivedSpecularIntensity = Mathf.Lerp(0.5f, 2f, visualGloss);
         }
 
-        public void ApplyTo(PipelineExecutionController pipeline, HarmonicScreenSpaceFluidRenderer renderer)
+        public void ApplyTo(HarmonicPipelineController pipeline, HarmonicScreenSpaceFluidRenderer renderer)
         {
             RebuildDerived();
             if (pipeline == null)

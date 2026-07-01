@@ -30,11 +30,11 @@ namespace HarmonicEngine.Tests
         public void ReadRuntimeSnapshot_IncludesSpillOverRimDefault()
         {
             var go = new GameObject("spill-runtime-pipeline");
-            var pipeline = go.AddComponent<PipelineExecutionController>();
+            var pipeline = go.AddComponent<HarmonicPipelineController>();
             pipeline.SetContainerFluidEnabled(true);
 
             HarmonicRuntimeTuningSnapshot tuning = pipeline.ReadRuntimeSnapshot();
-            Assert.IsFalse(tuning.spillOverRim);
+            Assert.IsFalse(tuning.transferExteriorParticlesToFalling);
 
             Object.DestroyImmediate(go);
         }

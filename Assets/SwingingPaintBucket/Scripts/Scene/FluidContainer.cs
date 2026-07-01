@@ -16,7 +16,7 @@ namespace SwingingPaintBucket.Scene
         private const string VisualChildName = "ContainerVisual";
 
         [Header("References")]
-        [SerializeField] private PipelineExecutionController pipeline;
+        [SerializeField] private HarmonicPipelineController pipeline;
 
         [Header("Cylinder (open top)")]
         [SerializeField, Min(0.05f)] private float radius = 0.55f;
@@ -60,7 +60,7 @@ namespace SwingingPaintBucket.Scene
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             SyncVisualMesh();
@@ -104,7 +104,7 @@ namespace SwingingPaintBucket.Scene
         {
             if (pipeline == null)
             {
-                pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                pipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             if (pipeline == null)

@@ -17,7 +17,7 @@ namespace HarmonicEngine.Diagnostics
 
         private const float DefaultTelemetrySampleInterval = 0.25f;
 
-        private PipelineExecutionController _pipeline;
+        private HarmonicPipelineController _pipeline;
         private bool _bootstrapped;
 
         private MultiChannelFileLogAspect _fileLog;
@@ -38,10 +38,10 @@ namespace HarmonicEngine.Diagnostics
 
         public void ApplySettings(
             HarmonicPipelineDiagnosticsSettings settings,
-            PipelineExecutionController pipelineController) =>
+            HarmonicPipelineController pipelineController) =>
             Bootstrap(settings, pipelineController);
 
-        public void Bootstrap(HarmonicPipelineDiagnosticsSettings settings, PipelineExecutionController pipelineController)
+        public void Bootstrap(HarmonicPipelineDiagnosticsSettings settings, HarmonicPipelineController pipelineController)
         {
             if (_bootstrapped)
             {
@@ -76,7 +76,7 @@ namespace HarmonicEngine.Diagnostics
 
             if (GetComponent<HarmonicPipelineDiagnosticsController>() == null)
             {
-                _pipeline = FindFirstObjectByType<PipelineExecutionController>();
+                _pipeline = FindFirstObjectByType<HarmonicPipelineController>();
                 Bootstrap(HarmonicPipelineDiagnosticsSettings.CreateDefault(), _pipeline);
             }
         }

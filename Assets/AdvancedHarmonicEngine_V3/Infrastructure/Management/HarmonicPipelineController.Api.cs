@@ -3,17 +3,17 @@ using UnityEngine;
 
 namespace HarmonicEngine.Infrastructure.Management
 {
-    public partial class PipelineExecutionController
+    public partial class HarmonicPipelineController
     {
-        public void SetContainerParticleMass(float mass) => containerFluid.particleMass = Mathf.Max(0f, mass);
+        public void SetContainerParticleMass(float mass) => openTopCylinder.particleMass = Mathf.Max(0f, mass);
 
-        public void SetContainerViscosity(float value) => containerFluid.viscosity = Mathf.Max(0f, value);
+        public void SetContainerViscosity(float value) => openTopCylinder.viscosity = Mathf.Max(0f, value);
 
-        public void SetContainerRestitution(float value) => containerFluid.restitution = Mathf.Clamp01(value);
+        public void SetContainerRestitution(float value) => openTopCylinder.restitution = Mathf.Clamp01(value);
 
-        public void SetContainerFriction(float value) => containerFluid.friction = Mathf.Clamp01(value);
+        public void SetContainerFriction(float value) => openTopCylinder.friction = Mathf.Clamp01(value);
 
-        public void SetContainerSpillOverRim(bool enabled) => spillOverRim = enabled;
+        public void SetContainerSpillOverRim(bool enabled) => transferExteriorParticlesToFalling = enabled;
 
         public void SetPbfIterations(int value) => pbfIterations = Mathf.Clamp(value, 1, 8);
 
@@ -29,7 +29,7 @@ namespace HarmonicEngine.Infrastructure.Management
         /// </summary>
         public void SetContainerFluidEnabled(bool enabled)
         {
-            containerFluid.enabled = enabled;
+            openTopCylinder.enabled = enabled;
             if (enabled)
             {
                 worldFallingOnly = false;
@@ -53,7 +53,7 @@ namespace HarmonicEngine.Infrastructure.Management
             float friction,
             float wallStiffness)
         {
-            containerFluid.ApplyBounds(center, radius, floorY, rimY, restitution, friction, wallStiffness);
+            openTopCylinder.ApplyBounds(center, radius, floorY, rimY, restitution, friction, wallStiffness);
             float height = Mathf.Max(0.05f, rimY - floorY);
             Vector3 floorPivot = new Vector3(center.x, floorY, center.z);
             SetContainerFluidOriented(floorPivot, Quaternion.identity, radius, height, restitution, friction, wallStiffness);
@@ -223,6 +223,8 @@ namespace HarmonicEngine.Infrastructure.Management
                 seedTestParticlesOnStart = false;
             }
         }
+
+        public void SetAutoRunPipeline(bool enabled) => autoRunPipeline = enabled;
 
         public void ApplyDiagnosticsSettings(HarmonicPipelineDiagnosticsSettings settings)
         {

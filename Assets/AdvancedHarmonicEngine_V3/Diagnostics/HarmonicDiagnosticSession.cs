@@ -6,7 +6,7 @@ namespace HarmonicEngine.Diagnostics
 {
     public sealed class HarmonicDiagnosticSession
     {
-        public PipelineExecutionController Pipeline { get; internal set; }
+        public HarmonicPipelineController Pipeline { get; internal set; }
         public HarmonicPipelineDiagnosticsSettings DiagnosticsSettings { get; internal set; }
         public int FrameIndex { get; internal set; }
         public float StartTime { get; }
@@ -18,7 +18,7 @@ namespace HarmonicEngine.Diagnostics
         public string RunDirectory { get; }
 
         internal HarmonicDiagnosticSession(
-            PipelineExecutionController pipeline,
+            HarmonicPipelineController pipeline,
             string logRootDirectory,
             string runDirectory,
             HarmonicPipelineDiagnosticsSettings diagnosticsSettings)

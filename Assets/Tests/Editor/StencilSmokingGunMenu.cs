@@ -85,7 +85,7 @@ namespace HarmonicEngine.Tests.PlayMode
         }
 
         private static int SpawnRestLatticeWithInteriorParticle0(
-            PipelineExecutionController pipeline,
+            HarmonicPipelineController pipeline,
             int nx,
             int ny,
             int nz,

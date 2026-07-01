@@ -21,7 +21,7 @@ namespace SwingingPaintBucket.Particles
         public bool UseHarmonicGpuPipeline;
 
         [Tooltip("GPU pipeline controller in the scene (HarmonicPipelineRoot).")]
-        public PipelineExecutionController HarmonicPipeline;
+        public HarmonicPipelineController HarmonicPipeline;
 
         [Tooltip("Optional bridge component; created automatically if missing.")]
         public HarmonicGpuEmitterBridge HarmonicBridge;
@@ -68,7 +68,7 @@ namespace SwingingPaintBucket.Particles
         {
             if (HarmonicPipeline == null)
             {
-                HarmonicPipeline = FindFirstObjectByType<PipelineExecutionController>();
+                HarmonicPipeline = FindFirstObjectByType<HarmonicPipelineController>();
             }
 
             if (HarmonicBridge == null)
@@ -86,7 +86,7 @@ namespace SwingingPaintBucket.Particles
             }
             else
             {
-                Debug.LogWarning("[ParticleEmitter] UseHarmonicGpuPipeline is enabled but no PipelineExecutionController was found.");
+                Debug.LogWarning("[ParticleEmitter] UseHarmonicGpuPipeline is enabled but no HarmonicPipelineController was found.");
             }
         }
 

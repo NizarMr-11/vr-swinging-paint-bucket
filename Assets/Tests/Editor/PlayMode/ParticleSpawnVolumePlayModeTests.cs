@@ -20,7 +20,7 @@ namespace HarmonicEngine.Tests.PlayMode
 
             yield return PlayModeTestUtility.EnsurePlayMode();
 
-            PipelineExecutionController pipeline = TestPipelineFactory.CreatePipeline(capacity: 8192, autoRun: false);
+            HarmonicPipelineController pipeline = TestPipelineFactory.CreatePipeline(capacity: 8192, autoRun: false);
             yield return null;
 
             const int requested = 1024;
@@ -60,7 +60,7 @@ namespace HarmonicEngine.Tests.PlayMode
 
             yield return PlayModeTestUtility.EnsurePlayMode();
 
-            PipelineExecutionController pipeline = TestPipelineFactory.CreatePipeline(capacity: 2048, autoRun: false);
+            HarmonicPipelineController pipeline = TestPipelineFactory.CreatePipeline(capacity: 2048, autoRun: false);
             yield return null;
 
             var go = new GameObject("ParticleSpawnVolumeBox");
