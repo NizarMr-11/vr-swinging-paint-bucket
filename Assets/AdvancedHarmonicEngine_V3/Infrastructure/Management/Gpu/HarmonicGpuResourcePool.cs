@@ -6,13 +6,9 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
     {
         public ParticleSoaBuffers SoaInternalA { get; private set; }
         public ParticleSoaBuffers SoaInternalB { get; private set; }
-        public ParticleSoaBuffers SoaFalling { get; private set; }
-        public ParticleSoaBuffers SoaFallingWorld { get; private set; }
         public ParticleSoaBuffers SoaDragScratch { get; private set; }
         public ComputeBuffer DensityCacheDensities { get; private set; }
         public ComputeBuffer DensityCachePressures { get; private set; }
-        public ComputeBuffer BufferFalling { get; private set; }
-        public ComputeBuffer BufferFallingWorld { get; private set; }
         public ComputeBuffer DragGrid { get; private set; }
         public ComputeBuffer GridKeyValueBuffer { get; private set; }
         public ComputeBuffer CellStartEndBuffer { get; private set; }
@@ -26,6 +22,8 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
         public ComputeBuffer CounterReadbackBuffer { get; private set; }
         public ComputeBuffer CanvasHits { get; private set; }
         public PbfScratchBuffers PbfScratch { get; private set; }
+        /// <summary>Per-particle last rigid-carry rotational velocity contribution (world space). Not ping-ponged.</summary>
+        public ComputeBuffer PrevCarryContribution { get; private set; }
         public PingPongSoaManager PingPong { get; private set; }
         public HarmonicParticleBufferService BufferService { get; private set; }
         public int PaddedSortSize { get; private set; }
@@ -41,13 +39,15 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
 
             SoaInternalA = ParticleSoaBuffers.Create(config.MaxCapacity, ComputeBufferType.Append);
             SoaInternalB = ParticleSoaBuffers.Create(config.MaxCapacity, ComputeBufferType.Append);
-            SoaFalling = ParticleSoaBuffers.Create(config.MaxCapacity, ComputeBufferType.Append);
-            SoaFallingWorld = ParticleSoaBuffers.Create(config.MaxCapacity, ComputeBufferType.Append);
             SoaDragScratch = ParticleSoaBuffers.Create(config.MaxCapacity, ComputeBufferType.Structured);
 
             DensityCacheDensities = new ComputeBuffer(config.MaxCapacity, sizeof(float), ComputeBufferType.Structured);
             DensityCachePressures = new ComputeBuffer(config.MaxCapacity, sizeof(float), ComputeBufferType.Structured);
             PbfScratch = PbfScratchBuffers.Create(config.MaxCapacity);
+
+            int carryContributionStride = sizeof(float) * 3;
+            PrevCarryContribution = new ComputeBuffer(config.MaxCapacity, carryContributionStride, ComputeBufferType.Structured);
+            ClearPrevCarryContribution(config.MaxCapacity);
 
             int dragVolume = Mathf.Max(1, config.DragGridVolume);
             int dragStride = sizeof(float) * 4;
@@ -75,12 +75,7 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
 
             SoaInternalA.SetCounterValue(0);
             SoaInternalB.SetCounterValue(0);
-            SoaFalling.SetCounterValue(0);
-            SoaFallingWorld.SetCounterValue(0);
             CanvasHits.SetCounterValue(0);
-
-            BufferFalling = SoaFalling.CounterBuffer;
-            BufferFallingWorld = SoaFallingWorld.CounterBuffer;
 
             PingPong = new PingPongSoaManager(SoaInternalA, SoaInternalB);
             BufferService = new HarmonicParticleBufferService(
@@ -95,8 +90,6 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
         {
             SoaInternalA?.Release();
             SoaInternalB?.Release();
-            SoaFalling?.Release();
-            SoaFallingWorld?.Release();
             SoaDragScratch?.Release();
             DensityCacheDensities?.Release();
             DensityCachePressures?.Release();
@@ -113,16 +106,13 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
             CounterReadbackBuffer?.Release();
             CanvasHits?.Release();
             PbfScratch?.Release();
+            PrevCarryContribution?.Release();
 
             SoaInternalA = null;
             SoaInternalB = null;
-            SoaFalling = null;
-            SoaFallingWorld = null;
             SoaDragScratch = null;
             DensityCacheDensities = null;
             DensityCachePressures = null;
-            BufferFalling = null;
-            BufferFallingWorld = null;
             DragGrid = null;
             GridKeyValueBuffer = null;
             CellStartEndBuffer = null;
@@ -136,18 +126,24 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
             CounterReadbackBuffer = null;
             CanvasHits = null;
             PbfScratch = null;
+            PrevCarryContribution = null;
             PingPong = null;
             BufferService = null;
         }
 
-        public void SetFrameSortSize(int sortSize) => FrameSortSize = sortSize;
-
-        public void SwapFallingParticleBuffers()
+        public void ClearPrevCarryContribution(int capacity)
         {
-            (SoaFalling, SoaFallingWorld) = (SoaFallingWorld, SoaFalling);
-            BufferFalling = SoaFalling.CounterBuffer;
-            BufferFallingWorld = SoaFallingWorld.CounterBuffer;
+            if (PrevCarryContribution == null || capacity <= 0)
+            {
+                return;
+            }
+
+            int count = Mathf.Min(capacity, PrevCarryContribution.count);
+            var zeros = new Vector3[count];
+            PrevCarryContribution.SetData(zeros);
         }
+
+        public void SetFrameSortSize(int sortSize) => FrameSortSize = sortSize;
     }
 
     public sealed class HarmonicGpuResourcePoolConfig

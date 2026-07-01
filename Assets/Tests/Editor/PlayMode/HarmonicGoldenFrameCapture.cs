@@ -82,7 +82,6 @@ namespace HarmonicEngine.Tests.PlayMode
             pipeline.SetPbfVelocityDamping(0.85f);
             pipeline.SetPbfMaxPositionDelta(0.015f);
             pipeline.SetPbfCohesion(0.3f);
-            pipeline.SetContainerSpillOverRim(false);
             pipeline.ApplyDiagnosticsSettings(new HarmonicPipelineDiagnosticsSettings
             {
                 positionSampleInterval = 1,

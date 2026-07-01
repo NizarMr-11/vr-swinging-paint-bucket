@@ -50,7 +50,7 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
                 return;
             }
 
-            uint count = pipeline.LastFallingQuantizeCount;
+            uint count = pipeline.GetActiveParticleCount();
             ComputeBuffer source = pipeline.QuantizedBakeBuffer;
             if (count == 0 || source == null)
             {

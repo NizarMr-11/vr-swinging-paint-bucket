@@ -52,84 +52,13 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private void ExecuteBucketSphFrameInternal(uint activeCount, float deltaTime)
         {
-            float smoothingRadius = sphSolver.SmoothingRadius(cellSize);
-            Matrix4x4 localToWorld = GetLocalToWorldMatrix();
-            Vector3 bucketVelocity = GetBucketVelocity(deltaTime);
-            ResolveAngularKinematics(out Vector3 angularVelocityWorld, out Vector3 angularAccelerationWorld);
-
-            ParticleSoaBuffers particleSourceForSph = _pingPong.ReadSet;
-            if (enableEulerianDrag && eulerianDragGridShader != null && _soaDragScratch != null)
+            if (verbosePipelineDiagnostics && !perfDiagnosticsMuted)
             {
-                RunEulerianDragPass(activeCount, deltaTime);
-                particleSourceForSph = _soaDragScratch;
+                PublishStageDiagnosticInternal(
+                    "bucketSph",
+                    "Bucket WCSPH path is deprecated until single-buffer migration; frame skipped.");
             }
 
-            ComputeFrameSortSize(activeCount);
-            BuildSpatialHashGrid(_pingPong.ReadSet, activeCount);
-
-            ApplySphUniforms(wcsphDensityShader, smoothingRadius, localToWorld, bucketVelocity, angularVelocityWorld, angularAccelerationWorld);
-            using (MarkerDensity.Auto())
-            {
-                BindReadSoa(wcsphDensityShader, _kernelDensity, particleSourceForSph);
-                wcsphDensityShader.SetBuffer(_kernelDensity, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
-                wcsphDensityShader.SetBuffer(_kernelDensity, CellStartEndBufferId, _cellStartEndBuffer);
-                BindDensityCacheRw(wcsphDensityShader, _kernelDensity);
-                wcsphDensityShader.SetInt(ActiveParticleCountId, (int)activeCount);
-                wcsphDensityShader.DispatchIndirect(_kernelDensity, _indirectArgsBuffer, 0);
-            }
-
-            ApplySphUniforms(wcsphIntegrationShader, smoothingRadius, localToWorld, bucketVelocity, angularVelocityWorld, angularAccelerationWorld);
-            using (MarkerIntegration.Auto())
-            {
-                BindReadSoa(wcsphIntegrationShader, _kernelIntegration, particleSourceForSph);
-                BindDensityCacheRead(wcsphIntegrationShader, _kernelIntegration);
-                wcsphIntegrationShader.SetBuffer(_kernelIntegration, SortedGridKeyValueBufferId, _gridKeyValueBuffer);
-                wcsphIntegrationShader.SetBuffer(_kernelIntegration, CellStartEndBufferId, _cellStartEndBuffer);
-                BindInternalAppendSoa(wcsphIntegrationShader, _kernelIntegration, _pingPong.WriteSet);
-                BindFallingAppendSoa(wcsphIntegrationShader, _kernelIntegration, _soaFalling);
-                wcsphIntegrationShader.SetInt(ActiveParticleCountId, (int)activeCount);
-                wcsphIntegrationShader.SetFloat(DeltaTimeId, deltaTime);
-                wcsphIntegrationShader.DispatchIndirect(_kernelIntegration, _indirectArgsBuffer, 0);
-            }
-
-            uint fallingCount = SanitizeCount(FetchActiveCount(_soaFalling));
-            ParticleSoaBuffers quantizeSource = _soaFalling;
-            _lastFallingDebugCount = fallingCount;
-
-            if (fallingCount > 0 && fallingFluidWorldShader != null)
-            {
-                _soaFallingWorld.SetCounterValue(0);
-                BindFallingReadSoa(fallingFluidWorldShader, _kernelFallingWorld, _soaFalling);
-                BindFallingWorldAppendSoa(fallingFluidWorldShader, _kernelFallingWorld, _soaFallingWorld);
-                fallingFluidWorldShader.SetBuffer(_kernelFallingWorld, CanvasHitAppendId, _bufferCanvasHits);
-                ApplyFallingWorldUniformsInternal(fallingFluidWorldShader, fallingCount, deltaTime);
-                int fallingGroups = Mathf.CeilToInt(fallingCount / 64f);
-                fallingFluidWorldShader.Dispatch(_kernelFallingWorld, fallingGroups, 1, 1);
-
-                _lastCanvasHitCount = FetchActiveCount(_bufferCanvasHits);
-                fallingCount = SanitizeAndRepairCount(_soaFallingWorld);
-                quantizeSource = _soaFallingWorld;
-                _lastFallingDebugCount = fallingCount;
-            }
-
-            _lastFallingQuantizeCount = fallingCount;
-            if (fallingCount == 0)
-            {
-                _lastBucketPosition = GetBucketPosition();
-                _pingPong.Swap();
-                return;
-            }
-
-            ComputeBuffer.CopyCount(quantizeSource.CounterBuffer, _indirectArgsBuffer, sizeof(int) * 3);
-            DispatchIndirectArgsSetup();
-
-            BindReadSoa(dataCompactionShader, _kernelQuantize, quantizeSource);
-            dataCompactionShader.SetBuffer(_kernelQuantize, QuantizedOutputBufferId, _quantizedBakeBuffer);
-            dataCompactionShader.SetVector(QuantizationOriginId, GetBucketPosition());
-            dataCompactionShader.SetInt(QuantizedCountId, (int)fallingCount);
-            dataCompactionShader.DispatchIndirect(_kernelQuantize, _indirectArgsBuffer, 0);
-
-            _lastBucketPosition = GetBucketPosition();
             _pingPong.Swap();
         }
 

@@ -29,6 +29,14 @@ namespace HarmonicEngine.Infrastructure.Management
             shader.SetFloat(ContainerFrictionId, openTopCylinder.friction);
             shader.SetFloat(DeltaTimeId, deltaTime);
             shader.SetInt(MaxParticleCountId, maxCapacity);
+            shader.SetFloat(WorldDragId, worldDrag);
+            shader.SetFloat(CanvasPlaneYId, canvasPlaneY);
+            shader.SetInt(CanvasCullingEnabledId, canvasCullingEnabled ? 1 : 0);
+            shader.SetInt(CanvasPaintAbsorbEnabledId, canvasPaintAbsorbEnabled ? 1 : 0);
+            shader.SetFloat(CanvasAbsorbRateId, canvasAbsorbRate);
+            shader.SetFloat(CanvasAbsorbPaintWeightScaleId, canvasAbsorbPaintWeightScale);
+            shader.SetFloat(FloorRestitutionId, floorRestitution);
+            shader.SetFloat(FloorFrictionId, floorFriction);
             ApplyContainerPbfUniforms(shader);
         }
     }

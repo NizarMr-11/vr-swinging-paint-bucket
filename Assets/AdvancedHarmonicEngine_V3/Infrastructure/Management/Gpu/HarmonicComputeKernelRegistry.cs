@@ -24,7 +24,6 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
         public int PbfLambda { get; private set; } = -1;
         public int PbfSolve { get; private set; } = -1;
         public int PbfApply { get; private set; } = -1;
-        public int PbfAppendSpilled { get; private set; } = -1;
         public int ContainerRigidCarry { get; private set; } = -1;
 
         public void CacheKernels(HarmonicComputeShaderSet shaders)
@@ -78,7 +77,6 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
                 PbfLambda = shaders.PbfSolver.FindKernel("ComputeLambdaKernel");
                 PbfSolve = shaders.PbfSolver.FindKernel("SolvePositionsKernel");
                 PbfApply = shaders.PbfSolver.FindKernel("ApplyPositionsKernel");
-                PbfAppendSpilled = shaders.PbfSolver.FindKernel("AppendSpilledKernel");
             }
 
             ContainerRigidCarry = shaders.ContainerRigidCarry != null

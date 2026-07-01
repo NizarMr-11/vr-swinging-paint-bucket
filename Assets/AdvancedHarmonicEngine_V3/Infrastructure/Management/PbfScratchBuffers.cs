@@ -15,8 +15,6 @@ namespace HarmonicEngine.Infrastructure.Management
         public ComputeBuffer Lambdas;
         /// <summary>Σ|∇C|² per particle from the lambda pass (solver tuning output).</summary>
         public ComputeBuffer GradSqSum;
-        /// <summary>Per-particle spill transfer flag (1 = append to falling world).</summary>
-        public ComputeBuffer SpillTransferFlags;
 
         public static PbfScratchBuffers Create(int maxCapacity)
         {
@@ -25,8 +23,7 @@ namespace HarmonicEngine.Infrastructure.Management
                 PredictedBlock0 = new ComputeBuffer(maxCapacity, sizeof(float) * 4, ComputeBufferType.Structured),
                 OldBlock0 = new ComputeBuffer(maxCapacity, sizeof(float) * 4, ComputeBufferType.Structured),
                 Lambdas = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured),
-                GradSqSum = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured),
-                SpillTransferFlags = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured)
+                GradSqSum = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured)
             };
         }
 
@@ -36,12 +33,10 @@ namespace HarmonicEngine.Infrastructure.Management
             OldBlock0?.Release();
             Lambdas?.Release();
             GradSqSum?.Release();
-            SpillTransferFlags?.Release();
             PredictedBlock0 = null;
             OldBlock0 = null;
             Lambdas = null;
             GradSqSum = null;
-            SpillTransferFlags = null;
         }
     }
 }

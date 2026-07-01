@@ -59,7 +59,6 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
                 host.ContainerRigidCarryShader.SetMatrix(HarmonicShaderPropertyIds.ContainerLocalToWorld, host.ContainerLocalToWorld);
                 host.ContainerRigidCarryShader.SetFloat(HarmonicShaderPropertyIds.ContainerHeight, host.ContainerFluidHeight);
                 host.ContainerRigidCarryShader.SetFloat(HarmonicShaderPropertyIds.ContainerRadius, host.ContainerFluidRadius);
-                host.ContainerRigidCarryShader.SetInt(HarmonicShaderPropertyIds.ContainerSpillEnabled, host.SpillOverRim ? 1 : 0);
                 host.ContainerRigidCarryShader.SetInt(HarmonicShaderPropertyIds.ContainerUsesOrientation, 1);
                 host.ContainerRigidCarryShader.SetVector(HarmonicShaderPropertyIds.ContainerCenter, host.ContainerFluidCenter);
                 host.ContainerRigidCarryShader.SetFloat(HarmonicShaderPropertyIds.ContainerFloorY, host.ContainerFluidFloorY);
@@ -70,6 +69,10 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
                 host.ContainerRigidCarryShader.SetVector(HarmonicShaderPropertyIds.ContainerFloorPivot, host.ContainerFloorPivot);
                 host.ContainerRigidCarryShader.SetBuffer(host.KernelContainerRigidCarry, HarmonicShaderPropertyIds.Block0, host.PingPong.ReadSet.Block0);
                 host.ContainerRigidCarryShader.SetBuffer(host.KernelContainerRigidCarry, HarmonicShaderPropertyIds.Block1, host.PingPong.ReadSet.Block1);
+                host.ContainerRigidCarryShader.SetBuffer(
+                    host.KernelContainerRigidCarry,
+                    HarmonicShaderPropertyIds.PrevCarryContribution,
+                    host.PrevCarryContributionBuffer);
                 int groups = Mathf.CeilToInt(activeCount / 64f);
                 host.ContainerRigidCarryShader.Dispatch(host.KernelContainerRigidCarry, groups, 1, 1);
             }

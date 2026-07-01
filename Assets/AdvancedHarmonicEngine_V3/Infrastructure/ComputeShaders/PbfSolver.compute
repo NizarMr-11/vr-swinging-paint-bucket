@@ -3,7 +3,6 @@
 #pragma kernel ComputeLambdaKernel
 #pragma kernel SolvePositionsKernel
 #pragma kernel ApplyPositionsKernel
-#pragma kernel AppendSpilledKernel
 
 #include "Include/SphCommon.hlsl"
 #include "Include/SphSoaAccess.hlsl"
@@ -15,17 +14,21 @@ RWStructuredBuffer<float4> _PredictedBlock0;
 RWStructuredBuffer<float> _DensityCacheDensities;
 RWStructuredBuffer<float> _Lambdas;
 RWStructuredBuffer<float> _GradSqSum;
-RWStructuredBuffer<float> _SpillTransferFlags;
 
 RWStructuredBuffer<float4> _WriteBlock0;
 RWStructuredBuffer<float4> _WriteBlock1;
 RWStructuredBuffer<uint> _WritePackedColors;
 RWStructuredBuffer<float> _WriteWetness;
 
-AppendStructuredBuffer<float4> _FallingBlock0;
-AppendStructuredBuffer<float4> _FallingBlock1;
-AppendStructuredBuffer<uint> _FallingPackedColors;
-AppendStructuredBuffer<float> _FallingWetness;
+struct CanvasPaintHit
+{
+    float3 WorldPosition;
+    float PaintWeight;
+    uint PackedColorRGBA;
+    float WetnessDeposit;
+};
+
+AppendStructuredBuffer<CanvasPaintHit> _CanvasHitAppend;
 
 float _DeltaTime;
 uint _ActiveParticleCount;
@@ -42,12 +45,12 @@ float _PbfMaxPositionDelta;
 float _ContainerHeight;
 float4x4 _ContainerLocalToWorld;
 float4x4 _ContainerWorldToLocal;
-int _ContainerSpillEnabled;
 int _ContainerUsesOrientation;
 float3 _ContainerFloorPivot;
 
 float _CohesionStrength;
-float3 _Gravity;float3 _ContainerCenter;
+float3 _Gravity;
+float3 _ContainerCenter;
 float _ContainerRadius;
 float _ContainerFloorY;
 float _ContainerRimY;
@@ -55,8 +58,73 @@ float _ContainerRestitution;
 float _ContainerFriction;
 uint _MaxParticleCount;
 
-#include "Include/PbfNeighborQuery.hlsl"
+float _WorldDrag;
+float _CanvasPlaneY;
+uint _CanvasCullingEnabled;
+uint _CanvasPaintAbsorbEnabled;
+float _CanvasAbsorbRate;
+float _CanvasAbsorbPaintWeightScale;
+float _FloorRestitution;
+float _FloorFriction;
+
 #include "Include/OpenTopCylinderBoundary.hlsl"
+#include "Include/PbfNeighborQuery.hlsl"
+
+void AppendCanvasHit(float3 worldPos, float weight, uint packedColor, float wetnessDeposit)
+{
+    CanvasPaintHit hit;
+    hit.WorldPosition = worldPos;
+    hit.PaintWeight = weight;
+    hit.PackedColorRGBA = packedColor;
+    hit.WetnessDeposit = wetnessDeposit;
+    _CanvasHitAppend.Append(hit);
+}
+
+void ApplyOutsideCanvasCollision(inout float3 pos, inout float3 vel, inout float wetness, uint packedColor)
+{
+    if (pos.y > _CanvasPlaneY)
+    {
+        return;
+    }
+
+    if (_CanvasCullingEnabled != 0)
+    {
+        if (_CanvasPaintAbsorbEnabled != 0)
+        {
+            pos.y = _CanvasPlaneY;
+            vel = float3(0, 0, 0);
+
+            if (wetness <= 0.0)
+            {
+                wetness = 1.0;
+            }
+
+            float absorbed = min(wetness, _CanvasAbsorbRate * _DeltaTime);
+            wetness -= absorbed;
+
+            if (absorbed > 0.0)
+            {
+                AppendCanvasHit(
+                    pos,
+                    absorbed * _CanvasAbsorbPaintWeightScale,
+                    packedColor,
+                    absorbed);
+            }
+
+            return;
+        }
+
+        AppendCanvasHit(pos, length(vel), packedColor, 1.0);
+        vel = float3(0, 0, 0);
+        pos.y = _CanvasPlaneY;
+        return;
+    }
+
+    pos.y = _CanvasPlaneY;
+    vel.y = -vel.y * _FloorRestitution;
+    vel.x *= _FloorFriction;
+    vel.z *= _FloorFriction;
+}
 
 float3 ComputeXsphViscosity(uint particleIndex, float3 selfPos, float3 selfVel)
 {
@@ -85,6 +153,11 @@ float3 ComputeXsphViscosity(uint particleIndex, float3 selfPos, float3 selfVel)
 
             uint neighborIndex = pair.ParticleIndex;
             float3 neighborPos = SphLoadPosition(neighborIndex);
+            if (!OtcParticipatesInPbf(neighborPos))
+            {
+                continue;
+            }
+
             float3 diff = selfPos - neighborPos;
             float r = length(diff);
             if (r > 2.0 * h)
@@ -138,6 +211,11 @@ float3 ComputeCohesionForce(uint particleIndex, float3 selfPos)
             }
 
             float3 neighborPos = SphLoadPosition(neighborIndex);
+            if (!OtcParticipatesInPbf(neighborPos))
+            {
+                continue;
+            }
+
             float3 diff = selfPos - neighborPos;
             float r = length(diff);
             if (r > h || r < 1e-5)
@@ -167,9 +245,19 @@ void PredictPositionsKernel(uint3 id : SV_DispatchThreadID)
 
     _OldBlock0[i] = float4(pos, 0.0);
 
-    float3 accel = _Gravity + ComputeXsphViscosity(i, pos, vel) + ComputeCohesionForce(i, pos);
+    float3 accel = _Gravity;
+    if (OtcIsOutsideFootprint(pos))
+    {
+        vel *= max(0.0, 1.0 - _WorldDrag * _DeltaTime);
+    }
+    else
+    {
+        accel += ComputeXsphViscosity(i, pos, vel) + ComputeCohesionForce(i, pos);
+    }
+
     vel += accel * _DeltaTime;
     pos += vel * _DeltaTime;
+    OtcClampToContainer(pos, vel);
 
     _PredictedBlock0[i] = float4(pos, 0.0);
 }
@@ -180,6 +268,13 @@ void ComputeDensityKernel(uint3 id : SV_DispatchThreadID)
     uint i = id.x;
     if (i >= _ActiveParticleCount || i >= _MaxParticleCount)
     {
+        return;
+    }
+
+    float3 selfPos = PbfLoadPredictedPosition(i);
+    if (!OtcParticipatesInPbf(selfPos))
+    {
+        _DensityCacheDensities[i] = 0.0;
         return;
     }
 
@@ -195,16 +290,16 @@ void ComputeLambdaKernel(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    float density = _DensityCacheDensities[i];
-    float constraint = density / max(_RestDensity, 1e-4) - 1.0;
-
     float3 selfPos = PbfLoadPredictedPosition(i);
-    if (PbfIsQuarantined(selfPos))
+    if (!OtcParticipatesInPbf(selfPos))
     {
         _GradSqSum[i] = 0.0;
         _Lambdas[i] = 0.0;
         return;
     }
+
+    float density = _DensityCacheDensities[i];
+    float constraint = density / max(_RestDensity, 1e-4) - 1.0;
 
     int3 baseCell = SphCellFromPosition(selfPos, _CellSize);
     float h = _SmoothingRadius;
@@ -229,7 +324,7 @@ void ComputeLambdaKernel(uint3 id : SV_DispatchThreadID)
             }
 
             float3 neighborPos = PbfLoadPredictedPosition(pair.ParticleIndex);
-            if (PbfIsQuarantined(neighborPos))
+            if (!OtcParticipatesInPbf(neighborPos))
             {
                 continue;
             }
@@ -261,7 +356,7 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float3 selfPos = PbfLoadPredictedPosition(i);
-    if (PbfIsQuarantined(selfPos))
+    if (!OtcParticipatesInPbf(selfPos))
     {
         return;
     }
@@ -291,7 +386,7 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
 
             uint j = pair.ParticleIndex;
             float3 neighborPos = PbfLoadPredictedPosition(j);
-            if (PbfIsQuarantined(neighborPos))
+            if (!OtcParticipatesInPbf(neighborPos))
             {
                 continue;
             }
@@ -317,6 +412,7 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
         delta *= _PbfMaxPositionDelta / deltaLen;
     }
     selfPos += delta;
+    OtcClampToContainerPosition(selfPos);
     _PredictedBlock0[i] = float4(selfPos, 0.0);
 }
 
@@ -334,74 +430,21 @@ void ApplyPositionsKernel(uint3 id : SV_DispatchThreadID)
     uint packedColor = SphLoadPackedColor(i);
     float wetness = SphLoadWetness(i);
 
-    // Slots that already spilled are parked at 99999. Keep them dead: without this guard they
-    // pass OtcShouldTransferToFalling() again every frame and re-append to the falling buffer
-    // endlessly (runaway respawns).
-    if (PbfIsQuarantined(predictedPos))
-    {
-        _SpillTransferFlags[i] = 0.0;
-        _WriteBlock0[i] = float4(99999.0, 99999.0, 99999.0, 0.0);
-        _WriteBlock1[i] = float4(0.0, 0.0, 0.0, 0.0);
-        _WritePackedColors[i] = packedColor;
-        _WriteWetness[i] = wetness;
-        return;
-    }
-
     float3 vel = (predictedPos - oldPos) / max(_DeltaTime, 1e-6);
     vel *= _PbfVelocityDamping;
 
     float3 newPos = predictedPos;
-    OtcClampToContainer(newPos, vel);
-
     float density = _DensityCacheDensities[i];
     float pressure = 0.0;
 
-    if (OtcShouldTransferToFalling(newPos))
+    OtcClampToContainer(newPos, vel);
+    if (OtcIsOutsideFootprint(newPos))
     {
-        _SpillTransferFlags[i] = 1.0;
-        // Hand the CLAMPED spawn position + velocity to AppendSpilledKernel so the falling
-        // particle appears exactly where it left the cup (no teleport back to the predicted pos).
-        _OldBlock0[i] = float4(newPos, density);
-        _PredictedBlock0[i] = float4(vel, pressure);
-        newPos = float3(99999.0, 99999.0, 99999.0);
-        vel = float3(0.0, 0.0, 0.0);
-    }
-    else if (_ContainerSpillEnabled != 0)
-    {
-        _SpillTransferFlags[i] = 0.0;
+        ApplyOutsideCanvasCollision(newPos, vel, wetness, packedColor);
     }
 
     _WriteBlock0[i] = float4(newPos, density);
     _WriteBlock1[i] = float4(vel, pressure);
     _WritePackedColors[i] = packedColor;
     _WriteWetness[i] = wetness;
-}
-
-[numthreads(64, 1, 1)]
-void AppendSpilledKernel(uint3 id : SV_DispatchThreadID)
-{
-    uint i = id.x;
-    if (i >= _ActiveParticleCount || i >= _MaxParticleCount)
-    {
-        return;
-    }
-
-    if (_SpillTransferFlags[i] < 0.5)
-    {
-        return;
-    }
-
-    // Spawn state stashed by ApplyPositionsKernel: OldBlock0 = (clamped pos, density),
-    // PredictedBlock0 = (velocity, pressure).
-    float3 pos = _OldBlock0[i].xyz;
-    float density = _OldBlock0[i].w;
-    float3 vel = _PredictedBlock0[i].xyz;
-    float pressure = _PredictedBlock0[i].w;
-    uint packedColor = SphLoadPackedColor(i);
-    float wetness = SphLoadWetness(i);
-
-    _FallingBlock0.Append(float4(pos, density));
-    _FallingBlock1.Append(float4(vel, pressure));
-    _FallingPackedColors.Append(packedColor);
-    _FallingWetness.Append(wetness);
 }

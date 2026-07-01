@@ -14,19 +14,8 @@ namespace HarmonicEngine.Infrastructure.Management
             return soa != null;
         }
 
-        public bool TryGetFallingParticleSoa(out ParticleSoaBuffers soa, out uint count)
-        {
-            if (worldFallingOnly && _pingPong != null)
-            {
-                soa = _pingPong.ReadSet;
-                count = _cachedInternalCount;
-                return soa != null;
-            }
-
-            soa = _soaFallingWorld ?? _soaFalling;
-            count = _lastFallingDebugCount;
-            return soa != null;
-        }
+        public bool TryGetFallingParticleSoa(out ParticleSoaBuffers soa, out uint count) =>
+            TryGetInternalParticleSoa(out soa, out count);
 
         public bool TryGetDensityCacheBuffers(out ComputeBuffer densities, out ComputeBuffer pressures, out uint count)
         {

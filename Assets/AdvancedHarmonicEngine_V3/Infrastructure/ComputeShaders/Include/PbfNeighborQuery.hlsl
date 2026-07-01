@@ -4,21 +4,16 @@
 StructuredBuffer<GridKeyPair> _SortedGridKeyValueBuffer;
 
 // Neighbor iteration over predicted positions using the spatial hash grid.
-// Parent shader must declare RWStructuredBuffer<float4> _PredictedBlock0 before including.
+// Parent shader must include OpenTopCylinderBoundary.hlsl before this file.
 
 float3 PbfLoadPredictedPosition(uint i)
 {
     return _PredictedBlock0[i].xyz;
 }
 
-bool PbfIsQuarantined(float3 pos)
-{
-    return pos.x > 90000.0;
-}
-
 float PbfComputeDensityAtPosition(uint particleIndex, float3 selfPos)
 {
-    if (PbfIsQuarantined(selfPos))
+    if (!OtcParticipatesInPbf(selfPos))
     {
         return 0.0;
     }
@@ -46,7 +41,7 @@ float PbfComputeDensityAtPosition(uint particleIndex, float3 selfPos)
             }
 
             float3 neighborPos = PbfLoadPredictedPosition(pair.ParticleIndex);
-            if (PbfIsQuarantined(neighborPos))
+            if (!OtcParticipatesInPbf(neighborPos))
             {
                 continue;
             }

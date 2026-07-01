@@ -39,7 +39,6 @@ namespace HarmonicEngine.Infrastructure.Management
             shader.SetMatrix(ContainerLocalToWorldId, _containerLocalToWorld);
             shader.SetMatrix(ContainerWorldToLocalId, _containerWorldToLocal);
             shader.SetFloat(ContainerHeightId, openTopCylinder.height);
-            shader.SetInt(ContainerSpillEnabledId, transferExteriorParticlesToFalling ? 1 : 0);
             shader.SetInt(ContainerUsesOrientationId, 1);
             shader.SetVector(ContainerFloorPivotId, _containerFloorPivot);
         }

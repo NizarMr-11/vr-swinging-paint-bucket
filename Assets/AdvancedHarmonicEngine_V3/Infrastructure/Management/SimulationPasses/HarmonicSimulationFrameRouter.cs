@@ -8,7 +8,6 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
     internal sealed class HarmonicSimulationFrameRouter
     {
         private readonly OpenTopCylinderPbfSimulationPass _pbfPass = new();
-        private readonly FallingWorldSimulationPass _fallingPass = new();
 
         public void Execute(HarmonicPipelineController host, float deltaTime)
         {
@@ -54,7 +53,6 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
                     host.ExecuteContainerFluidFrame(activeCount, deltaTime);
                 }
 
-                _fallingPass.Execute(host, deltaTime);
                 host.PublishPipelineFrameDiagnostic(host.CachedInternalCount);
                 return;
             }

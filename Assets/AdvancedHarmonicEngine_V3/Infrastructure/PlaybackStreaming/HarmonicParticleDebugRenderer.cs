@@ -12,8 +12,7 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
     {
         [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private Material particleDebugMaterial;
-        [SerializeField] private bool drawInternalParticles = true;
-        [SerializeField] private bool drawFallingParticles = true;
+        [SerializeField] private bool drawParticles = true;
         [Tooltip("When enabled, point radius tracks the SPH smoothing length so particles match the simulated fluid scale.")]
         [SerializeField] private bool autoSizeFromSph = true;
         [SerializeField, Range(0.5f, 3f)] private float pointSizeMultiplier = 1.05f;
@@ -55,43 +54,14 @@ namespace HarmonicEngine.Infrastructure.PlaybackStreaming
                 return;
             }
 
-            if (pipeline.WorldFallingOnly)
+            if (!drawParticles
+                || !pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers soa, out uint count)
+                || count == 0)
             {
-                if (drawFallingParticles
-                    && pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers worldSoa, out uint worldCount)
-                    && worldCount > 0)
-                {
-                    DrawSoa(worldSoa, worldCount, fallingColor);
-                }
-
                 return;
             }
 
-            if (pipeline.ContainerFluidEnabled)
-            {
-                if (drawInternalParticles
-                    && pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers containerSoa, out uint containerCount)
-                    && containerCount > 0)
-                {
-                    DrawSoa(containerSoa, containerCount, internalColor);
-                }
-
-                return;
-            }
-
-            if (drawInternalParticles
-                && pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers internalSoa, out uint internalCount)
-                && internalCount > 0)
-            {
-                DrawSoa(internalSoa, internalCount, internalColor);
-            }
-
-            if (drawFallingParticles
-                && pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers fallingSoa, out uint fallingCount)
-                && fallingCount > 0)
-            {
-                DrawSoa(fallingSoa, fallingCount, fallingColor);
-            }
+            DrawSoa(soa, count, internalColor);
         }
 
         private float ResolvePointRadius()

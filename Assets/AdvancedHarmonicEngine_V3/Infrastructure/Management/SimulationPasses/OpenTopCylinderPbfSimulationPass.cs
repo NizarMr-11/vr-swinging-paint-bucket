@@ -11,7 +11,6 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
         private static readonly ProfilerMarker MarkerPbfLambda = new("Harmonic.PbfLambda");
         private static readonly ProfilerMarker MarkerPbfSolve = new("Harmonic.PbfSolve");
         private static readonly ProfilerMarker MarkerPbfApply = new("Harmonic.PbfApply");
-        private static readonly ProfilerMarker MarkerPbfAppendSpilled = new("Harmonic.PbfAppendSpilled");
 
         private readonly SpatialHashBuildPass _spatialHash = new();
 
@@ -30,6 +29,7 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
             }
 
             host.SetCachedInternalCount(host.RepairParticleCount(host.PingPong.ReadSet));
+            host.SetLastCanvasHitCount(host.FetchBufferActiveCount(host.CanvasHitsBuffer));
             host.MaybeSampleParticlePositions(host.PingPong.ReadSet, host.CachedInternalCount, "containerPbf");
             host.MaybeLogPbfConvergence();
             host.MaybeLogPbfTelemetry(deltaTime, steps, subDt);
@@ -104,24 +104,9 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
                 host.PbfSolverShader.SetBuffer(host.KernelPbfApply, HarmonicShaderPropertyIds.PredictedBlock0, host.PbfScratch.PredictedBlock0);
                 host.PassBindDensityCacheDensitiesOnly(host.PbfSolverShader, host.KernelPbfApply);
                 host.PassBindWriteSoaIndexed(host.PbfSolverShader, host.KernelPbfApply, host.PingPong.WriteSet);
-                host.PbfSolverShader.SetBuffer(host.KernelPbfApply, HarmonicShaderPropertyIds.GradSqSum, host.PbfScratch.GradSqSum);
-                host.PbfSolverShader.SetBuffer(host.KernelPbfApply, HarmonicShaderPropertyIds.SpillTransferFlags, host.PbfScratch.SpillTransferFlags);
+                host.PbfSolverShader.SetBuffer(host.KernelPbfApply, HarmonicShaderPropertyIds.CanvasHitAppend, host.CanvasHitsBuffer);
                 host.PbfSolverShader.SetInt(HarmonicShaderPropertyIds.ActiveParticleCount, (int)activeCount);
                 host.PbfSolverShader.DispatchIndirect(host.KernelPbfApply, host.IndirectArgsBuffer, 0);
-            }
-
-            if (host.SpillOverRim)
-            {
-                using (MarkerPbfAppendSpilled.Auto())
-                {
-                    host.PassBindReadSoa(host.PbfSolverShader, host.KernelPbfAppendSpilled, host.PingPong.ReadSet);
-                    host.PbfSolverShader.SetBuffer(host.KernelPbfAppendSpilled, HarmonicShaderPropertyIds.OldBlock0, host.PbfScratch.OldBlock0);
-                    host.PbfSolverShader.SetBuffer(host.KernelPbfAppendSpilled, HarmonicShaderPropertyIds.PredictedBlock0, host.PbfScratch.PredictedBlock0);
-                    host.PbfSolverShader.SetBuffer(host.KernelPbfAppendSpilled, HarmonicShaderPropertyIds.SpillTransferFlags, host.PbfScratch.SpillTransferFlags);
-                    host.PassBindFallingAppendSoa(host.PbfSolverShader, host.KernelPbfAppendSpilled, host.SoaFalling);
-                    host.PbfSolverShader.SetInt(HarmonicShaderPropertyIds.ActiveParticleCount, (int)activeCount);
-                    host.PbfSolverShader.DispatchIndirect(host.KernelPbfAppendSpilled, host.IndirectArgsBuffer, 0);
-                }
             }
 
             host.PingPong.WriteSet.SetCounterValue(activeCount);

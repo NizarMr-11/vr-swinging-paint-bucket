@@ -22,6 +22,7 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
         public static readonly int DensityCachePressures = Shader.PropertyToID("_DensityCachePressures");
         public static readonly int Block0 = Shader.PropertyToID("_Block0");
         public static readonly int Block1 = Shader.PropertyToID("_Block1");
+        public static readonly int PrevCarryContribution = Shader.PropertyToID("_PrevCarryContribution");
         public static readonly int PackedColors = Shader.PropertyToID("_PackedColors");
         public static readonly int Wetness = Shader.PropertyToID("_Wetness");
         public static readonly int WriteBlock0 = Shader.PropertyToID("_WriteBlock0");
@@ -98,6 +99,7 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
         public static readonly int Lambdas = Shader.PropertyToID("_Lambdas");
         public static readonly int GradSqSum = Shader.PropertyToID("_GradSqSum");
         public static readonly int SpillTransferFlags = Shader.PropertyToID("_SpillTransferFlags");
+        public static readonly int PbfDiagCounters = Shader.PropertyToID("_PbfDiagCounters");
         public static readonly int PbfEpsilon = Shader.PropertyToID("_PbfEpsilon");
         public static readonly int PbfRelaxation = Shader.PropertyToID("_PbfRelaxation");
         public static readonly int PbfVelocityDamping = Shader.PropertyToID("_PbfVelocityDamping");

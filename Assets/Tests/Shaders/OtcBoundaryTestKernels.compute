@@ -1,0 +1,77 @@
+// OtcBoundaryTestKernels.compute
+//
+// Test-only harness. Do NOT ship in the runtime pipeline.
+// Exposes each OpenTopCylinderBoundary.hlsl function as its own kernel so
+// unit tests can drive one particle through one function at a time and
+// assert on exact results, independent of PbfSolver.compute wiring.
+//
+// Place under Assets/Tests/Shaders/ (or wherever your test asset root is).
+//
+// ASSUMPTIONS (adjust if Cursor reports different signatures for the
+// functions added in the refactor — OtcParticipatesInPbf / OtcIsOutsideFootprint /
+// OtcIsSpilledOutside were not in the version of the header I was shown,
+// so their signatures below are inferred from the naming pattern of
+// OtcIsInsideForRigidCarry(float3 worldPos) / OtcShouldTransferToFalling(float3 worldPos)):
+//   bool OtcIsOutsideFootprint(float3 worldPos)
+//   bool OtcParticipatesInPbf(float3 worldPos)
+//   bool OtcIsSpilledOutside(float3 worldPos)
+// If any of these actually take localPos, or a different arg order, fix the
+// call sites below — everything else in this file is agnostic to that.
+
+#pragma kernel CS_ClampContainer
+#pragma kernel CS_IsInsideForRigidCarry
+#pragma kernel CS_IsOutsideFootprint
+#pragma kernel CS_ParticipatesInPbf
+#pragma kernel CS_IsSpilledOutside
+
+float _ContainerHeight;
+float4x4 _ContainerLocalToWorld;
+float4x4 _ContainerWorldToLocal;
+int _ContainerUsesOrientation;
+float3 _ContainerFloorPivot;
+float3 _ContainerCenter;
+float _ContainerRadius;
+float _ContainerFloorY;
+float _ContainerRimY;
+float _ContainerRestitution;
+float _ContainerFriction;
+
+#include "../../AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/Include/OpenTopCylinderBoundary.hlsl"
+
+RWStructuredBuffer<float3> _TestPos;   // in/out
+RWStructuredBuffer<float3> _TestVel;   // in/out
+RWStructuredBuffer<uint>   _TestFlag;  // out (bool as 0/1)
+
+[numthreads(1,1,1)]
+void CS_ClampContainer(uint3 id : SV_DispatchThreadID)
+{
+    float3 pos = _TestPos[0];
+    float3 vel = _TestVel[0];
+    OtcClampToContainer(pos, vel);
+    _TestPos[0] = pos;
+    _TestVel[0] = vel;
+}
+
+[numthreads(1,1,1)]
+void CS_IsInsideForRigidCarry(uint3 id : SV_DispatchThreadID)
+{
+    _TestFlag[0] = OtcIsInsideForRigidCarry(_TestPos[0]) ? 1u : 0u;
+}
+
+[numthreads(1,1,1)]
+void CS_IsOutsideFootprint(uint3 id : SV_DispatchThreadID)
+{
+    _TestFlag[0] = OtcIsOutsideFootprint(_TestPos[0]) ? 1u : 0u;
+}
+
+[numthreads(1,1,1)]
+void CS_ParticipatesInPbf(uint3 id : SV_DispatchThreadID)
+{
+    _TestFlag[0] = OtcParticipatesInPbf(_TestPos[0]) ? 1u : 0u;
+}
+
+[numthreads(1,1,1)]
+void CS_IsSpilledOutside(uint3 id : SV_DispatchThreadID)
+{
+    _TestFlag[0] = OtcIsSpilledOutside(_TestPos[0]) ? 1u : 0u;
+}

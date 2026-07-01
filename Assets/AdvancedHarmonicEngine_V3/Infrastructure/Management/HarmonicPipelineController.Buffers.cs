@@ -12,13 +12,9 @@ namespace HarmonicEngine.Infrastructure.Management
 
         private ParticleSoaBuffers _soaInternalA => _gpuPool.SoaInternalA;
         private ParticleSoaBuffers _soaInternalB => _gpuPool.SoaInternalB;
-        private ParticleSoaBuffers _soaFalling => _gpuPool.SoaFalling;
-        private ParticleSoaBuffers _soaFallingWorld => _gpuPool.SoaFallingWorld;
         private ParticleSoaBuffers _soaDragScratch => _gpuPool.SoaDragScratch;
         private ComputeBuffer _bufferDensityCacheDensities => _gpuPool.DensityCacheDensities;
         private ComputeBuffer _bufferDensityCachePressures => _gpuPool.DensityCachePressures;
-        private ComputeBuffer _bufferFalling => _gpuPool.BufferFalling;
-        private ComputeBuffer _bufferFallingWorld => _gpuPool.BufferFallingWorld;
         private ComputeBuffer _bufferDragGrid => _gpuPool.DragGrid;
         private ComputeBuffer _gridKeyValueBuffer => _gpuPool.GridKeyValueBuffer;
         private ComputeBuffer _cellStartEndBuffer => _gpuPool.CellStartEndBuffer;
@@ -32,6 +28,7 @@ namespace HarmonicEngine.Infrastructure.Management
         private ComputeBuffer _counterReadbackBuffer => _gpuPool.CounterReadbackBuffer;
         private ComputeBuffer _bufferCanvasHits => _gpuPool.CanvasHits;
         private PbfScratchBuffers _pbfScratch => _gpuPool.PbfScratch;
+        private ComputeBuffer _bufferPrevCarryContribution => _gpuPool.PrevCarryContribution;
         private PingPongSoaManager _pingPong => _gpuPool.PingPong;
         private HarmonicParticleBufferService _bufferService => _gpuPool.BufferService;
         private int _paddedSortSize => _gpuPool.PaddedSortSize;
@@ -63,7 +60,6 @@ namespace HarmonicEngine.Infrastructure.Management
         private int _kernelPbfLambda => _kernelRegistry.PbfLambda;
         private int _kernelPbfSolve => _kernelRegistry.PbfSolve;
         private int _kernelPbfApply => _kernelRegistry.PbfApply;
-        private int _kernelPbfAppendSpilled => _kernelRegistry.PbfAppendSpilled;
         private int _kernelContainerRigidCarry => _kernelRegistry.ContainerRigidCarry;
 
         private static readonly int IndirectArgsBufferId = HarmonicShaderPropertyIds.IndirectArgsBuffer;
@@ -158,7 +154,6 @@ namespace HarmonicEngine.Infrastructure.Management
         private static readonly int OldBlock0Id = HarmonicShaderPropertyIds.OldBlock0;
         private static readonly int LambdasId = HarmonicShaderPropertyIds.Lambdas;
         private static readonly int GradSqSumId = HarmonicShaderPropertyIds.GradSqSum;
-        private static readonly int SpillTransferFlagsId = HarmonicShaderPropertyIds.SpillTransferFlags;
         private static readonly int PbfEpsilonId = HarmonicShaderPropertyIds.PbfEpsilon;
         private static readonly int PbfRelaxationId = HarmonicShaderPropertyIds.PbfRelaxation;
         private static readonly int PbfVelocityDampingId = HarmonicShaderPropertyIds.PbfVelocityDamping;

@@ -21,6 +21,7 @@ float _ContainerFriction;
 
 RWStructuredBuffer<float4> _Block0;
 RWStructuredBuffer<float4> _Block1;
+RWStructuredBuffer<float3> _PrevCarryContribution;
 
 [numthreads(64, 1, 1)]
 void ContainerRigidCarryKernel(uint3 id : SV_DispatchThreadID)
@@ -38,12 +39,17 @@ void ContainerRigidCarryKernel(uint3 id : SV_DispatchThreadID)
 
     if (!OtcIsInsideForRigidCarry(pos))
     {
+        _PrevCarryContribution[i] = float3(0.0, 0.0, 0.0);
         return;
     }
 
     float3 newPos = mul(_ContainerRotationDelta, float4(pos, 1.0)).xyz;
     float3 arm = pos - _ContainerFloorPivot;
-    float3 newVel = vel + cross(_ContainerAngularVelocityWorld, arm);
+    float3 rotContribution = cross(_ContainerAngularVelocityWorld, arm);
+    float3 newVel = (vel - _PrevCarryContribution[i]) + rotContribution;
+    _PrevCarryContribution[i] = rotContribution;
+
+    OtcClampToContainer(newPos, newVel);
 
     _Block0[i] = float4(newPos, block0.w);
     _Block1[i] = float4(newVel, block1.w);

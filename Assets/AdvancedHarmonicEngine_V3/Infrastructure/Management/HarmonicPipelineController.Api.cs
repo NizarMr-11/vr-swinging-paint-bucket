@@ -13,6 +13,7 @@ namespace HarmonicEngine.Infrastructure.Management
 
         public void SetContainerFriction(float value) => openTopCylinder.friction = Mathf.Clamp01(value);
 
+        [System.Obsolete("Spill transfer removed in single-buffer PBF architecture.")]
         public void SetContainerSpillOverRim(bool enabled) => transferExteriorParticlesToFalling = enabled;
 
         public void SetPbfIterations(int value) => pbfIterations = Mathf.Clamp(value, 1, 8);

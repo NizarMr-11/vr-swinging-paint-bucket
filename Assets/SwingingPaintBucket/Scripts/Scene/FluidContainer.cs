@@ -114,13 +114,6 @@ namespace SwingingPaintBucket.Scene
 
             Vector3 floorPivot = transform.position;
             Matrix4x4 localToWorld = ContainerOrientedBounds.BuildLocalToWorld(floorPivot, transform.rotation);
-            if (_hasLastLocalToWorld)
-            {
-                pipeline.ApplyContainerRigidRotation(_lastLocalToWorld, localToWorld, Time.deltaTime);
-            }
-
-            _lastLocalToWorld = localToWorld;
-            _hasLastLocalToWorld = true;
 
             pipeline.SetContainerFluidOriented(
                 floorPivot,
@@ -130,6 +123,14 @@ namespace SwingingPaintBucket.Scene
                 restitution,
                 friction,
                 wallStiffness);
+
+            if (_hasLastLocalToWorld)
+            {
+                pipeline.ApplyContainerRigidRotation(_lastLocalToWorld, localToWorld, Time.deltaTime);
+            }
+
+            _lastLocalToWorld = localToWorld;
+            _hasLastLocalToWorld = true;
         }
 
         private void OnValidate()

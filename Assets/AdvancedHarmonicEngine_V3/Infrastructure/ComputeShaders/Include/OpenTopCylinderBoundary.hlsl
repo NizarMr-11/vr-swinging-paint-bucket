@@ -3,51 +3,71 @@
 
 // Uniforms expected by including shader:
 // float4x4 _ContainerLocalToWorld, _ContainerWorldToLocal
-// int _ContainerSpillEnabled, _ContainerUsesOrientation
+// int _ContainerUsesOrientation
 // float _ContainerHeight, _ContainerRadius, _ContainerFloorY, _ContainerRimY
 // float3 _ContainerCenter, _ContainerFloorPivot
 // float _ContainerRestitution, _ContainerFriction
 
-// Small radial margin so a particle that was just snapped exactly onto the wall (d == radius)
-// is never mis-classified as "spilled" on the next float round-trip through the matrices.
-#define OTC_SPILL_MARGIN 0.005
-
-// Spill when the particle is above the rim AND outside the radius.
-bool OtcShouldTransferToFalling(float3 worldPos)
-{
-    if (_ContainerSpillEnabled == 0)
-    {
-        return false;
-    }
-
-    if (_ContainerUsesOrientation != 0)
-    {
-        float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
-        return localPos.y > _ContainerHeight && length(localPos.xz) > _ContainerRadius + OTC_SPILL_MARGIN;
-    }
-
-    float2 rel = worldPos.xz - _ContainerCenter.xz;
-    float localTop = _ContainerFloorY + _ContainerHeight;
-    return worldPos.y > localTop && length(rel) > _ContainerRadius + OTC_SPILL_MARGIN;
-}
-
+// Rigid-body carry: inside the solid cylinder footprint up to the rim.
 bool OtcIsInsideForRigidCarry(float3 worldPos)
 {
     float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
-    return localPos.y <= _ContainerHeight && length(localPos.xz) <= _ContainerRadius;
+    return localPos.y >= 0.0 && localPos.y <= _ContainerHeight
+        && length(localPos.xz) <= _ContainerRadius;
 }
 
-// Open cup: infinite floor plane at local y = 0, cylindrical walls up to _ContainerHeight; open top above that.
-// Particles that clear the rim and radius are handled by OtcShouldTransferToFalling.
+// Spilled over the rim: above the top plane AND outside the wall cylinder.
+bool OtcIsSpilledOutside(float3 worldPos)
+{
+    float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
+    float radialDist = length(localPos.xz);
+    return localPos.y > _ContainerHeight && radialDist > _ContainerRadius;
+}
+
+// Outside the cylindrical footprint (exterior wall, spilled runoff, under-bucket free fall).
+bool OtcIsOutsideFootprint(float3 worldPos)
+{
+    float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
+    return length(localPos.xz) > _ContainerRadius;
+}
+
+// PBF only within the footprint so fluid cannot couple across solid walls.
+// Slosh above the rim (y > height, r <= radius) still participates.
+bool OtcParticipatesInPbf(float3 worldPos)
+{
+    return !OtcIsOutsideFootprint(worldPos);
+}
+
+void OtcApplyWallClampInLocal(inout float3 localPos, inout float3 localVel, float radialDist)
+{
+    if (localPos.y > _ContainerHeight || radialDist <= _ContainerRadius || radialDist < 1e-5)
+    {
+        return;
+    }
+
+    float2 n = localPos.xz / radialDist;
+    localPos.xz = n * _ContainerRadius;
+
+    float vn = dot(localVel.xz, n);
+    if (abs(vn) > 1e-6)
+    {
+        float2 vNormal = vn * n;
+        float2 vTangent = localVel.xz - vNormal;
+        localVel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
+    }
+}
+
+// Bidirectional open-top cylinder: solid floor (inside footprint), solid walls to rim, open top.
 void OtcClampToContainer(inout float3 pos, inout float3 vel)
 {
     if (_ContainerUsesOrientation != 0)
     {
         float3 localPos = mul(_ContainerWorldToLocal, float4(pos, 1.0)).xyz;
         float3 localVel = mul((float3x3)_ContainerWorldToLocal, vel);
+        float radialDist = length(localPos.xz);
 
-        // Infinite floor plane: catch all particles below local y = 0 (prevents leaks outside the footprint).
-        if (localPos.y < 0.0)
+        // Floor: only under the bucket footprint (y < 0 && r <= radius).
+        if (localPos.y < 0.0 && radialDist <= _ContainerRadius)
         {
             localPos.y = 0.0;
             if (localVel.y < 0.0)
@@ -59,25 +79,10 @@ void OtcClampToContainer(inout float3 pos, inout float3 vel)
             localVel.z *= _ContainerFriction;
         }
 
-        // Side wall: solid from floor to rim; no clamp above _ContainerHeight (open top).
-        if (localPos.y >= 0.0 && localPos.y <= _ContainerHeight)
-        {
-            float2 rel = localPos.xz;
-            float d = length(rel);
-            if (d > _ContainerRadius && d > 1e-5)
-            {
-                float2 n = rel / d;
-                localPos.xz = n * _ContainerRadius;
+        // Walls: solid from both sides up to the rim (blocks interior leak + exterior re-entry).
+        OtcApplyWallClampInLocal(localPos, localVel, radialDist);
 
-                float vn = dot(localVel.xz, n);
-                if (vn > 0.0)
-                {
-                    float2 vNormal = vn * n;
-                    float2 vTangent = localVel.xz - vNormal;
-                    localVel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
-                }
-            }
-        }
+        // Open top: y > height with r <= radius (slosh) or r > radius (spilled) — no wall clamp.
 
         pos = mul(_ContainerLocalToWorld, float4(localPos, 1.0)).xyz;
         vel = mul((float3x3)_ContainerLocalToWorld, localVel);
@@ -86,8 +91,10 @@ void OtcClampToContainer(inout float3 pos, inout float3 vel)
 
     // Axis-aligned world-space cup.
     float localTop = _ContainerFloorY + _ContainerHeight;
+    float2 relWorld = pos.xz - _ContainerCenter.xz;
+    float radialDistWorld = length(relWorld);
 
-    if (pos.y < _ContainerFloorY)
+    if (pos.y < _ContainerFloorY && radialDistWorld <= _ContainerRadius)
     {
         pos.y = _ContainerFloorY;
         if (vel.y < 0.0)
@@ -99,24 +106,25 @@ void OtcClampToContainer(inout float3 pos, inout float3 vel)
         vel.z *= _ContainerFriction;
     }
 
-    if (pos.y >= _ContainerFloorY && pos.y <= localTop)
+    if (pos.y <= localTop && radialDistWorld > _ContainerRadius && radialDistWorld > 1e-5)
     {
-        float2 relWorld = pos.xz - _ContainerCenter.xz;
-        float dWorld = length(relWorld);
-        if (dWorld > _ContainerRadius && dWorld > 1e-5)
-        {
-            float2 n = relWorld / dWorld;
-            pos.xz = _ContainerCenter.xz + n * _ContainerRadius;
+        float2 n = relWorld / radialDistWorld;
+        pos.xz = _ContainerCenter.xz + n * _ContainerRadius;
 
-            float vn = dot(vel.xz, n);
-            if (vn > 0.0)
-            {
-                float2 vNormal = vn * n;
-                float2 vTangent = vel.xz - vNormal;
-                vel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
-            }
+        float vn = dot(vel.xz, n);
+        if (abs(vn) > 1e-6)
+        {
+            float2 vNormal = vn * n;
+            float2 vTangent = vel.xz - vNormal;
+            vel.xz = vTangent * _ContainerFriction - vNormal * _ContainerRestitution;
         }
     }
+}
+
+void OtcClampToContainerPosition(inout float3 pos)
+{
+    float3 vel = float3(0.0, 0.0, 0.0);
+    OtcClampToContainer(pos, vel);
 }
 
 #endif

@@ -166,6 +166,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public bool WorldFallingOnly => worldFallingOnly;
         public bool CanvasCullingEnabled => canvasCullingEnabled;
         public bool ContainerFluidEnabled => openTopCylinder.enabled;
+        [System.Obsolete("Spill transfer removed in single-buffer PBF architecture.")]
         public bool SpillOverRim => transferExteriorParticlesToFalling;
         public bool UsePbf => openTopCylinderUsePbf;
         public int PbfIterations => pbfIterations;
@@ -330,6 +331,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public void ClearAllParticles()
         {
             _bufferService?.ClearAll();
+            _gpuPool.ClearPrevCarryContribution(maxCapacity);
             _cachedInternalCount = 0;
             PublishDiagnostic(HarmonicDiagnosticEventType.ParticlesCleared, "PIPELINE", "cleared");
         }

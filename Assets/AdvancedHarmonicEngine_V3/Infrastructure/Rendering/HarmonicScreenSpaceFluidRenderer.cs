@@ -15,8 +15,7 @@ namespace HarmonicEngine.Infrastructure.Rendering
     {
         [SerializeField] private HarmonicPipelineController pipeline;
         [SerializeField] private Material fluidMaterial;
-        [SerializeField] private bool drawInternalParticles = true;
-        [SerializeField] private bool drawFallingParticles = true;
+        [SerializeField] private bool drawParticles = true;
         [SerializeField, Range(0.5f, 2f)] private float splatRadiusMultiplier = 1.05f;
         [SerializeField, Range(0.001f, 0.2f)] private float thicknessWeight = 0.035f;
         [SerializeField] private Color fluidColor = new(0.1f, 0.4f, 0.8f, 1f);
@@ -329,50 +328,14 @@ namespace HarmonicEngine.Infrastructure.Rendering
 
         private void DrawParticleBuffers()
         {
-            if (pipeline.WorldFallingOnly)
+            if (!drawParticles
+                || !pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers soa, out uint count)
+                || count == 0)
             {
-                if (drawFallingParticles
-                    && pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers worldSoa, out uint worldCount)
-                    && worldCount > 0)
-                {
-                    DrawSoa(worldSoa, worldCount);
-                }
-
                 return;
             }
 
-            if (pipeline.ContainerFluidEnabled)
-            {
-                if (drawInternalParticles
-                    && pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers containerSoa, out uint containerCount)
-                    && containerCount > 0)
-                {
-                    DrawSoa(containerSoa, containerCount);
-                }
-
-                if (drawFallingParticles
-                    && pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers containerFallingSoa, out uint containerFallingCount)
-                    && containerFallingCount > 0)
-                {
-                    DrawSoa(containerFallingSoa, containerFallingCount);
-                }
-
-                return;
-            }
-
-            if (drawInternalParticles
-                && pipeline.TryGetInternalParticleSoa(out ParticleSoaBuffers internalSoa, out uint internalCount)
-                && internalCount > 0)
-            {
-                DrawSoa(internalSoa, internalCount);
-            }
-
-            if (drawFallingParticles
-                && pipeline.TryGetFallingParticleSoa(out ParticleSoaBuffers fallingSoa, out uint fallingCount)
-                && fallingCount > 0)
-            {
-                DrawSoa(fallingSoa, fallingCount);
-            }
+            DrawSoa(soa, count);
         }
 
         private void DrawSoa(ParticleSoaBuffers soa, uint count)
