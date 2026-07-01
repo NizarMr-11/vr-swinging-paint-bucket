@@ -38,9 +38,23 @@ bool OtcParticipatesInPbf(float3 worldPos)
     return !OtcIsOutsideFootprint(worldPos);
 }
 
+// Shared tolerance so floor (r <= radius) and wall (r > radius) meet without an FP gap
+// at the corner (diagnostic: r = 0.55000010 with y < 0 missed floor, wall skipped xz-only).
+static const float OTC_RADIAL_BOUNDARY_EPS = 1e-4f;
+
+bool OtcRadialInsideFloorFootprint(float radialDist)
+{
+    return radialDist <= _ContainerRadius + OTC_RADIAL_BOUNDARY_EPS;
+}
+
+bool OtcRadialOutsideWallCylinder(float radialDist)
+{
+    return radialDist > _ContainerRadius - OTC_RADIAL_BOUNDARY_EPS;
+}
+
 void OtcApplyWallClampInLocal(inout float3 localPos, inout float3 localVel, float radialDist)
 {
-    if (localPos.y > _ContainerHeight || radialDist <= _ContainerRadius || radialDist < 1e-5)
+    if (localPos.y > _ContainerHeight || !OtcRadialOutsideWallCylinder(radialDist) || radialDist < 1e-5)
     {
         return;
     }
@@ -66,8 +80,8 @@ void OtcClampToContainer(inout float3 pos, inout float3 vel)
         float3 localVel = mul((float3x3)_ContainerWorldToLocal, vel);
         float radialDist = length(localPos.xz);
 
-        // Floor: only under the bucket footprint (y < 0 && r <= radius).
-        if (localPos.y < 0.0 && radialDist <= _ContainerRadius)
+        // Floor: only under the bucket footprint (y < 0 && r <= radius [+ eps at wall]).
+        if (localPos.y < 0.0 && OtcRadialInsideFloorFootprint(radialDist))
         {
             localPos.y = 0.0;
             if (localVel.y < 0.0)
@@ -94,7 +108,7 @@ void OtcClampToContainer(inout float3 pos, inout float3 vel)
     float2 relWorld = pos.xz - _ContainerCenter.xz;
     float radialDistWorld = length(relWorld);
 
-    if (pos.y < _ContainerFloorY && radialDistWorld <= _ContainerRadius)
+    if (pos.y < _ContainerFloorY && OtcRadialInsideFloorFootprint(radialDistWorld))
     {
         pos.y = _ContainerFloorY;
         if (vel.y < 0.0)
@@ -106,7 +120,7 @@ void OtcClampToContainer(inout float3 pos, inout float3 vel)
         vel.z *= _ContainerFriction;
     }
 
-    if (pos.y <= localTop && radialDistWorld > _ContainerRadius && radialDistWorld > 1e-5)
+    if (pos.y <= localTop && OtcRadialOutsideWallCylinder(radialDistWorld) && radialDistWorld > 1e-5)
     {
         float2 n = relWorld / radialDistWorld;
         pos.xz = _ContainerCenter.xz + n * _ContainerRadius;
@@ -123,6 +137,23 @@ void OtcClampToContainer(inout float3 pos, inout float3 vel)
 
 void OtcClampToContainerPosition(inout float3 pos)
 {
+    if (_ContainerUsesOrientation != 0)
+    {
+        float3 localPos = mul(_ContainerWorldToLocal, float4(pos, 1.0)).xyz;
+        float radialDist = length(localPos.xz);
+
+        // Position-only floor for PBF solve iterations (velocity derived later in Apply).
+        if (localPos.y < 0.0 && OtcRadialInsideFloorFootprint(radialDist))
+        {
+            localPos.y = 0.0;
+        }
+
+        float3 vel = float3(0.0, 0.0, 0.0);
+        OtcApplyWallClampInLocal(localPos, vel, radialDist);
+        pos = mul(_ContainerLocalToWorld, float4(localPos, 1.0)).xyz;
+        return;
+    }
+
     float3 vel = float3(0.0, 0.0, 0.0);
     OtcClampToContainer(pos, vel);
 }

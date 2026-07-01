@@ -89,6 +89,23 @@ public class RigidCarrySpinHeadlessTests
         RunResidualTailDiagnostics();
     }
 
+    /// <summary>
+    /// PBF sub-stage trace for floor-wall corner explosions (idx 2651 / 670).
+    /// Report-only diagnostic — does not modify solver shaders.
+    /// </summary>
+    [Test]
+    [Category("Exploratory")]
+    [Category("Diagnostic")]
+    public void RigidCarrySpin_CornerPbfSubstage_Diagnostics()
+    {
+        if (!SystemInfo.supportsComputeShaders)
+        {
+            Assert.Ignore("Compute shaders not supported on this machine.");
+        }
+
+        RunCornerPbfSubstageDiagnostics();
+    }
+
     private static void RunResidualTailDiagnostics()
     {
         RunSinglePassArgminTrace(out FrameArgminSnapshot[] perFrameArgmin, out GlobalMinSummary globalMin, out CanvasHarnessInfo canvasInfo);
@@ -843,6 +860,792 @@ public class RigidCarrySpinHeadlessTests
         }
 
         return map;
+    }
+
+    private const int CornerTraceIdx2651 = 2651;
+    private const int CornerTraceIdx670 = 670;
+    private const int CornerTraceFrame2651Start = 105;
+    private const int CornerTraceFrame2651End = 116;
+    private const int CornerTraceFrame670Start = 113;
+    private const int CornerTraceFrame670End = 117;
+    private const int CornerTraceRunThroughFrame = 117;
+
+    private static void RunCornerPbfSubstageDiagnostics()
+    {
+        HarmonicPipelineController pipeline = CreatePipelineWithRigidCarry();
+        InitializeSpinPipeline(pipeline, out Vector3 floorPivot, out float radius, out float height, out Matrix4x4 prevLocalToWorld);
+
+        var traces2651 = new Dictionary<int, List<CornerPbfSubstageSample>>();
+        var traces670 = new Dictionary<int, List<CornerPbfSubstageSample>>();
+
+        for (int frame = 0; frame <= CornerTraceRunThroughFrame; frame++)
+        {
+            float t = frame * SpinDegreesPerFrame;
+            Quaternion rotation = Quaternion.Euler(t * 1.2f, t * 2.0f, t * 0.9f);
+            Matrix4x4 currLocalToWorld = ContainerOrientedBounds.BuildLocalToWorld(floorPivot, rotation);
+            Matrix4x4 worldToLocal = currLocalToWorld.inverse;
+
+            pipeline.SetContainerFluidOriented(
+                floorPivot,
+                rotation,
+                radius,
+                height,
+                restitution: 0.1f,
+                friction: 0.85f,
+                wallStiffness: 400f);
+
+            pipeline.ApplyContainerRigidRotation(prevLocalToWorld, currLocalToWorld, DeltaTime);
+            SyncGpu();
+
+            PingPongSoaManager pingPong = GetPingPong(pipeline);
+            float postCarryVel2651 = 0f;
+            float postCarryLocalY2651 = 0f;
+            float postCarryVel670 = 0f;
+            float postCarryLocalY670 = 0f;
+            if (pipeline.TryGetInternalParticleSoa(out _, out uint activeForCarry) && activeForCarry > 0)
+            {
+                if (CornerTraceIdx2651 < activeForCarry)
+                {
+                    Vector3 v2651 = ReadParticleVelocity(pingPong.ReadSet, CornerTraceIdx2651);
+                    postCarryVel2651 = v2651.magnitude;
+                    postCarryLocalY2651 = worldToLocal.MultiplyPoint3x4(ReadParticlePosition(pingPong.ReadSet, CornerTraceIdx2651)).y;
+                }
+
+                if (CornerTraceIdx670 < activeForCarry)
+                {
+                    Vector3 v670 = ReadParticleVelocity(pingPong.ReadSet, CornerTraceIdx670);
+                    postCarryVel670 = v670.magnitude;
+                    postCarryLocalY670 = worldToLocal.MultiplyPoint3x4(ReadParticlePosition(pingPong.ReadSet, CornerTraceIdx670)).y;
+                }
+            }
+
+            bool trace2651 = frame >= CornerTraceFrame2651Start && frame <= CornerTraceFrame2651End;
+            bool trace670 = frame >= CornerTraceFrame670Start && frame <= CornerTraceFrame670End;
+
+            if (trace2651 || trace670)
+            {
+                var indices = new List<int>(2);
+                if (trace2651)
+                {
+                    indices.Add(CornerTraceIdx2651);
+                }
+
+                if (trace670)
+                {
+                    indices.Add(CornerTraceIdx670);
+                }
+
+                var boundary = new OtcBoundaryParams(
+                    radius,
+                    height,
+                    restitution: 0.1f,
+                    friction: 0.85f,
+                    worldToLocal,
+                    currLocalToWorld);
+
+                Dictionary<int, List<CornerPbfSubstageSample>> frameTrace =
+                    ExecuteCornerPbfSubstageTrace(pipeline, indices, boundary);
+
+                if (trace2651 && frameTrace.TryGetValue(CornerTraceIdx2651, out List<CornerPbfSubstageSample> t2651))
+                {
+                    traces2651[frame] = t2651;
+                    t2651.Insert(0, new CornerPbfSubstageSample(
+                        "postCarry",
+                        ReadParticlePosition(pingPong.ReadSet, CornerTraceIdx2651),
+                        boundary,
+                        ReadParticleVelocity(pingPong.ReadSet, CornerTraceIdx2651),
+                        density: float.NaN,
+                        lambda: float.NaN,
+                        gradSqSum: float.NaN,
+                        densityLambdaEarlyOut: false,
+                        posDeltaFromPrev: Vector3.zero,
+                        floorClampFired: false,
+                        wallClampFired: false,
+                        clampNote: $"postCarry|v|={postCarryVel2651:F4} localY={postCarryLocalY2651:F6}"));
+                }
+
+                if (trace670 && frameTrace.TryGetValue(CornerTraceIdx670, out List<CornerPbfSubstageSample> t670))
+                {
+                    traces670[frame] = t670;
+                    t670.Insert(0, new CornerPbfSubstageSample(
+                        "postCarry",
+                        ReadParticlePosition(pingPong.ReadSet, CornerTraceIdx670),
+                        boundary,
+                        ReadParticleVelocity(pingPong.ReadSet, CornerTraceIdx670),
+                        density: float.NaN,
+                        lambda: float.NaN,
+                        gradSqSum: float.NaN,
+                        densityLambdaEarlyOut: false,
+                        posDeltaFromPrev: Vector3.zero,
+                        floorClampFired: false,
+                        wallClampFired: false,
+                        clampNote: $"postCarry|v|={postCarryVel670:F4} localY={postCarryLocalY670:F6}"));
+                }
+            }
+            else
+            {
+                pipeline.ExecutePipelineFrame(DeltaTime);
+                SyncGpu();
+            }
+
+            prevLocalToWorld = currLocalToWorld;
+        }
+
+        Object.DestroyImmediate(pipeline.gameObject);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("[RigidCarrySpin:CornerPbf] floor-wall corner PBF sub-stage trace (single-pass, post-carry instrumented PBF):");
+        sb.AppendLine($"  idx={CornerTraceIdx2651} frames {CornerTraceFrame2651Start}-{CornerTraceFrame2651End}");
+        sb.AppendLine($"  idx={CornerTraceIdx670} frames {CornerTraceFrame670Start}-{CornerTraceFrame670End}");
+
+        foreach (KeyValuePair<int, List<CornerPbfSubstageSample>> kv in traces2651.OrderBy(k => k.Key))
+        {
+            sb.AppendLine(FormatCornerFrameTrace(CornerTraceIdx2651, kv.Key, kv.Value));
+        }
+
+        foreach (KeyValuePair<int, List<CornerPbfSubstageSample>> kv in traces670.OrderBy(k => k.Key))
+        {
+            sb.AppendLine(FormatCornerFrameTrace(CornerTraceIdx670, kv.Key, kv.Value));
+        }
+
+        sb.AppendLine(AnalyzeCornerTraces(CornerTraceIdx2651, traces2651));
+        sb.AppendLine(AnalyzeCornerTraces(CornerTraceIdx670, traces670));
+        sb.AppendLine(CompareCornerMechanisms(traces2651, traces670));
+
+        string report = sb.ToString();
+        string logPath = System.IO.Path.Combine(
+            Application.dataPath,
+            "..",
+            "Logs",
+            "HarmonicSimulation",
+            "corner_pbf_substage_trace.log");
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(logPath));
+        System.IO.File.WriteAllText(logPath, report);
+        Debug.Log(report);
+        Debug.Log($"[RigidCarrySpin:CornerPbf] full trace written to {logPath}");
+    }
+
+    private static Dictionary<int, List<CornerPbfSubstageSample>> ExecuteCornerPbfSubstageTrace(
+        HarmonicPipelineController pipeline,
+        IReadOnlyList<int> traceIndices,
+        OtcBoundaryParams boundary)
+    {
+        var result = new Dictionary<int, List<CornerPbfSubstageSample>>();
+        foreach (int idx in traceIndices)
+        {
+            result[idx] = new List<CornerPbfSubstageSample>();
+        }
+
+        PingPongSoaManager pingPong = GetPingPong(pipeline);
+        InvokeBeginPipelineFrame(pipeline);
+        uint activeCount = InvokeSanitizeAndRepairActiveCount(pipeline);
+        pipeline.SetCachedInternalCount(activeCount);
+        if (activeCount == 0)
+        {
+            return result;
+        }
+
+        float deltaTime = DeltaTime;
+        int steps = Mathf.Clamp(Mathf.CeilToInt(deltaTime / pipeline.ContainerFluidMaxTimeStep), 1, 2);
+        float subDt = deltaTime / steps;
+
+        for (int step = 0; step < steps; step++)
+        {
+            pipeline.ComputeFrameSortSize(activeCount);
+            InvokeSpatialHashBuild(pipeline, pingPong.ReadSet, activeCount);
+
+            foreach (int idx in traceIndices)
+            {
+                SampleCornerStage(
+                    result[idx],
+                    "prePredict",
+                    pingPong.ReadSet.Block0,
+                    pingPong.ReadSet,
+                    idx,
+                    boundary,
+                    readVelFromSoa: true);
+            }
+
+            float smoothingRadius = pipeline.SphSmoothingRadius;
+            pipeline.ApplyPbfUniforms(smoothingRadius, subDt);
+
+            DispatchPbfPredict(pipeline, activeCount);
+            SyncGpu();
+
+            foreach (int idx in traceIndices)
+            {
+                SampleCornerStage(
+                    result[idx],
+                    "postPredict",
+                    pipeline.PbfScratch.PredictedBlock0,
+                    pingPong.ReadSet,
+                    idx,
+                    boundary,
+                    readVelFromSoa: false,
+                    velSource: pingPong.ReadSet,
+                    includePredictClampAudit: true);
+            }
+
+            InvokeSpatialHashBuild(pipeline, pipeline.PbfScratch.PredictedBlock0, activeCount);
+
+            int pbfIterations = pipeline.PbfIterations;
+            for (int iter = 0; iter < pbfIterations; iter++)
+            {
+                foreach (int idx in traceIndices)
+                {
+                    Vector3 preSolvePos = ReadBufferPosition(pipeline.PbfScratch.PredictedBlock0, idx);
+                    result[idx].Add(new CornerPbfSubstageSample(
+                        $"preSolveIter{iter}",
+                        preSolvePos,
+                        boundary,
+                        Vector3.zero,
+                        density: float.NaN,
+                        lambda: float.NaN,
+                        gradSqSum: float.NaN,
+                        densityLambdaEarlyOut: false,
+                        posDeltaFromPrev: Vector3.zero,
+                        floorClampFired: false,
+                        wallClampFired: false,
+                        clampNote: string.Empty));
+                }
+
+                DispatchPbfDensity(pipeline, activeCount);
+                SyncGpu();
+
+                foreach (int idx in traceIndices)
+                {
+                    float density = ReadFloatBufferSample(GetDensityBuffer(pipeline), idx);
+                    ClassifyOtc(ReadBufferPosition(pipeline.PbfScratch.PredictedBlock0, idx), boundary,
+                        out _, out _, out bool participates);
+                    bool earlyOut = !participates && Mathf.Abs(density) < 1e-8f;
+                    result[idx].Add(new CornerPbfSubstageSample(
+                        $"postDensityIter{iter}",
+                        ReadBufferPosition(pipeline.PbfScratch.PredictedBlock0, idx),
+                        boundary,
+                        Vector3.zero,
+                        density,
+                        lambda: float.NaN,
+                        gradSqSum: float.NaN,
+                        earlyOut,
+                        posDeltaFromPrev: Vector3.zero,
+                        floorClampFired: false,
+                        wallClampFired: false,
+                        clampNote: earlyOut ? "earlyOut(!participates)" : "fullDensity"));
+                }
+
+                DispatchPbfLambda(pipeline, activeCount);
+                SyncGpu();
+
+                foreach (int idx in traceIndices)
+                {
+                    float lambda = ReadFloatBufferSample(pipeline.PbfScratch.Lambdas, idx);
+                    float gradSq = ReadFloatBufferSample(pipeline.PbfScratch.GradSqSum, idx);
+                    ClassifyOtc(ReadBufferPosition(pipeline.PbfScratch.PredictedBlock0, idx), boundary,
+                        out _, out _, out bool participates);
+                    bool earlyOut = !participates && Mathf.Abs(lambda) < 1e-8f && Mathf.Abs(gradSq) < 1e-8f;
+                    result[idx].Add(new CornerPbfSubstageSample(
+                        $"postLambdaIter{iter}",
+                        ReadBufferPosition(pipeline.PbfScratch.PredictedBlock0, idx),
+                        boundary,
+                        Vector3.zero,
+                        ReadFloatBufferSample(GetDensityBuffer(pipeline), idx),
+                        lambda,
+                        gradSq,
+                        earlyOut,
+                        posDeltaFromPrev: Vector3.zero,
+                        floorClampFired: false,
+                        wallClampFired: false,
+                        clampNote: earlyOut ? "earlyOut(!participates)" : "fullLambda"));
+                }
+
+                DispatchPbfSolve(pipeline, activeCount);
+                SyncGpu();
+
+                foreach (int idx in traceIndices)
+                {
+                    CornerPbfSubstageSample preSolve = result[idx].Last(s => s.Stage == $"preSolveIter{iter}");
+                    Vector3 postSolvePos = ReadBufferPosition(pipeline.PbfScratch.PredictedBlock0, idx);
+                    Vector3 move = postSolvePos - preSolve.WorldPosition;
+                    InferSolveClamp(preSolve, postSolvePos, boundary,
+                        out bool floorFired,
+                        out bool wallFired,
+                        out string clampNote);
+                    result[idx].Add(new CornerPbfSubstageSample(
+                        $"postSolveIter{iter}",
+                        postSolvePos,
+                        boundary,
+                        Vector3.zero,
+                        density: float.NaN,
+                        lambda: float.NaN,
+                        gradSqSum: float.NaN,
+                        densityLambdaEarlyOut: false,
+                        posDeltaFromPrev: move,
+                        floorFired,
+                        wallFired,
+                        clampNote));
+                }
+            }
+
+            foreach (int idx in traceIndices)
+            {
+                Vector3 oldPos = ReadBufferPosition(pipeline.PbfScratch.OldBlock0, idx);
+                Vector3 predictedPos = ReadBufferPosition(pipeline.PbfScratch.PredictedBlock0, idx);
+                result[idx].Add(new CornerPbfSubstageSample(
+                    "preApply",
+                    predictedPos,
+                    boundary,
+                    (predictedPos - oldPos) / Mathf.Max(subDt, 1e-6f),
+                    density: ReadFloatBufferSample(GetDensityBuffer(pipeline), idx),
+                    lambda: float.NaN,
+                    gradSqSum: float.NaN,
+                    densityLambdaEarlyOut: false,
+                    posDeltaFromPrev: Vector3.zero,
+                    floorClampFired: false,
+                    wallClampFired: false,
+                    clampNote: $"oldY={boundary.WorldToLocal.MultiplyPoint3x4(oldPos).y:F6}"));
+            }
+
+            DispatchPbfApply(pipeline, pingPong, activeCount);
+            SyncGpu();
+
+            foreach (int idx in traceIndices)
+            {
+                Vector3 predictedPos = ReadBufferPosition(pipeline.PbfScratch.PredictedBlock0, idx);
+                Vector3 oldPos = ReadBufferPosition(pipeline.PbfScratch.OldBlock0, idx);
+                Vector3 velDerived = (predictedPos - oldPos) / Mathf.Max(subDt, 1e-6f);
+                velDerived *= GetPbfVelocityDamping(pipeline);
+
+                Vector3 posBeforeClamp = predictedPos;
+                Vector3 velBeforeClamp = velDerived;
+                SimulateOtcClampToContainer(ref posBeforeClamp, ref velBeforeClamp, boundary,
+                    out bool floorSim, out bool wallSim);
+
+                Vector3 finalPos = ReadBufferPosition(pingPong.WriteSet.Block0, idx);
+                Vector3 finalVel = ReadParticleVelocity(pingPong.WriteSet, idx);
+
+                string applyNote =
+                    $"applyClamp floorSim={floorSim} wallSim={wallSim} " +
+                    $"posDelta=({finalPos.x - predictedPos.x:F6},{finalPos.y - predictedPos.y:F6},{finalPos.z - predictedPos.z:F6}) " +
+                    $"velDerivedMag={velDerived.magnitude:F4} finalVelMag={finalVel.magnitude:F4}";
+
+                SampleCornerStage(
+                    result[idx],
+                    "postApply",
+                    pingPong.WriteSet.Block0,
+                    pingPong.WriteSet,
+                    idx,
+                    boundary,
+                    readVelFromSoa: true,
+                    applyClampNote: applyNote,
+                    floorClampFired: floorSim,
+                    wallClampFired: wallSim);
+            }
+
+            pingPong.WriteSet.SetCounterValue(activeCount);
+            pingPong.Swap();
+            activeCount = InvokeRepairParticleCount(pipeline, pingPong.ReadSet);
+        }
+
+        pipeline.SetCachedInternalCount(activeCount);
+        return result;
+    }
+
+    private static ComputeBuffer GetDensityBuffer(HarmonicPipelineController pipeline)
+    {
+        return pipeline.TryGetDensityCacheBuffers(out ComputeBuffer densities, out _, out _)
+            ? densities
+            : null;
+    }
+
+    private static float GetPbfVelocityDamping(HarmonicPipelineController pipeline)
+    {
+        FieldInfo field = typeof(HarmonicPipelineController).GetField(
+            "pbfVelocityDamping",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        return field != null ? (float)field.GetValue(pipeline) : 1f;
+    }
+
+    private static float ReadFloatBufferSample(ComputeBuffer buffer, int index)
+    {
+        if (buffer == null || index < 0 || index >= buffer.count)
+        {
+            return float.NaN;
+        }
+
+        var scratch = new float[1];
+        buffer.GetData(scratch, 0, index, 1);
+        return scratch[0];
+    }
+
+    private static Vector3 ReadBufferPosition(ComputeBuffer block0, int index)
+    {
+        var block = new Vector4[1];
+        block0.GetData(block, 0, index, 1);
+        return new Vector3(block[0].x, block[0].y, block[0].z);
+    }
+
+    private static void SampleCornerStage(
+        List<CornerPbfSubstageSample> trace,
+        string stage,
+        ComputeBuffer positionBuffer,
+        ParticleSoaBuffers velSoa,
+        int index,
+        OtcBoundaryParams boundary,
+        bool readVelFromSoa,
+        ParticleSoaBuffers velSource = null,
+        bool includePredictClampAudit = false,
+        string applyClampNote = null,
+        bool floorClampFired = false,
+        bool wallClampFired = false)
+    {
+        Vector3 worldPos = ReadBufferPosition(positionBuffer, index);
+        Vector3 vel = Vector3.zero;
+        if (readVelFromSoa && velSoa != null)
+        {
+            vel = ReadParticleVelocity(velSoa, index);
+        }
+
+        string note = applyClampNote ?? string.Empty;
+        if (includePredictClampAudit && velSource != null)
+        {
+            Vector3 prePos = ReadBufferPosition(velSource.Block0, index);
+            Vector3 preVel = ReadParticleVelocity(velSource, index);
+            Vector3 simPos = prePos;
+            Vector3 simVel = preVel;
+            SimulateOtcClampToContainer(ref simPos, ref simVel, boundary, out bool floorSim, out bool wallSim);
+            note = $"predictClampAudit floorSim={floorSim} wallSim={wallSim} preLocalY={boundary.WorldToLocal.MultiplyPoint3x4(prePos).y:F6}";
+            floorClampFired = floorSim;
+            wallClampFired = wallSim;
+        }
+
+        Vector3 prevPos = trace.Count > 0 ? trace[trace.Count - 1].WorldPosition : worldPos;
+        trace.Add(new CornerPbfSubstageSample(
+            stage,
+            worldPos,
+            boundary,
+            vel,
+            density: float.NaN,
+            lambda: float.NaN,
+            gradSqSum: float.NaN,
+            densityLambdaEarlyOut: false,
+            posDeltaFromPrev: worldPos - prevPos,
+            floorClampFired,
+            wallClampFired,
+            note));
+    }
+
+    private static void InferSolveClamp(
+        CornerPbfSubstageSample preSolve,
+        Vector3 postSolvePos,
+        OtcBoundaryParams boundary,
+        out bool floorClampFired,
+        out bool wallClampFired,
+        out string clampNote)
+    {
+        Vector3 preLocal = preSolve.LocalPosition;
+        Vector3 postLocal = boundary.WorldToLocal.MultiplyPoint3x4(postSolvePos);
+        float preR = preSolve.Radial;
+        float postR = new Vector2(postLocal.x, postLocal.z).magnitude;
+
+        floorClampFired = preLocal.y < -1e-6f && postLocal.y >= -1e-6f;
+        wallClampFired = preR > boundary.Radius + 1e-6f && Mathf.Abs(postR - boundary.Radius) <= 1e-5f;
+
+        Vector3 move = postSolvePos - preSolve.WorldPosition;
+        clampNote = floorClampFired && wallClampFired
+            ? "DUAL floor+wall clamp inferred"
+            : floorClampFired
+                ? "floor clamp inferred"
+                : wallClampFired
+                    ? "wall clamp inferred"
+                    : "no clamp inferred";
+
+        if (floorClampFired || wallClampFired)
+        {
+            clampNote += $" preLocal=({preLocal.x:F6},{preLocal.y:F6},{preLocal.z:F6}) postLocal=({postLocal.x:F6},{postLocal.y:F6},{postLocal.z:F6}) move=({move.x:F6},{move.y:F6},{move.z:F6})";
+        }
+    }
+
+    private static void ClassifyOtc(
+        Vector3 worldPos,
+        OtcBoundaryParams boundary,
+        out Vector3 local,
+        out float radial,
+        out bool participatesInPbf)
+    {
+        local = boundary.WorldToLocal.MultiplyPoint3x4(worldPos);
+        radial = new Vector2(local.x, local.z).magnitude;
+        participatesInPbf = radial <= boundary.Radius;
+    }
+
+    private static void SimulateOtcClampToContainer(
+        ref Vector3 pos,
+        ref Vector3 vel,
+        OtcBoundaryParams boundary,
+        out bool floorFired,
+        out bool wallFired)
+    {
+        floorFired = false;
+        wallFired = false;
+
+        Vector3 localPos = boundary.WorldToLocal.MultiplyPoint3x4(pos);
+        Vector3 localVel = boundary.WorldToLocal.MultiplyVector(vel);
+        float radialDist = new Vector2(localPos.x, localPos.z).magnitude;
+        Vector3 localBefore = localPos;
+
+        if (localPos.y < 0f && radialDist <= boundary.Radius)
+        {
+            if (localPos.y < -1e-7f || localVel.y < -1e-6f)
+            {
+                floorFired = true;
+            }
+
+            localPos.y = 0f;
+            if (localVel.y < 0f)
+            {
+                localVel.y = -localVel.y * boundary.Restitution;
+            }
+
+            localVel.x *= boundary.Friction;
+            localVel.z *= boundary.Friction;
+        }
+
+        if (!(localPos.y > boundary.Height || radialDist <= boundary.Radius || radialDist < 1e-5f))
+        {
+            wallFired = true;
+            Vector2 n = new Vector2(localPos.x, localPos.z) / radialDist;
+            localPos.x = n.x * boundary.Radius;
+            localPos.z = n.y * boundary.Radius;
+
+            float vn = Vector2.Dot(new Vector2(localVel.x, localVel.z), n);
+            if (Mathf.Abs(vn) > 1e-6f)
+            {
+                Vector2 vNormal = vn * n;
+                Vector2 vTangent = new Vector2(localVel.x, localVel.z) - vNormal;
+                localVel.x = vTangent.x * boundary.Friction - vNormal.x * boundary.Restitution;
+                localVel.z = vTangent.y * boundary.Friction - vNormal.y * boundary.Restitution;
+            }
+        }
+
+        if (!floorFired && !wallFired && (localPos - localBefore).sqrMagnitude > 1e-12f)
+        {
+            floorFired = localBefore.y < 0f && localPos.y >= 0f;
+            wallFired = !floorFired;
+        }
+
+        pos = boundary.LocalToWorld.MultiplyPoint3x4(localPos);
+        vel = boundary.LocalToWorld.MultiplyVector(localVel);
+    }
+
+    private static string FormatCornerFrameTrace(int particleIndex, int frame, List<CornerPbfSubstageSample> samples)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"--- particle={particleIndex} frame={frame} ({samples.Count} sub-stages) ---");
+        foreach (CornerPbfSubstageSample s in samples)
+        {
+            sb.AppendLine(
+                $"  {s.Stage}: pos=({s.WorldPosition.x:F6},{s.WorldPosition.y:F6},{s.WorldPosition.z:F6}) " +
+                $"localY={s.LocalPosition.y:F6} r={s.Radial:F8} |v|={s.Velocity.magnitude:F4} " +
+                $"outsideFp={s.OutsideFootprint} participatesPbf={s.ParticipatesInPbf} " +
+                (float.IsNaN(s.Density) ? string.Empty : $"density={s.Density:F4} ") +
+                (float.IsNaN(s.Lambda) ? string.Empty : $"lambda={s.Lambda:F6} gradSq={s.GradSqSum:F6} ") +
+                (s.DensityLambdaEarlyOut ? "EARLY_OUT " : string.Empty) +
+                $"dPos=({s.PosDeltaFromPrev.x:F6},{s.PosDeltaFromPrev.y:F6},{s.PosDeltaFromPrev.z:F6}) " +
+                $"floorClamp={s.FloorClampFired} wallClamp={s.WallClampFired} {s.ClampNote}");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string AnalyzeCornerTraces(int particleIndex, Dictionary<int, List<CornerPbfSubstageSample>> traces)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"[RigidCarrySpin:CornerPbf:Analysis] particle={particleIndex}:");
+
+        int classificationFlips = 0;
+        int participatesFlips = 0;
+        int dualClampEvents = 0;
+        int solveOscillationFrames = 0;
+        float worstLocalY = float.MaxValue;
+        int worstFrame = -1;
+
+        foreach (KeyValuePair<int, List<CornerPbfSubstageSample>> kv in traces.OrderBy(k => k.Key))
+        {
+            int frame = kv.Key;
+            List<CornerPbfSubstageSample> samples = kv.Value;
+            bool? prevOutside = null;
+            bool? prevParticipates = null;
+
+            foreach (CornerPbfSubstageSample s in samples)
+            {
+                if (s.LocalPosition.y < worstLocalY)
+                {
+                    worstLocalY = s.LocalPosition.y;
+                    worstFrame = frame;
+                }
+
+                if (prevOutside.HasValue && prevOutside.Value != s.OutsideFootprint)
+                {
+                    classificationFlips++;
+                }
+
+                if (prevParticipates.HasValue && prevParticipates.Value != s.ParticipatesInPbf)
+                {
+                    participatesFlips++;
+                }
+
+                prevOutside = s.OutsideFootprint;
+                prevParticipates = s.ParticipatesInPbf;
+
+                if (s.FloorClampFired && s.WallClampFired)
+                {
+                    dualClampEvents++;
+                }
+            }
+
+            var solveStages = samples.Where(s => s.Stage.StartsWith("postSolveIter")).ToList();
+            if (solveStages.Count >= 2)
+            {
+                bool oscillating = false;
+                for (int i = 1; i < solveStages.Count; i++)
+                {
+                    float prevDy = solveStages[i - 1].PosDeltaFromPrev.y;
+                    float currDy = solveStages[i].PosDeltaFromPrev.y;
+                    float prevDr = solveStages[i - 1].PosDeltaFromPrev.magnitude;
+                    float currDr = solveStages[i].PosDeltaFromPrev.magnitude;
+                    if (Mathf.Abs(prevDy) > 1e-5f && Mathf.Abs(currDy) > 1e-5f && Mathf.Sign(prevDy) != Mathf.Sign(currDy))
+                    {
+                        oscillating = true;
+                    }
+
+                    if (Mathf.Abs(solveStages[i].Radial - 0.55f) <= 1e-4f
+                        && Mathf.Abs(prevDr) > 1e-5f
+                        && Mathf.Abs(currDr) > 1e-5f
+                        && Mathf.Sign(prevDr) != Mathf.Sign(currDr))
+                    {
+                        oscillating = true;
+                    }
+                }
+
+                if (oscillating)
+                {
+                    solveOscillationFrames++;
+                }
+            }
+        }
+
+        sb.AppendLine($"  worstLocalY={worstLocalY:F6} at frame={worstFrame}");
+        sb.AppendLine($"  outsideFootprint flips (sub-stage to sub-stage): {classificationFlips}");
+        sb.AppendLine($"  participatesPbf flips (sub-stage to sub-stage): {participatesFlips}");
+        sb.AppendLine($"  dual floor+wall clamp events (inferred): {dualClampEvents}");
+        sb.AppendLine($"  frames with solve-iter position sign alternation: {solveOscillationFrames}/{traces.Count}");
+
+        int atWallSamples = traces.SelectMany(t => t.Value).Count(s => Mathf.Abs(s.Radial - 0.55f) <= 1e-4f);
+        int atWallOutside = traces.SelectMany(t => t.Value).Count(s => Mathf.Abs(s.Radial - 0.55f) <= 1e-4f && s.OutsideFootprint);
+        sb.AppendLine($"  samples at r≈0.55: {atWallSamples}, of which outsideFootprint=true: {atWallOutside}");
+        sb.AppendLine($"  OtcIsOutsideFootprint vs OtcParticipatesInPbf logical disagreement: impossible by definition (!outside); flips indicate FP boundary at r=radius");
+
+        return sb.ToString();
+    }
+
+    private static string CompareCornerMechanisms(
+        Dictionary<int, List<CornerPbfSubstageSample>> traces2651,
+        Dictionary<int, List<CornerPbfSubstageSample>> traces670)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("[RigidCarrySpin:CornerPbf:Compare] idx=2651 vs idx=670 (overlap frames 113-116):");
+
+        for (int frame = CornerTraceFrame670Start; frame <= CornerTraceFrame2651End; frame++)
+        {
+            if (!traces2651.TryGetValue(frame, out List<CornerPbfSubstageSample> s2651)
+                || !traces670.TryGetValue(frame, out List<CornerPbfSubstageSample> s670))
+            {
+                continue;
+            }
+
+            CornerPbfSubstageSample p2651 = s2651.Last(s => s.Stage == "postApply");
+            CornerPbfSubstageSample p670 = s670.Last(s => s.Stage == "postApply");
+            sb.AppendLine(
+                $"  frame={frame}: 2651 postApply localY={p2651.LocalPosition.y:F4} r={p2651.Radial:F4} |v|={p2651.Velocity.magnitude:F1} " +
+                $"670 postApply localY={p670.LocalPosition.y:F4} r={p670.Radial:F4} |v|={p670.Velocity.magnitude:F1}");
+        }
+
+        return sb.ToString();
+    }
+
+    private readonly struct OtcBoundaryParams
+    {
+        public readonly float Radius;
+        public readonly float Height;
+        public readonly float Restitution;
+        public readonly float Friction;
+        public readonly Matrix4x4 WorldToLocal;
+        public readonly Matrix4x4 LocalToWorld;
+
+        public OtcBoundaryParams(
+            float radius,
+            float height,
+            float restitution,
+            float friction,
+            Matrix4x4 worldToLocal,
+            Matrix4x4 localToWorld)
+        {
+            Radius = radius;
+            Height = height;
+            Restitution = restitution;
+            Friction = friction;
+            WorldToLocal = worldToLocal;
+            LocalToWorld = localToWorld;
+        }
+    }
+
+    private readonly struct CornerPbfSubstageSample
+    {
+        public readonly string Stage;
+        public readonly Vector3 WorldPosition;
+        public readonly Vector3 LocalPosition;
+        public readonly float Radial;
+        public readonly Vector3 Velocity;
+        public readonly bool OutsideFootprint;
+        public readonly bool ParticipatesInPbf;
+        public readonly float Density;
+        public readonly float Lambda;
+        public readonly float GradSqSum;
+        public readonly bool DensityLambdaEarlyOut;
+        public readonly Vector3 PosDeltaFromPrev;
+        public readonly bool FloorClampFired;
+        public readonly bool WallClampFired;
+        public readonly string ClampNote;
+
+        public CornerPbfSubstageSample(
+            string stage,
+            Vector3 worldPosition,
+            OtcBoundaryParams boundary,
+            Vector3 velocity,
+            float density,
+            float lambda,
+            float gradSqSum,
+            bool densityLambdaEarlyOut,
+            Vector3 posDeltaFromPrev,
+            bool floorClampFired,
+            bool wallClampFired,
+            string clampNote)
+        {
+            Stage = stage;
+            WorldPosition = worldPosition;
+            LocalPosition = boundary.WorldToLocal.MultiplyPoint3x4(worldPosition);
+            Radial = new Vector2(LocalPosition.x, LocalPosition.z).magnitude;
+            Velocity = velocity;
+            OutsideFootprint = Radial > boundary.Radius;
+            ParticipatesInPbf = !OutsideFootprint;
+            Density = density;
+            Lambda = lambda;
+            GradSqSum = gradSqSum;
+            DensityLambdaEarlyOut = densityLambdaEarlyOut;
+            PosDeltaFromPrev = posDeltaFromPrev;
+            FloorClampFired = floorClampFired;
+            WallClampFired = wallClampFired;
+            ClampNote = clampNote ?? string.Empty;
+        }
     }
 
     private static List<PbfStageSample> ExecuteInstrumentedPbfFrame(
