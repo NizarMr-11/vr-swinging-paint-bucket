@@ -1,5 +1,6 @@
-using UnityEngine;
 using SwingingPaintBucket.Core;
+using SwingingPaintBucket.Simulation;
+using UnityEngine;
 
 namespace SwingingPaintBucket.Pendulum
 {
@@ -37,6 +38,8 @@ namespace SwingingPaintBucket.Pendulum
         public float Omega => _omega;
         public float Phi => _phi;
         public float PhiOmega => _phiOmega;
+        public EnvironmentController Environment;
+
 
         public Vector3 BucketVelocity {
             get {
@@ -73,10 +76,12 @@ namespace SwingingPaintBucket.Pendulum
             float cosPhi = Mathf.Cos(_phi);
             float sinPhi = Mathf.Sin(_phi);
             float safeSin = Mathf.Max(Mathf.Abs(sinTheta), 0.001f);
+            float windHorizontal = Environment != null ? Mathf.Sqrt(Environment.WindForce.x * Environment.WindForce.x +Environment.WindForce.z * Environment.WindForce.z): 0f;
 
             float thetaAcc = -(Gravity / RopeLength) * sinTheta
-                             + _phiOmega * _phiOmega * sinTheta * cosTheta
-                             - DampingCoefficient * _omega;
+                 + _phiOmega * _phiOmega * sinTheta * cosTheta
+                 - DampingCoefficient * _omega
+                 + (windHorizontal / RopeLength) * sinTheta;
 
             float phiAcc = -2f * _omega * _phiOmega * cosTheta / safeSin
                            - DampingCoefficient * _phiOmega;

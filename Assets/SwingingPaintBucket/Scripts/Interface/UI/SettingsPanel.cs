@@ -534,12 +534,28 @@ namespace SwingingPaintBucket.Interface.UI
                 _bucket.DischargeCoefficent = _dischargeSlider.value;
                 _bucket.PaintLossRate = _paintLossSlider.value;
                 _bucket.AbsorptionRate = _absorptionSlider.value;
-                _bucket.PaintColor = _selectedPaintColor;
+                _bucket.PaintColors = CreateSolidGradient(_selectedPaintColor);
                 Debug.Log("Bucket properties updated. Material: " + (BucketMaterialType)_selectedMaterialIndex);
             }
             
             PlayerPrefs.Save();
             Debug.Log("Settings applied successfully!");
         }
+        private Gradient CreateSolidGradient(Color color)
+        {
+            Gradient gradient = new Gradient();
+            gradient.SetKeys(
+                new GradientColorKey[] {
+            new GradientColorKey(color, 0f),
+            new GradientColorKey(color, 1f)
+                },
+                new GradientAlphaKey[] {
+            new GradientAlphaKey(1f, 0f),
+            new GradientAlphaKey(1f, 1f)
+                }
+            );
+            return gradient;
+        }
     }
+
 }
