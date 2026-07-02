@@ -29,6 +29,7 @@ namespace HarmonicEngine.Infrastructure.Management
         private ComputeBuffer _bufferCanvasHits => _gpuPool.CanvasHits;
         private PbfScratchBuffers _pbfScratch => _gpuPool.PbfScratch;
         private ComputeBuffer _bufferPrevCarryContribution => _gpuPool.PrevCarryContribution;
+        private ComputeBuffer _bufferPrevInsideForCarry => _gpuPool.PrevInsideForCarry;
         private PingPongSoaManager _pingPong => _gpuPool.PingPong;
         private HarmonicParticleBufferService _bufferService => _gpuPool.BufferService;
         private int _paddedSortSize => _gpuPool.PaddedSortSize;

@@ -177,6 +177,12 @@ namespace HarmonicEngine.Infrastructure.Management
 
             if (spawned > 0)
             {
+                // Initial in-container fill is genuine entrained fluid from frame 0 — seed it
+                // carry-earned so the velocity-agreement gate doesn't reject it (which would cause
+                // a settling pop if the container is already moving at spawn). The empty-guard
+                // above means this fill always starts at particle index 0.
+                _gpuPool.SeedCarryEarned(0, spawned);
+
                 simulationActive = true;
                 _cachedInternalCount = GetActiveParticleCount();
                 RecordRunSpawnInfo(new HarmonicRunSpawnInfo

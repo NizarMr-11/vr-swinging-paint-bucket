@@ -25,8 +25,13 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
             {
                 host.ComputeFrameSortSize(activeCount);
                 _spatialHash.Build(host, host.PingPong.ReadSet, activeCount);
-                activeCount = RunSubstep(host, activeCount, subDt);
+                activeCount = RunSubstep(host, activeCount, subDt, preserveFloorGate: step > 0);
             }
+
+            // Reset the gate so no other PbfSolver dispatch path (e.g. isolated test harnesses that
+            // reuse this shared shader without the frame-start membership flag) inherits it enabled.
+            host.PbfSolverShader.SetInt(HarmonicShaderPropertyIds.FloorClampContinuityEnabled, 0);
+            host.PbfSolverShader.SetInt(HarmonicShaderPropertyIds.FloorClampPreserveGate, 0);
 
             host.SetCachedInternalCount(host.RepairParticleCount(host.PingPong.ReadSet));
             host.SetLastCanvasHitCount(host.FetchBufferActiveCount(host.CanvasHitsBuffer));
@@ -44,10 +49,16 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
             }
         }
 
-        private uint RunSubstep(HarmonicPipelineController host, uint activeCount, float deltaTime)
+        private uint RunSubstep(HarmonicPipelineController host, uint activeCount, float deltaTime, bool preserveFloorGate)
         {
             float smoothingRadius = host.SphSmoothingRadius;
             host.ApplyPbfUniforms(smoothingRadius, deltaTime);
+
+            // Enable the volume-continuity floor-clamp gate for this pass. Predict samples frame-start
+            // container membership into _OldBlock0[i].w on the first substep only; later substeps
+            // preserve that flag so the gate reflects frame-start geometry, not intra-frame motion.
+            host.PbfSolverShader.SetInt(HarmonicShaderPropertyIds.FloorClampContinuityEnabled, 1);
+            host.PbfSolverShader.SetInt(HarmonicShaderPropertyIds.FloorClampPreserveGate, preserveFloorGate ? 1 : 0);
 
             using (MarkerPbfPredict.Auto())
             {
@@ -92,6 +103,8 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
                     host.PbfSolverShader.SetBuffer(host.KernelPbfSolve, HarmonicShaderPropertyIds.SortedGridKeyValueBuffer, host.GridKeyValueBuffer);
                     host.PbfSolverShader.SetBuffer(host.KernelPbfSolve, HarmonicShaderPropertyIds.CellStartEndBuffer, host.CellStartEndBuffer);
                     host.PbfSolverShader.SetBuffer(host.KernelPbfSolve, HarmonicShaderPropertyIds.Lambdas, host.PbfScratch.Lambdas);
+                    // _OldBlock0.w carries the frame-start floor-clamp gate flag read by PbfFloorClampAllowed.
+                    host.PbfSolverShader.SetBuffer(host.KernelPbfSolve, HarmonicShaderPropertyIds.OldBlock0, host.PbfScratch.OldBlock0);
                     host.PbfSolverShader.SetInt(HarmonicShaderPropertyIds.ActiveParticleCount, (int)activeCount);
                     host.PbfSolverShader.DispatchIndirect(host.KernelPbfSolve, host.IndirectArgsBuffer, 0);
                 }

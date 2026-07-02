@@ -6,6 +6,7 @@ float4x4 _ContainerRotationDelta;
 float4x4 _ContainerLocalToWorld;
 float4x4 _ContainerWorldToLocal;
 float3 _ContainerAngularVelocityWorld;
+float3 _ContainerLinearVelocityWorld;
 float3 _ContainerFloorPivot;
 float _ContainerHeight;
 float _ContainerRadius;
@@ -22,6 +23,17 @@ float _ContainerFriction;
 RWStructuredBuffer<float4> _Block0;
 RWStructuredBuffer<float4> _Block1;
 RWStructuredBuffer<float3> _PrevCarryContribution;
+// Persistent "carry-earned last frame" flag (0/1). Despite the historical name, this now
+// records velocity-agreement entrainment state, not raw geometric containment.
+RWStructuredBuffer<uint> _PrevInsideForCarry;
+
+// Max speed (world units/sec) a particle's velocity may differ from the container's rigid
+// point velocity and still be admitted as entrained fluid. Above this, a particle inside the
+// geometric volume is treated as swept debris (stationary ground particle vs moving bucket)
+// and left on ordinary PBF/exterior physics until its velocity naturally converges.
+// TUNABLE: 0.25 chosen to sit well above settled-fluid residuals (<~0.1) yet far below sweep
+// speeds (>>1). Calibrate against RigidCarryContinuity legitimate-entrainment test frame count.
+static const float EARN_VELOCITY_THRESHOLD = 0.25;
 
 [numthreads(64, 1, 1)]
 void ContainerRigidCarryKernel(uint3 id : SV_DispatchThreadID)
@@ -37,20 +49,40 @@ void ContainerRigidCarryKernel(uint3 id : SV_DispatchThreadID)
     float3 pos = block0.xyz;
     float3 vel = block1.xyz;
 
-    if (!OtcIsInsideForRigidCarry(pos))
-    {
-        _PrevCarryContribution[i] = float3(0.0, 0.0, 0.0);
-        return;
-    }
+    bool currentlyInside = OtcIsInsideForRigidCarry(pos);
+    bool wasEarnedLastFrame = _PrevInsideForCarry[i] != 0u;
 
-    float3 newPos = mul(_ContainerRotationDelta, float4(pos, 1.0)).xyz;
     float3 arm = pos - _ContainerFloorPivot;
     float3 rotContribution = cross(_ContainerAngularVelocityWorld, arm);
-    float3 newVel = (vel - _PrevCarryContribution[i]) + rotContribution;
-    _PrevCarryContribution[i] = rotContribution;
 
-    OtcClampToContainer(newPos, newVel);
+    // Velocity this point WOULD have if rigidly carried by the container.
+    float3 expectedLocalVel = _ContainerLinearVelocityWorld + rotContribution;
+    float relativeSpeed = length(vel - expectedLocalVel);
 
-    _Block0[i] = float4(newPos, block0.w);
-    _Block1[i] = float4(newVel, block1.w);
+    // Carry entrainment is earned by velocity agreement and persists while inside:
+    //   (a) already earned last frame and still inside — real fluid stays fluid, or
+    //   (b) inside AND already moving with the container (relativeSpeed below threshold).
+    // A particle inside but moving very differently (swept ground debris) is NOT promoted;
+    // it is re-evaluated every frame until friction/clamp contact converges its velocity.
+    bool earnedThisFrame = currentlyInside && (wasEarnedLastFrame || relativeSpeed < EARN_VELOCITY_THRESHOLD);
+
+    if (earnedThisFrame)
+    {
+        float3 newPos = mul(_ContainerRotationDelta, float4(pos, 1.0)).xyz;
+        float3 newVel = (vel - _PrevCarryContribution[i]) + rotContribution;
+        _PrevCarryContribution[i] = rotContribution;
+
+        OtcClampToContainer(newPos, newVel);
+
+        _Block0[i] = float4(newPos, block0.w);
+        _Block1[i] = float4(newVel, block1.w);
+    }
+    else
+    {
+        // Not entrained this frame (outside, or inside-but-unconverged debris) — leave pos/vel
+        // to ordinary PBF/exterior physics and drop any stale carry contribution bookkeeping.
+        _PrevCarryContribution[i] = float3(0.0, 0.0, 0.0);
+    }
+
+    _PrevInsideForCarry[i] = earnedThisFrame ? 1u : 0u;
 }

@@ -19,6 +19,7 @@
 // call sites below — everything else in this file is agnostic to that.
 
 #pragma kernel CS_ClampContainer
+#pragma kernel CS_ClampContainerWithPrev
 #pragma kernel CS_IsInsideForRigidCarry
 #pragma kernel CS_IsOutsideFootprint
 #pragma kernel CS_ParticipatesInPbf
@@ -40,6 +41,7 @@ float _ContainerFriction;
 
 RWStructuredBuffer<float3> _TestPos;   // in/out
 RWStructuredBuffer<float3> _TestVel;   // in/out
+RWStructuredBuffer<float3> _TestPrevPos; // in
 RWStructuredBuffer<uint>   _TestFlag;  // out (bool as 0/1)
 
 [numthreads(1,1,1)]
@@ -48,6 +50,17 @@ void CS_ClampContainer(uint3 id : SV_DispatchThreadID)
     float3 pos = _TestPos[0];
     float3 vel = _TestVel[0];
     OtcClampToContainer(pos, vel);
+    _TestPos[0] = pos;
+    _TestVel[0] = vel;
+}
+
+[numthreads(1,1,1)]
+void CS_ClampContainerWithPrev(uint3 id : SV_DispatchThreadID)
+{
+    float3 pos = _TestPos[0];
+    float3 vel = _TestVel[0];
+    float3 prevPos = _TestPrevPos[0];
+    OtcClampToContainer(pos, vel, prevPos);
     _TestPos[0] = pos;
     _TestVel[0] = vel;
 }

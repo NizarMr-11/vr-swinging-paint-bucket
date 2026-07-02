@@ -21,6 +21,8 @@ namespace HarmonicEngine.Infrastructure.Management
 
         internal ComputeBuffer PrevCarryContributionBuffer => _bufferPrevCarryContribution;
 
+        internal ComputeBuffer PrevInsideForCarryBuffer => _bufferPrevInsideForCarry;
+
         internal ComputeBuffer IndirectArgsBuffer => _indirectArgsBuffer;
 
         internal ComputeBuffer GridKeyValueBuffer => _gridKeyValueBuffer;

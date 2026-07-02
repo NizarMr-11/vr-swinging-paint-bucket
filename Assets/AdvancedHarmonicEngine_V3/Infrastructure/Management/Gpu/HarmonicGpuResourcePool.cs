@@ -24,6 +24,8 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
         public PbfScratchBuffers PbfScratch { get; private set; }
         /// <summary>Per-particle last rigid-carry rotational velocity contribution (world space). Not ping-ponged.</summary>
         public ComputeBuffer PrevCarryContribution { get; private set; }
+        /// <summary>Per-particle "was inside-for-carry last frame" flag (0/1). Gates rigid-carry continuity. Not ping-ponged.</summary>
+        public ComputeBuffer PrevInsideForCarry { get; private set; }
         public PingPongSoaManager PingPong { get; private set; }
         public HarmonicParticleBufferService BufferService { get; private set; }
         public int PaddedSortSize { get; private set; }
@@ -47,6 +49,7 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
 
             int carryContributionStride = sizeof(float) * 3;
             PrevCarryContribution = new ComputeBuffer(config.MaxCapacity, carryContributionStride, ComputeBufferType.Structured);
+            PrevInsideForCarry = new ComputeBuffer(config.MaxCapacity, sizeof(uint), ComputeBufferType.Structured);
             ClearPrevCarryContribution(config.MaxCapacity);
 
             int dragVolume = Mathf.Max(1, config.DragGridVolume);
@@ -107,6 +110,7 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
             CanvasHits?.Release();
             PbfScratch?.Release();
             PrevCarryContribution?.Release();
+            PrevInsideForCarry?.Release();
 
             SoaInternalA = null;
             SoaInternalB = null;
@@ -127,6 +131,7 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
             CanvasHits = null;
             PbfScratch = null;
             PrevCarryContribution = null;
+            PrevInsideForCarry = null;
             PingPong = null;
             BufferService = null;
         }
@@ -141,6 +146,42 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
             int count = Mathf.Min(capacity, PrevCarryContribution.count);
             var zeros = new Vector3[count];
             PrevCarryContribution.SetData(zeros);
+
+            if (PrevInsideForCarry != null)
+            {
+                int flagCount = Mathf.Min(capacity, PrevInsideForCarry.count);
+                var zeroFlags = new uint[flagCount];
+                PrevInsideForCarry.SetData(zeroFlags);
+            }
+        }
+
+        /// <summary>
+        /// Marks a contiguous range of particles as carry-earned (entrained) from frame 0.
+        /// Used for initial in-container lattice fill: those particles are genuine fluid, not
+        /// swept debris, so they must skip the velocity-agreement earn gate to avoid a one-time
+        /// settling pop when the container is already moving at spawn.
+        /// </summary>
+        public void SeedCarryEarned(int startIndex, int count)
+        {
+            if (PrevInsideForCarry == null || count <= 0 || startIndex < 0)
+            {
+                return;
+            }
+
+            int end = Mathf.Min(startIndex + count, PrevInsideForCarry.count);
+            int seedCount = end - startIndex;
+            if (seedCount <= 0)
+            {
+                return;
+            }
+
+            var ones = new uint[seedCount];
+            for (int i = 0; i < seedCount; i++)
+            {
+                ones[i] = 1u;
+            }
+
+            PrevInsideForCarry.SetData(ones, 0, startIndex, seedCount);
         }
 
         public void SetFrameSortSize(int sortSize) => FrameSortSize = sortSize;

@@ -26,7 +26,7 @@ using UnityEditor;
 public class OpenTopCylinderBoundaryTests
 {
     ComputeShader _cs;
-    ComputeBuffer _posBuf, _velBuf, _flagBuf;
+    ComputeBuffer _posBuf, _velBuf, _prevPosBuf, _flagBuf;
 
     const float RADIUS = 2.0f;
     const float HEIGHT = 3.0f;
@@ -48,6 +48,7 @@ public class OpenTopCylinderBoundaryTests
 
         _posBuf = new ComputeBuffer(1, sizeof(float) * 3);
         _velBuf = new ComputeBuffer(1, sizeof(float) * 3);
+        _prevPosBuf = new ComputeBuffer(1, sizeof(float) * 3);
         _flagBuf = new ComputeBuffer(1, sizeof(uint));
 
         SetContainerUniforms();
@@ -58,6 +59,7 @@ public class OpenTopCylinderBoundaryTests
     {
         _posBuf?.Release();
         _velBuf?.Release();
+        _prevPosBuf?.Release();
         _flagBuf?.Release();
     }
 
@@ -82,6 +84,21 @@ public class OpenTopCylinderBoundaryTests
         int k = _cs.FindKernel("CS_ClampContainer");
         _posBuf.SetData(new[] { pos });
         _velBuf.SetData(new[] { vel });
+        _cs.SetBuffer(k, "_TestPos", _posBuf);
+        _cs.SetBuffer(k, "_TestVel", _velBuf);
+        _cs.Dispatch(k, 1, 1, 1);
+        var p = new Vector3[1]; var v = new Vector3[1];
+        _posBuf.GetData(p); _velBuf.GetData(v);
+        outPos = p[0]; outVel = v[0];
+    }
+
+    void RunClampWithPrev(Vector3 prevPos, Vector3 pos, Vector3 vel, out Vector3 outPos, out Vector3 outVel)
+    {
+        int k = _cs.FindKernel("CS_ClampContainerWithPrev");
+        _prevPosBuf.SetData(new[] { prevPos });
+        _posBuf.SetData(new[] { pos });
+        _velBuf.SetData(new[] { vel });
+        _cs.SetBuffer(k, "_TestPrevPos", _prevPosBuf);
         _cs.SetBuffer(k, "_TestPos", _posBuf);
         _cs.SetBuffer(k, "_TestVel", _velBuf);
         _cs.Dispatch(k, 1, 1, 1);
@@ -130,6 +147,12 @@ public class OpenTopCylinderBoundaryTests
     }
 
     // --- Rule 3: Wall is solid from outside too (bidirectional) ---
+    // NOTE: this drives the LEGACY unconditional OtcClampToContainer(pos, vel) directly with a
+    // far-exterior inward-moving particle. That input never reaches this function on its real
+    // production call site (SolvePositionsKernel only receives particles already classified
+    // interior this frame). This test therefore documents legacy/direct-call semantics, NOT the
+    // bounded Predict/Apply path's behavior — do not "reconcile" it by widening the bounded
+    // wall-capture margin (OTC_WALL_CAPTURE_MARGIN), which would reintroduce unbounded capture.
     [Test]
     public void Wall_ClampsFromOutside_BelowRim()
     {
@@ -196,5 +219,55 @@ public class OpenTopCylinderBoundaryTests
             "Confirm intended behavior with Cursor: should a sub-floor, in-radius " +
             "particle still participate in PBF (so the floor clamp can correct it), " +
             "or should participation also require y >= 0? Currently returned: " + participates);
+    }
+
+    [Test]
+    public void BoundedWallCapture_ClampsInteriorCrossingOutward()
+    {
+        Vector3 prevPos = new Vector3(RADIUS - 0.01f, 0.3f, 0.0f);
+        Vector3 pos = new Vector3(RADIUS + 0.60f, 0.3f, 0.0f);
+        RunClampWithPrev(prevPos, pos, Vector3.zero, out var outPos, out _);
+        float r = new Vector2(outPos.x, outPos.z).magnitude;
+        Assert.AreEqual(RADIUS, r, EPS,
+            "Interior->exterior crossing must still clamp to prevent leaks.");
+    }
+
+    [Test]
+    public void BoundedWallCapture_KeepsWallSlidingClampedAcrossFrames()
+    {
+        Vector3 prevPos = new Vector3(RADIUS, 0.3f, 0.0f);
+        Vector3 pos = new Vector3(RADIUS + 0.02f, 0.3f, 0.0f);
+        for (int frame = 0; frame < 5; frame++)
+        {
+            RunClampWithPrev(prevPos, pos, new Vector3(0.0f, -0.2f, 0.0f), out var outPos, out _);
+            float r = new Vector2(outPos.x, outPos.z).magnitude;
+            Assert.AreEqual(RADIUS, r, EPS, $"Frame {frame}: wall-adjacent particle should remain clamped.");
+            prevPos = outPos;
+            pos = new Vector3(RADIUS + 0.02f, 0.3f, 0.0f);
+        }
+    }
+
+    [Test]
+    public void BoundedWallCapture_DoesNotClampFarExteriorVerticalFall()
+    {
+        float farR = RADIUS + 1.45f;
+        Vector3 prevPos = new Vector3(farR, 0.3f, 0.0f);
+        Vector3 pos = new Vector3(farR, 0.3f, 0.0f);
+        RunClampWithPrev(prevPos, pos, new Vector3(0.0f, -1.0f, 0.0f), out var outPos, out _);
+        float r = new Vector2(outPos.x, outPos.z).magnitude;
+        Assert.AreEqual(farR, r, EPS,
+            "Far exterior particle falling through [0,height] must remain free (no wall capture teleport).");
+    }
+
+    [Test]
+    public void BoundedWallCapture_DoesNotClampModeratelyExteriorParticle()
+    {
+        float exteriorR = RADIUS + 0.30f;
+        Vector3 prevPos = new Vector3(exteriorR, 0.3f, 0.0f);
+        Vector3 pos = new Vector3(exteriorR, 0.2f, 0.0f);
+        RunClampWithPrev(prevPos, pos, new Vector3(0.0f, -1.0f, 0.0f), out var outPos, out _);
+        float r = new Vector2(outPos.x, outPos.z).magnitude;
+        Assert.AreEqual(exteriorR, r, EPS,
+            "Moderately exterior particle must not be pulled onto the wall.");
     }
 }

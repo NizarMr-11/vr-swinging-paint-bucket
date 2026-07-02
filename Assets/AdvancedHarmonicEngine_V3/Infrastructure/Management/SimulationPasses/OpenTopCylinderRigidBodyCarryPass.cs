@@ -45,6 +45,14 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
                 ? axis.normalized * (angleDeg * Mathf.Deg2Rad / safeDt)
                 : Vector3.zero;
 
+            // Translational velocity of the container pivot this frame. The rigid point
+            // velocity of any carried particle is v_pivot + cross(omega, arm); the velocity-
+            // agreement gate needs this term or pure-translation sweeps score zero relative
+            // speed and would wrongly promote stationary ground particles.
+            Vector3 currPivot = currLocalToWorld.GetColumn(3);
+            Vector3 prevPivot = prevLocalToWorld.GetColumn(3);
+            Vector3 linearVelocity = (currPivot - prevPivot) / safeDt;
+
             if (host.KernelContainerRigidCarry < 0)
             {
                 return;
@@ -66,6 +74,7 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
                 host.ContainerRigidCarryShader.SetFloat(HarmonicShaderPropertyIds.ContainerRestitution, host.ContainerFluidRestitution);
                 host.ContainerRigidCarryShader.SetFloat(HarmonicShaderPropertyIds.ContainerFriction, host.ContainerFluidFriction);
                 host.ContainerRigidCarryShader.SetVector(HarmonicShaderPropertyIds.ContainerAngularVelocityWorld, angularVelocity);
+                host.ContainerRigidCarryShader.SetVector(HarmonicShaderPropertyIds.ContainerLinearVelocityWorld, linearVelocity);
                 host.ContainerRigidCarryShader.SetVector(HarmonicShaderPropertyIds.ContainerFloorPivot, host.ContainerFloorPivot);
                 host.ContainerRigidCarryShader.SetBuffer(host.KernelContainerRigidCarry, HarmonicShaderPropertyIds.Block0, host.PingPong.ReadSet.Block0);
                 host.ContainerRigidCarryShader.SetBuffer(host.KernelContainerRigidCarry, HarmonicShaderPropertyIds.Block1, host.PingPong.ReadSet.Block1);
@@ -73,6 +82,10 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
                     host.KernelContainerRigidCarry,
                     HarmonicShaderPropertyIds.PrevCarryContribution,
                     host.PrevCarryContributionBuffer);
+                host.ContainerRigidCarryShader.SetBuffer(
+                    host.KernelContainerRigidCarry,
+                    HarmonicShaderPropertyIds.PrevInsideForCarry,
+                    host.PrevInsideForCarryBuffer);
                 int groups = Mathf.CeilToInt(activeCount / 64f);
                 host.ContainerRigidCarryShader.Dispatch(host.KernelContainerRigidCarry, groups, 1, 1);
             }

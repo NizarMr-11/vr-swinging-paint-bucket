@@ -23,6 +23,9 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
         public static readonly int Block0 = Shader.PropertyToID("_Block0");
         public static readonly int Block1 = Shader.PropertyToID("_Block1");
         public static readonly int PrevCarryContribution = Shader.PropertyToID("_PrevCarryContribution");
+        public static readonly int PrevInsideForCarry = Shader.PropertyToID("_PrevInsideForCarry");
+        public static readonly int FloorClampContinuityEnabled = Shader.PropertyToID("_FloorClampContinuityEnabled");
+        public static readonly int FloorClampPreserveGate = Shader.PropertyToID("_FloorClampPreserveGate");
         public static readonly int PackedColors = Shader.PropertyToID("_PackedColors");
         public static readonly int Wetness = Shader.PropertyToID("_Wetness");
         public static readonly int WriteBlock0 = Shader.PropertyToID("_WriteBlock0");
@@ -112,6 +115,7 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
         public static readonly int ContainerUsesOrientation = Shader.PropertyToID("_ContainerUsesOrientation");
         public static readonly int ContainerRotationDelta = Shader.PropertyToID("_ContainerRotationDelta");
         public static readonly int ContainerAngularVelocityWorld = Shader.PropertyToID("_ContainerAngularVelocityWorld");
+        public static readonly int ContainerLinearVelocityWorld = Shader.PropertyToID("_ContainerLinearVelocityWorld");
         public static readonly int ContainerFloorPivot = Shader.PropertyToID("_ContainerFloorPivot");
     }
 }

@@ -47,6 +47,13 @@ float4x4 _ContainerLocalToWorld;
 float4x4 _ContainerWorldToLocal;
 int _ContainerUsesOrientation;
 float3 _ContainerFloorPivot;
+// When non-zero, the PBF floor clamp is gated by the frame-start volume-membership flag carried in
+// _OldBlock0[i].w (volume-continuity). Default 0 keeps legacy unconditional floor clamping for any
+// dispatch path (e.g. isolated test harnesses) that does not populate that flag.
+int _FloorClampContinuityEnabled;
+// When non-zero, Predict preserves the existing _OldBlock0[i].w instead of re-sampling (substeps
+// after the first within a frame must not refresh the gate from mid-frame geometry).
+int _FloorClampPreserveGate;
 
 float _CohesionStrength;
 float3 _Gravity;
@@ -69,6 +76,24 @@ float _FloorFriction;
 
 #include "Include/OpenTopCylinderBoundary.hlsl"
 #include "Include/PbfNeighborQuery.hlsl"
+
+// Volume-continuity floor-clamp gate. Returns true (legacy: floor always clamps) unless the gate is
+// enabled, in which case only particles that were genuinely inside the cup at frame start may be
+// floor-clamped. This is purely a gate — no solve math depends on it.
+//
+// The frame-start membership flag is carried in _OldBlock0[i].w, written once by PredictPositionsKernel
+// from the pre-integration (frame-start) position and read unchanged by Solve/Apply. _OldBlock0 already
+// flows Predict->Apply as a UAV, so Unity's automatic UAV barriers keep the read-after-write
+// deterministic — unlike a separate buffer read back as an SRV, which aliases the UAV write and races.
+bool PbfFloorClampAllowed(uint i)
+{
+    if (_FloorClampContinuityEnabled == 0)
+    {
+        return true;
+    }
+
+    return _OldBlock0[i].w != 0.0;
+}
 
 void AppendCanvasHit(float3 worldPos, float weight, uint packedColor, float wetnessDeposit)
 {
@@ -241,9 +266,36 @@ void PredictPositionsKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float3 pos = SphLoadPosition(i);
+    float3 prevPos = pos;
     float3 vel = SphLoadVelocity(i);
 
-    _OldBlock0[i] = float4(pos, 0.0);
+    // Frame-start floor-clamp eligibility: genuinely inside the cup now, OR was eligible last frame
+    // and still under the radial column (PBF compression can push resting fluid a hair below the
+    // floor between frames — without persistence that one-frame miss disables clamping forever).
+    // Swept ground debris (never inside, y << floor) never earns eligibility.
+    float frameStartInsideVolume;
+    if (_FloorClampPreserveGate != 0)
+    {
+        frameStartInsideVolume = _OldBlock0[i].w;
+    }
+    else if (_FloorClampContinuityEnabled != 0)
+    {
+        float3 gateLocalPos = mul(_ContainerWorldToLocal, float4(prevPos, 1.0)).xyz;
+        float gateRadialDist = length(gateLocalPos.xz);
+        bool wasEligibleLastFrame = _OldBlock0[i].w != 0.0;
+        bool insideNow = OtcInsideVolumeForFloorGate(prevPos);
+        // Match the floor-clamp footprint predicate (includes OTC_RADIAL_BOUNDARY_EPS) so wall-edge
+        // resting fluid does not lose persistence one epsilon outside the strict wall cylinder.
+        bool inFloorFootprint = OtcRadialInsideFloorFootprint(gateRadialDist);
+        bool eligible = insideNow || (wasEligibleLastFrame && inFloorFootprint);
+        frameStartInsideVolume = eligible ? 1.0 : 0.0;
+    }
+    else
+    {
+        frameStartInsideVolume = 0.0;
+    }
+
+    _OldBlock0[i] = float4(pos, frameStartInsideVolume);
 
     float3 accel = _Gravity;
     if (OtcIsOutsideFootprint(pos))
@@ -257,7 +309,7 @@ void PredictPositionsKernel(uint3 id : SV_DispatchThreadID)
 
     vel += accel * _DeltaTime;
     pos += vel * _DeltaTime;
-    OtcClampToContainer(pos, vel);
+    OtcClampToContainer(pos, vel, prevPos, PbfFloorClampAllowed(i));
 
     _PredictedBlock0[i] = float4(pos, 0.0);
 }
@@ -412,7 +464,7 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
         delta *= _PbfMaxPositionDelta / deltaLen;
     }
     selfPos += delta;
-    OtcClampToContainerPosition(selfPos);
+    OtcClampToContainerPosition(selfPos, PbfFloorClampAllowed(i));
     _PredictedBlock0[i] = float4(selfPos, 0.0);
 }
 
@@ -437,7 +489,7 @@ void ApplyPositionsKernel(uint3 id : SV_DispatchThreadID)
     float density = _DensityCacheDensities[i];
     float pressure = 0.0;
 
-    OtcClampToContainer(newPos, vel);
+    OtcClampToContainer(newPos, vel, oldPos, PbfFloorClampAllowed(i));
     if (OtcIsOutsideFootprint(newPos))
     {
         ApplyOutsideCanvasCollision(newPos, vel, wetness, packedColor);
