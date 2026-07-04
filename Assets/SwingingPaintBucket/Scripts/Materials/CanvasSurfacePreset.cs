@@ -3,17 +3,17 @@ namespace SwingingPaintBucket.Materials
     public static class CanvasSurfacePreset
     {
         private static readonly float[] SpreadMultiplier = {
-            1.8f,  // Fabric — انتشار كبير وناعم
+            0.4f,  // Fabric — انتشار كبير وناعم
             1.0f,  // Wood   — متوسط
-            0.5f,  // Metal  — صغير وحاد
-            1.2f   // Paper  — متوسط مع نعومة
+            2.5f,  // Metal  — صغير وحاد
+            0.6f   // Paper  — متوسط مع نعومة
         };
 
         private static readonly float[] OpacityMultiplier = {
-            0.80f, // Fabric — يمتص بعض اللون
-            0.65f, // Wood   — يمتص أكثر
-            1.00f, // Metal  — لون كامل
-            0.90f  // Paper  — شبه كامل
+            1.00f, // Fabric — يمتص بعض اللون
+            0.85f, // Wood   — يمتص أكثر
+            0.60f, // Metal  — لون كامل
+            1.00f  // Paper  — شبه كامل
         };
 
         public static float GetSpreadMultiplier(CanvasSurfaceType type)

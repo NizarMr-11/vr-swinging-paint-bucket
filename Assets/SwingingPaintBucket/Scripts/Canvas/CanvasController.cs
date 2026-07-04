@@ -14,6 +14,13 @@ namespace SwingingPaintBucket.Canvas
         public int TextureWidth = 1024;
         public int TextureHeight = 1024;
 
+        [Header("Teacher Feedback Variables")]
+        [Tooltip("Fabric = 0.5 (absorbs), Standard = 1.0, Plastic = 1.5 (spreads)")]
+        public float MaterialSpreadMultiplier = 1.0f;
+
+        [Tooltip("The physical volume of the paint particle hitting the canvas")]
+        public float ParticleImpactSize = 1.0f;
+
         private Texture2D _canvasTexture;
         private Color[] _pixels;
         private Renderer _renderer;
@@ -72,17 +79,17 @@ namespace SwingingPaintBucket.Canvas
 
             int pixelX = (int)(u * TextureWidth);
             int pixelY = (int)(v * TextureHeight);
-            int baseRadius = Mathf.Max(15, (int)(60f / viscosity));
 
-            
+            // ---- COMBINED PHYSICS MATH (Nizar's Presets + marzouki's Physics) ----
             float spread = CanvasSurfacePreset.GetSpreadMultiplier(SurfaceType);
             float opacity = CanvasSurfacePreset.GetOpacityMultiplier(SurfaceType);
-
-            int finalRadius = Mathf.Max(2, (int)(baseRadius * spread));
             color.a = color.a * opacity;
 
-           
-            DrawSplat(pixelX, pixelY, finalRadius, color);
+            float calculatedRadius = (10f / viscosity) * spread * ParticleImpactSize;
+            int baseRadius = Mathf.Max(2, (int)calculatedRadius);
+
+
+            
 
             Vector2 currentHitPixel = new Vector2(pixelX, pixelY);
 
