@@ -60,6 +60,9 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
 
             using (MarkerContainerRigidCarry.Auto())
             {
+                // Pre-carry classify on frame-start positions; only runs when carry dispatch fires.
+                host.ClassifyParticleFieldForCarry(activeCount);
+                host.ApplyOtcFieldUniforms(host.ContainerRigidCarryShader);
                 host.ContainerRigidCarryShader.SetInt(HarmonicShaderPropertyIds.ActiveParticleCount, (int)activeCount);
                 host.ContainerRigidCarryShader.SetInt(HarmonicShaderPropertyIds.MaxParticleCount, host.MaxCapacity);
                 host.ContainerRigidCarryShader.SetMatrix(HarmonicShaderPropertyIds.ContainerRotationDelta, rotationDelta);
@@ -86,6 +89,10 @@ namespace HarmonicEngine.Infrastructure.Management.SimulationPasses
                     host.KernelContainerRigidCarry,
                     HarmonicShaderPropertyIds.PrevInsideForCarry,
                     host.PrevInsideForCarryBuffer);
+                OtcParticleFieldPass.BindFieldRead(
+                    host.ContainerRigidCarryShader,
+                    host.KernelContainerRigidCarry,
+                    host.PbfScratch.ParticleField);
                 int groups = Mathf.CeilToInt(activeCount / 64f);
                 host.ContainerRigidCarryShader.Dispatch(host.KernelContainerRigidCarry, groups, 1, 1);
             }

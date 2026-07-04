@@ -83,6 +83,17 @@ namespace HarmonicEngine.Infrastructure.Management
 
         internal ComputeShader ContainerRigidCarryShader => containerRigidCarryShader;
 
+        internal void ClassifyParticleFieldForCarry(uint activeCount) =>
+            _otcFieldPass.ClassifyFromBlock0(this, PingPong.ReadSet.Block0, activeCount);
+
+        internal void ClassifyParticleFieldFrom(ComputeBuffer sourceBlock0, uint activeCount) =>
+            _otcFieldPass.ClassifyFromBlock0(this, sourceBlock0, activeCount);
+
+        internal void BindParticleFieldRead(ComputeShader shader, int kernel) =>
+            OtcParticleFieldPass.BindFieldRead(shader, kernel, PbfScratch.ParticleField);
+
+        private readonly OtcParticleFieldPass _otcFieldPass = new();
+
 
 
         internal int KernelGridClear => _kernelGridClear;
@@ -228,6 +239,12 @@ namespace HarmonicEngine.Infrastructure.Management
         internal void PassBindWriteSoaIndexed(ComputeShader shader, int kernel, ParticleSoaBuffers soa) =>
 
             BindWriteSoaIndexed(shader, kernel, soa);
+
+
+
+        internal void PassBindInternalAppendSoa(ComputeShader shader, int kernel, ParticleSoaBuffers soa) =>
+
+            BindInternalAppendSoa(shader, kernel, soa);
 
 
 

@@ -34,7 +34,7 @@ namespace HarmonicEngine.Infrastructure.Management
         public void ApplyContainerRigidRotation(Matrix4x4 prevLocalToWorld, Matrix4x4 currLocalToWorld, float deltaTime) =>
             _rigidBodyCarryPass.ApplyRotation(this, prevLocalToWorld, currLocalToWorld, deltaTime);
 
-        private void ApplyContainerPbfUniforms(ComputeShader shader)
+        internal void ApplyContainerPbfUniforms(ComputeShader shader)
         {
             shader.SetMatrix(ContainerLocalToWorldId, _containerLocalToWorld);
             shader.SetMatrix(ContainerWorldToLocalId, _containerWorldToLocal);

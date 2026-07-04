@@ -8,6 +8,19 @@
 // float3 _ContainerCenter, _ContainerFloorPivot
 // float _ContainerRestitution, _ContainerFriction
 
+// Shared tolerance so floor (r <= radius) and wall (r > radius) meet without an FP gap
+// at the corner (diagnostic: r = 0.55000010 with y < 0 missed floor, wall skipped xz-only).
+static const float OTC_RADIAL_BOUNDARY_EPS = 1e-4f;
+static const float OTC_WALL_CROSS_MARGIN = 1e-4f;
+static const float OTC_WALL_CAPTURE_MARGIN = 0.05f;
+
+// Downward floor tolerance. Mirrors OTC_RADIAL_BOUNDARY_EPS philosophy: a resting particle pinned at
+// localY = 0 by last frame's clamp can read back a hair below zero after the world<->local FP
+// round-trip, so we admit a thin band below the floor before treating a particle as "below the cup"
+// (excluded from PBF, subject to canvas collision). Genuine sub-floor "beam" / swept debris sits well
+// below this band. Shared by the Zone-B floor-clamp continuity gate and the Zone-A beam predicates.
+static const float OTC_FLOOR_GATE_TOLERANCE = 0.01f; // 1 cm; tunable
+
 // Rigid-body carry: inside the solid cylinder footprint up to the rim.
 bool OtcIsInsideForRigidCarry(float3 worldPos)
 {
@@ -31,18 +44,50 @@ bool OtcIsOutsideFootprint(float3 worldPos)
     return length(localPos.xz) > _ContainerRadius;
 }
 
-// PBF only within the footprint so fluid cannot couple across solid walls.
-// Slosh above the rim (y > height, r <= radius) still participates.
+// PBF only within the footprint so fluid cannot couple across solid walls, AND at/above the floor so
+// sub-floor "beam" particles (radially inside the column but never in the 3D cup) do not couple into
+// the density/pressure solve. NO upper bound: slosh above the rim (y > height, r <= radius) still
+// participates so it can re-enter the cup through the open top. This is the Zone-A companion to the
+// Zone-B floor-clamp gate — same OTC_FLOOR_GATE_TOLERANCE band below the floor.
 bool OtcParticipatesInPbf(float3 worldPos)
 {
-    return !OtcIsOutsideFootprint(worldPos);
+    float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
+    return length(localPos.xz) <= _ContainerRadius
+        && localPos.y >= -OTC_FLOOR_GATE_TOLERANCE;
 }
 
-// Shared tolerance so floor (r <= radius) and wall (r > radius) meet without an FP gap
-// at the corner (diagnostic: r = 0.55000010 with y < 0 missed floor, wall skipped xz-only).
-static const float OTC_RADIAL_BOUNDARY_EPS = 1e-4f;
-static const float OTC_WALL_CROSS_MARGIN = 1e-4f;
-static const float OTC_WALL_CAPTURE_MARGIN = 0.05f;
+// Canvas collision claim (Option A, beam-only): a particle should be caught by the canvas whenever it
+// is NOT genuinely inside the cup for collision purposes — either radially outside the footprint
+// (existing spill/exterior behavior) OR under the column but below the floor band (the Zone-A beam,
+// radially inside yet never in the 3D cup). Slosh above the rim (localY > height, r <= radius) is
+// intentionally NOT captured here: it stays aloft and re-enters PBF via the open top (see
+// SpillPhysicsTests.ExteriorParticle_ReEntersPbfViaOpenTop_WhenTrajectoryCrossesFootprintAboveRim).
+bool OtcCanvasCollisionApplies(float3 worldPos)
+{
+    float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
+    float radialDist = length(localPos.xz);
+    bool outsideFootprint = radialDist > _ContainerRadius;
+    bool beamBelowFloor = radialDist <= _ContainerRadius + OTC_RADIAL_BOUNDARY_EPS
+        && localPos.y < -OTC_FLOOR_GATE_TOLERANCE;
+    return outsideFootprint || beamBelowFloor;
+}
+
+// Beam despawn claim (Zone-A cleanup): a particle that is the sub-floor beam (radially inside the
+// footprint but below the floor band, i.e. the beamBelowFloor half of OtcCanvasCollisionApplies) AND
+// has reached/passed the canvas plane. Such particles are excluded from PBF (no self-repulsion) and,
+// once arrested at the canvas, only stack into a degenerate pile — so integration drops them instead
+// of writing a survivor (their canvas hit is recorded separately before the drop). Deliberately
+// beam-only: exterior/rim-spill particles (radialDist > radius) are NOT despawned here so their
+// existing lifecycle is untouched. canvasPlaneY is passed in so this header stays independent of any
+// particular shader's canvas uniform.
+bool OtcBeamDespawnApplies(float3 worldPos, float canvasPlaneY)
+{
+    float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
+    float radialDist = length(localPos.xz);
+    bool beamBelowFloor = radialDist <= _ContainerRadius + OTC_RADIAL_BOUNDARY_EPS
+        && localPos.y < -OTC_FLOOR_GATE_TOLERANCE;
+    return beamBelowFloor && worldPos.y <= canvasPlaneY;
+}
 
 bool OtcRadialInsideFloorFootprint(float radialDist)
 {
@@ -53,13 +98,6 @@ bool OtcRadialOutsideWallCylinder(float radialDist)
 {
     return radialDist > _ContainerRadius - OTC_RADIAL_BOUNDARY_EPS;
 }
-
-// Downward floor tolerance for the volume-continuity floor-clamp gate. Mirrors the engine's
-// existing OTC_RADIAL_BOUNDARY_EPS philosophy (see comment above): a resting particle pinned at
-// localY = 0 by last frame's clamp can read back a hair below zero after the world<->local FP
-// round-trip, so we admit a thin band below the floor. Swept ground debris sits metres below the
-// floor and stays excluded.
-static const float OTC_FLOOR_GATE_TOLERANCE = 0.01f; // 1 cm; tunable
 
 // Volume containment used to gate the floor clamp by continuity: was this particle genuinely
 // inside the cup (0 <= y <= rim, r <= radius) — not merely under the infinite radial column — at

@@ -177,7 +177,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 1003747193}
+  - {fileID: 852021882}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -208,7 +208,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 114675546}
-  m_Mesh: {fileID: 270190687}
+  m_Mesh: {fileID: 1230613688}
 --- !u!21 &215974579
 Material:
   serializedVersion: 8
@@ -239,7 +239,662 @@ Material:
     - _Color: {r: 1, g: 0.5, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
---- !u!43 &270190687
+--- !u!1 &451933695
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 451933697}
+  - component: {fileID: 451933696}
+  m_Layer: 0
+  m_Name: RainDirector
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!114 &451933696
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451933695}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05551b8855427f54cb3631843be985b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Scene.ParticleRainDirector
+  pipeline: {fileID: 0}
+  canvas: {fileID: 0}
+  poolInContainer: 1
+  container: {fileID: 0}
+  spawnHeightAboveRim: 0.55
+  spawnRadiusFraction: 0.22
+  autoParticleCountFromVolume: 1
+  targetFillFraction: 0.65
+  countdownSeconds: 2
+  autoStartOnPlay: 0
+  disableCanvas: 1
+  floorY: -4
+  spawnCenter: {x: 0, y: 10, z: 0}
+  spawnHalfExtents: {x: 1.2, y: 0.15, z: 1.2}
+  initialParticleCount: 8000
+  restDensity: 1000
+  spawnColor: {r: 1, g: 1, b: 1, a: 1}
+  horizontalVelocityRange: {x: -0.08, y: 0.08}
+  verticalVelocityRange: {x: -3.5, y: -1.2}
+  rampInitialSpawn: 1
+  initialSpawnDuration: 4
+  initialSpawnChunkSize: 256
+  spawnBurstPerSecond: 0
+  burstSize: 128
+  countdownFontSize: 72
+--- !u!4 &451933697
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451933695}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &501589768
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 501589771}
+  - component: {fileID: 501589770}
+  - component: {fileID: 501589769}
+  m_Layer: 0
+  m_Name: SimulationTimeline
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!114 &501589769
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 501589768}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 853c7c9e6ba02bf4bbf1a4780f60f5f6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.PlaybackStreaming.SimulationTimelineRenderer
+  particleDebugMaterial: {fileID: 215974579}
+  pointSize: 0.03
+  color: {r: 1, g: 0.45, b: 0.1, a: 1}
+--- !u!114 &501589770
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 501589768}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa09959166086be4c8fa064c31b710c2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Simulation.SimulationTimelineDirector
+  pipeline: {fileID: 539074082}
+  shapeEmitter: {fileID: 1863052270}
+  spawnAllSceneVolumes: 1
+  timelineRenderer: {fileID: 501589769}
+  liveDebugRenderer: {fileID: 539074085}
+  defaultParticleCount: 4096
+  defaultDurationSeconds: 6
+  defaultSaveCalculation: 1
+  autoBeginOnStart: 0
+  captureFps: 30
+  maxRecordedFrames: 3600
+  captureSubDirectory: HarmonicCaptures
+--- !u!4 &501589771
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 501589768}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &539074081
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 539074083}
+  - component: {fileID: 539074082}
+  - component: {fileID: 539074085}
+  - component: {fileID: 539074086}
+  - component: {fileID: 539074087}
+  - component: {fileID: 539074088}
+  m_Layer: 0
+  m_Name: HarmonicPipelineRoot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &539074082
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc98b8d9c4300064aa785c12f3565cda, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Management.HarmonicPipelineController
+  otcParticleFieldShader: {fileID: 0}
+  argumentUtilityShader: {fileID: 7200000, guid: 1bfbaadec86da7c429b6aff88700106d, type: 3}
+  spatialHashGridShader: {fileID: 7200000, guid: a7b835b402ccbfc4f8c2ca320d1b2344, type: 3}
+  radixSortShader: {fileID: 7200000, guid: c4d5e6f7a8b94c0d1e2f3a4b5c6d7e81, type: 3}
+  wcsphDensityShader: {fileID: 0}
+  wcsphIntegrationShader: {fileID: 0}
+  dataCompactionShader: {fileID: 7200000, guid: 0234c310e8ef86a41a68df6481aefc77, type: 3}
+  fallingFluidWorldShader: {fileID: 7200000, guid: ed4bddf61b02552409d2d4294da1cd19, type: 3}
+  eulerianDragGridShader: {fileID: 7200000, guid: 46bfba10dfd6e754eafe9e006f7129a6, type: 3}
+  pbfSolverShader: {fileID: 7200000, guid: c8f4e2a1b3d54790a9e6f1d2c3b4a598, type: 3}
+  containerRigidCarryShader: {fileID: 7200000, guid: a1b2c3d4e5f6478091a2b3c4d5e6f708, type: 3}
+  bucketTransform: {fileID: 0}
+  bucketKinematicProvider: {fileID: 0}
+  driveBucketFromTransform: 0
+  maxCapacity: 200000
+  cellSize: 0.05
+  nozzlePlaneLocalY: -0.35
+  nozzleRadius: 0.05
+  bucketRimLocalY: 0.35
+  gravity: {x: 0, y: -9.81, z: 0}
+  applyNonInertialPseudoForces: 0
+  worldDrag: 0.15
+  canvasPlaneY: -2
+  canvasCullingEnabled: 0
+  floorRestitution: 0
+  floorFriction: 0.85
+  enableEulerianDrag: 0
+  dragGridVolume: 4096
+  dragStrength: 1
+  dragDecay: 0.5
+  ambientWindStrength: 0
+  maxCanvasHitsPerFrame: 16384
+  canvasPaintAbsorbEnabled: 1
+  canvasAbsorbRate: 1.5
+  canvasAbsorbPaintWeightScale: 1
+  simulationMode: 0
+  qualityTier: 2
+  fluidProfile: {fileID: 11400000, guid: a1b2c3d4e5f6478091a2b3c4d5e6f801, type: 2}
+  speedOfSound: 12
+  useExternalParticleIngestion: 1
+  autoRunPipeline: 1
+  simulationActive: 1
+  worldFallingOnly: 0
+  openTopCylinder:
+    enabled: 1
+    center: {x: 0, y: 0.55, z: 0}
+    radius: 0.55
+    floorY: 0
+    rimY: 1.1
+    restitution: 0.1
+    friction: 0.85
+    wallStiffness: 400
+    maxTimeStep: 0.008
+    gasConstantK: 380
+    viscosity: 8
+    velocityDamping: 0
+    maxSpeed: 15
+    particleMass: 0
+    substeps: 2
+    orientation: {x: 0, y: 0, z: 0, w: 1}
+    height: 1.1
+  transferExteriorParticlesToFalling: 1
+  openTopCylinderUsePbf: 1
+  pbfIterations: 2
+  pbfEpsilonScale: 0.006
+  pbfRelaxation: 1
+  pbfVelocityDamping: 0.85
+  pbfMaxPositionDelta: 0.015
+  pbfCohesion: 0.3
+  colorDiffusionRate: 0.6
+  dynamicSortSizing: 1
+  minSortSize: 256
+  useRadixSort: 1
+  maxCflSubsteps: 256
+  seedTestParticlesOnStart: 0
+  useLatticeSpawn: 0
+  latticeSpawnMaxCount: 20000
+  latticeSpacingScale: 0.5
+  testParticleCount: 2048
+  testSpawnRadius: 0.2
+--- !u!4 &539074083
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 3999990002}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &539074085
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81b3b90e43044d641a8ab51a327074fc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.PlaybackStreaming.HarmonicParticleDebugRenderer
+  pipeline: {fileID: 539074082}
+  particleDebugMaterial: {fileID: 1376947134}
+  drawParticles: 1
+  autoSizeFromSph: 0
+  pointSizeMultiplier: 0.67
+  pointSize: 0.022
+  internalColor: {r: 0.35, g: 0.65, b: 0.98, a: 0.48}
+  fallingColor: {r: 1, g: 0.45, b: 0.1, a: 0.9}
+  useParticleColor: 1
+--- !u!114 &539074086
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 17c35607319ea68489994b10b04c2109, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Diagnostics.HarmonicDiagnosticHost
+--- !u!114 &539074087
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56a626ece479ab74b871ef6d622a64dd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Management.HarmonicParticleSpawnDirector
+  pipeline: {fileID: 539074082}
+  spawnLatticeOnStart: 1
+  spawnAllOnStart: 0
+  disableRainDirectorsOnSpawn: 1
+--- !u!114 &539074088
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539074081}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Diagnostics.HarmonicPipelineDiagnosticsController
+  settings:
+    enableDiagnostics: 1
+    enableFileLog: 1
+    enableTelemetry: 1
+    logToUnityConsole: 1
+    logSphToConsole: 1
+    muteSphTelemetry: 0
+    logPbfToConsole: 1
+    mutePbfTelemetry: 0
+    verbosePipelineDiagnostics: 1
+    frameDiagnosticInterval: 15
+    positionSampleInterval: 10
+    positionSampleCount: 64
+    logStencilNeighborCount: 0
+    perfDiagnosticsMuted: 0
+    enableProfileTelemetry: 1
+    profileLogInterval: 15
+    enableFrameTimingStats: 1
+    spikeThresholdMs: 22
+    showOverlay: 1
+    overlayFontSize: 14
+    smoothingFrames: 30
+--- !u!1 &705507993
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 705507995}
+  - component: {fileID: 705507994}
+  m_Layer: 0
+  m_Name: Directional Light
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!108 &705507994
+Light:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 705507993}
+  m_Enabled: 1
+  serializedVersion: 12
+  m_Type: 1
+  m_Color: {r: 1, g: 0.95686275, b: 0.8392157, a: 1}
+  m_Intensity: 1
+  m_Range: 10
+  m_SpotAngle: 30
+  m_InnerSpotAngle: 21.80208
+  m_CookieSize2D: {x: 10, y: 10}
+  m_Shadows:
+    m_Type: 2
+    m_Resolution: -1
+    m_CustomResolution: -1
+    m_Strength: 1
+    m_Bias: 0.05
+    m_NormalBias: 0.4
+    m_NearPlane: 0.2
+    m_CullingMatrixOverride:
+      e00: 1
+      e01: 0
+      e02: 0
+      e03: 0
+      e10: 0
+      e11: 1
+      e12: 0
+      e13: 0
+      e20: 0
+      e21: 0
+      e22: 1
+      e23: 0
+      e30: 0
+      e31: 0
+      e32: 0
+      e33: 1
+    m_UseCullingMatrixOverride: 0
+  m_Cookie: {fileID: 0}
+  m_DrawHalo: 0
+  m_Flare: {fileID: 0}
+  m_RenderMode: 0
+  m_CullingMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_RenderingLayerMask: 1
+  m_Lightmapping: 1
+  m_LightShadowCasterMode: 0
+  m_AreaSize: {x: 1, y: 1}
+  m_BounceIntensity: 1
+  m_ColorTemperature: 6570
+  m_UseColorTemperature: 0
+  m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
+  m_UseBoundingSphereOverride: 0
+  m_UseViewFrustumForShadowCasterCull: 1
+  m_ForceVisible: 0
+  m_ShadowRadius: 0
+  m_ShadowAngle: 0
+  m_LightUnit: 1
+  m_LuxAtDistance: 1
+  m_EnableSpotReflector: 1
+--- !u!4 &705507995
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 705507993}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
+  m_LocalPosition: {x: 0, y: 3, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+--- !u!21 &852021882
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Legacy Shaders/Transparent/Diffuse
+  m_Shader: {fileID: 30, guid: 0000000000000000f000000000000000, type: 0}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats: []
+    m_Colors:
+    - _Color: {r: 0.82, g: 0.84, b: 0.88, a: 0.3}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
+--- !u!1 &963194225
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 963194228}
+  - component: {fileID: 963194227}
+  - component: {fileID: 963194226}
+  - component: {fileID: 963194229}
+  - component: {fileID: 963194230}
+  - component: {fileID: 963194231}
+  - component: {fileID: 963194232}
+  m_Layer: 0
+  m_Name: Main Camera
+  m_TagString: MainCamera
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!81 &963194226
+AudioListener:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+--- !u!20 &963194227
+Camera:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  serializedVersion: 2
+  m_ClearFlags: 1
+  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_projectionMatrixMode: 1
+  m_GateFitMode: 2
+  m_FOVAxisMode: 0
+  m_Iso: 200
+  m_ShutterSpeed: 0.005
+  m_Aperture: 16
+  m_FocusDistance: 10
+  m_FocalLength: 50
+  m_BladeCount: 5
+  m_Curvature: {x: 2, y: 11}
+  m_BarrelClipping: 0.25
+  m_Anamorphism: 0
+  m_SensorSize: {x: 36, y: 24}
+  m_LensShift: {x: 0, y: 0}
+  m_NormalizedViewPortRect:
+    serializedVersion: 2
+    x: 0
+    y: 0
+    width: 1
+    height: 1
+  near clip plane: 0.3
+  far clip plane: 1000
+  field of view: 60
+  orthographic: 0
+  orthographic size: 5
+  m_Depth: -1
+  m_CullingMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_RenderingPath: -1
+  m_TargetTexture: {fileID: 0}
+  m_TargetDisplay: 0
+  m_TargetEye: 3
+  m_HDR: 1
+  m_AllowMSAA: 1
+  m_AllowDynamicResolution: 0
+  m_ForceIntoRT: 0
+  m_OcclusionCulling: 1
+  m_StereoConvergence: 10
+  m_StereoSeparation: 0.022
+--- !u!4 &963194228
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.11528841, y: 0, z: 0, w: 0.9933321}
+  m_LocalPosition: {x: 0, y: 1.4, z: -3.2}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &963194229
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 95b14b364d5fa644586eb308ec63f7fc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Camera.GodModeFlyCamera
+  moveSpeed: 6
+  sprintMultiplier: 2.5
+  lookSensitivity: 2
+  lockCursorOnStart: 1
+--- !u!114 &963194230
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f5b0d3c2e9a4f7b8c1d6e3a0b5c7d9e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Rendering.HarmonicScreenSpaceFluidRenderer
+  pipeline: {fileID: 539074082}
+  fluidMaterial: {fileID: 2100000, guid: 2c8e3f0a5b7d9e1f4a6c8b0d2e4f6a8c, type: 2}
+  drawParticles: 1
+  splatRadiusMultiplier: 1.05
+  thicknessWeight: 0.035
+  fluidColor: {r: 0.1, g: 0.4, b: 0.8, a: 1}
+  useParticleColor: 1
+  blurFalloff: 0.05
+  blurRadius: 3
+  normalScale: 100
+  specularPower: 250
+  specularIntensity: 1.5
+  thicknessAbsorption: 8
+  halfResolutionFluid: 1
+  debugPass0Only: 0
+  debugMaxEyeDepth: 12
+--- !u!114 &963194231
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9a6c1e4d3f0b5a8c7d2e9f1b4c6d8e0f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Rendering.HarmonicFluidVisualController
+  pipeline: {fileID: 539074082}
+  screenSpaceRenderer: {fileID: 963194230}
+  debugRenderer: {fileID: 539074085}
+  visualMode: 0
+  useScreenSpaceFluidInPlayMode: 0
+--- !u!114 &963194232
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b4e7c2a91d0f4e6b8a3d5c7e9f1b2d4a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Rendering.HarmonicLabViewController
+  fluidVisualController: {fileID: 963194231}
+  initialMode: 1
+  showModeHint: 1
+--- !u!43 &1230613688
 Mesh:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -417,693 +1072,6 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
---- !u!1 &451933695
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 451933697}
-  - component: {fileID: 451933696}
-  m_Layer: 0
-  m_Name: RainDirector
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!114 &451933696
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 451933695}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 05551b8855427f54cb3631843be985b0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Scene.ParticleRainDirector
-  pipeline: {fileID: 0}
-  canvas: {fileID: 0}
-  poolInContainer: 1
-  container: {fileID: 0}
-  spawnHeightAboveRim: 0.55
-  spawnRadiusFraction: 0.22
-  autoParticleCountFromVolume: 1
-  targetFillFraction: 0.65
-  countdownSeconds: 2
-  autoStartOnPlay: 0
-  disableCanvas: 1
-  floorY: -4
-  spawnCenter: {x: 0, y: 10, z: 0}
-  spawnHalfExtents: {x: 1.2, y: 0.15, z: 1.2}
-  initialParticleCount: 8000
-  restDensity: 1000
-  spawnColor: {r: 1, g: 1, b: 1, a: 1}
-  horizontalVelocityRange: {x: -0.08, y: 0.08}
-  verticalVelocityRange: {x: -3.5, y: -1.2}
-  rampInitialSpawn: 1
-  initialSpawnDuration: 4
-  initialSpawnChunkSize: 256
-  spawnBurstPerSecond: 0
-  burstSize: 128
-  countdownFontSize: 72
---- !u!4 &451933697
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 451933695}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &501589768
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 501589771}
-  - component: {fileID: 501589770}
-  - component: {fileID: 501589769}
-  m_Layer: 0
-  m_Name: SimulationTimeline
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!114 &501589769
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 501589768}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 853c7c9e6ba02bf4bbf1a4780f60f5f6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.PlaybackStreaming.SimulationTimelineRenderer
-  particleDebugMaterial: {fileID: 215974579}
-  pointSize: 0.03
-  color: {r: 1, g: 0.45, b: 0.1, a: 1}
---- !u!114 &501589770
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 501589768}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: aa09959166086be4c8fa064c31b710c2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Simulation.SimulationTimelineDirector
-  pipeline: {fileID: 539074082}
-  shapeEmitter: {fileID: 1863052270}
-  spawnAllSceneVolumes: 1
-  timelineRenderer: {fileID: 501589769}
-  liveDebugRenderer: {fileID: 539074085}
-  defaultParticleCount: 4096
-  defaultDurationSeconds: 6
-  defaultSaveCalculation: 1
-  autoBeginOnStart: 0
-  captureFps: 30
-  maxRecordedFrames: 3600
-  captureSubDirectory: HarmonicCaptures
---- !u!4 &501589771
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 501589768}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &539074081
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 539074083}
-  - component: {fileID: 539074082}
-  - component: {fileID: 539074085}
-  - component: {fileID: 539074086}
-  - component: {fileID: 539074087}
-  - component: {fileID: 539074088}
-  m_Layer: 0
-  m_Name: HarmonicPipelineRoot
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &539074082
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 539074081}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fc98b8d9c4300064aa785c12f3565cda, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Management.HarmonicPipelineController
-  argumentUtilityShader: {fileID: 7200000, guid: 1bfbaadec86da7c429b6aff88700106d, type: 3}
-  spatialHashGridShader: {fileID: 7200000, guid: a7b835b402ccbfc4f8c2ca320d1b2344, type: 3}
-  radixSortShader: {fileID: 7200000, guid: c4d5e6f7a8b94c0d1e2f3a4b5c6d7e81, type: 3}
-  streamCompactionShader: {fileID: 7200000, guid: a740344fc9b94184fb233eeb5ad0a164, type: 3}
-  streamCompactionIntegrateShader: {fileID: 7200000, guid: b5e3c2d1a4f94870b6c1d9e8f7a65432, type: 3}
-  dataCompactionShader: {fileID: 7200000, guid: 0234c310e8ef86a41a68df6481aefc77, type: 3}
-  fallingFluidWorldShader: {fileID: 7200000, guid: ed4bddf61b02552409d2d4294da1cd19, type: 3}
-  eulerianDragGridShader: {fileID: 7200000, guid: 46bfba10dfd6e754eafe9e006f7129a6, type: 3}
-  pbfSolverShader: {fileID: 7200000, guid: c8f4e2a1b3d54790a9e6f1d2c3b4a598, type: 3}
-  containerRigidCarryShader: {fileID: 7200000, guid: a1b2c3d4e5f6478091a2b3c4d5e6f708, type: 3}
-  bucketTransform: {fileID: 0}
-  bucketKinematicProvider: {fileID: 0}
-  driveBucketFromTransform: 0
-  maxCapacity: 200000
-  cellSize: 0.05
-  nozzlePlaneLocalY: -0.35
-  nozzleRadius: 0.05
-  bucketRimLocalY: 0.35
-  gravity: {x: 0, y: -9.81, z: 0}
-  applyNonInertialPseudoForces: 0
-  worldDrag: 0.15
-  canvasPlaneY: -2
-  canvasCullingEnabled: 0
-  floorRestitution: 0
-  floorFriction: 0.85
-  enableEulerianDrag: 0
-  dragGridVolume: 4096
-  dragStrength: 1
-  dragDecay: 0.5
-  ambientWindStrength: 0
-  maxCanvasHitsPerFrame: 16384
-  canvasPaintAbsorbEnabled: 1
-  canvasAbsorbRate: 1.5
-  canvasAbsorbPaintWeightScale: 1
-  simulationMode: 0
-  qualityTier: 2
-  fluidProfile: {fileID: 11400000, guid: a1b2c3d4e5f6478091a2b3c4d5e6f801, type: 2}
-  speedOfSound: 12
-  useExternalParticleIngestion: 1
-  autoRunPipeline: 1
-  simulationActive: 1
-  worldFallingOnly: 0
-  containerFluid:
-    enabled: 1
-    center: {x: 0, y: 0.55, z: 0}
-    radius: 0.55
-    floorY: 0
-    rimY: 1.1
-    restitution: 0.1
-    friction: 0.85
-    wallStiffness: 400
-    maxTimeStep: 0.008
-    gasConstantK: 380
-    viscosity: 8
-    velocityDamping: 0
-    maxSpeed: 15
-    particleMass: 0
-    substeps: 2
-    orientation: {x: 0, y: 0, z: 0, w: 1}
-    height: 1.1
-  spillOverRim: 1
-  usePBF: 1
-  pbfIterations: 2
-  pbfEpsilonScale: 0.006
-  pbfRelaxation: 1
-  pbfVelocityDamping: 0.85
-  pbfMaxPositionDelta: 0.015
-  pbfCohesion: 0.3
-  colorDiffusionRate: 0.6
-  dynamicSortSizing: 1
-  minSortSize: 256
-  useRadixSort: 1
-  maxCflSubsteps: 256
-  seedTestParticlesOnStart: 0
-  useLatticeSpawn: 0
-  latticeSpawnMaxCount: 20000
-  latticeSpacingScale: 0.5
-  testParticleCount: 2048
-  testSpawnRadius: 0.2
---- !u!4 &539074083
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 539074081}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 3999990002}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &3999990001
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 3999990002}
-  m_Layer: 0
-  m_Name: CONFIG_NOTE_LabCanvas_planeY-2_cullingOff_NOT_MainSimulation
-  m_TagString: EditorOnly
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!4 &3999990002
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3999990001}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 539074083}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &539074085
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 539074081}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 81b3b90e43044d641a8ab51a327074fc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.PlaybackStreaming.HarmonicParticleDebugRenderer
-  pipeline: {fileID: 539074082}
-  particleDebugMaterial: {fileID: 1376947134}
-  drawInternalParticles: 1
-  drawFallingParticles: 1
-  autoSizeFromSph: 0
-  pointSizeMultiplier: 0.67
-  pointSize: 0.022
-  internalColor: {r: 0.35, g: 0.65, b: 0.98, a: 0.48}
-  fallingColor: {r: 1, g: 0.45, b: 0.1, a: 0.9}
-  useParticleColor: 1
---- !u!114 &539074086
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 539074081}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 17c35607319ea68489994b10b04c2109, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Diagnostics.HarmonicDiagnosticHost
---- !u!114 &539074087
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 539074081}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 56a626ece479ab74b871ef6d622a64dd, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Management.HarmonicParticleSpawnDirector
-  pipeline: {fileID: 539074082}
-  spawnLatticeOnStart: 1
-  spawnAllOnStart: 0
-  disableRainDirectorsOnSpawn: 1
---- !u!114 &539074088
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 539074081}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Diagnostics.HarmonicPipelineDiagnosticsController
-  settings:
-    enableDiagnostics: 1
-    enableFileLog: 1
-    enableTelemetry: 1
-    logToUnityConsole: 1
-    logSphToConsole: 1
-    muteSphTelemetry: 0
-    logPbfToConsole: 1
-    mutePbfTelemetry: 0
-    verbosePipelineDiagnostics: 1
-    frameDiagnosticInterval: 15
-    positionSampleInterval: 10
-    positionSampleCount: 64
-    logStencilNeighborCount: 0
-    perfDiagnosticsMuted: 0
-    enableProfileTelemetry: 1
-    profileLogInterval: 15
-    enableFrameTimingStats: 1
-    spikeThresholdMs: 22
-    showOverlay: 1
-    overlayFontSize: 14
-    smoothingFrames: 30
---- !u!1 &705507993
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 705507995}
-  - component: {fileID: 705507994}
-  m_Layer: 0
-  m_Name: Directional Light
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!108 &705507994
-Light:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 705507993}
-  m_Enabled: 1
-  serializedVersion: 12
-  m_Type: 1
-  m_Color: {r: 1, g: 0.95686275, b: 0.8392157, a: 1}
-  m_Intensity: 1
-  m_Range: 10
-  m_SpotAngle: 30
-  m_InnerSpotAngle: 21.80208
-  m_CookieSize2D: {x: 10, y: 10}
-  m_Shadows:
-    m_Type: 2
-    m_Resolution: -1
-    m_CustomResolution: -1
-    m_Strength: 1
-    m_Bias: 0.05
-    m_NormalBias: 0.4
-    m_NearPlane: 0.2
-    m_CullingMatrixOverride:
-      e00: 1
-      e01: 0
-      e02: 0
-      e03: 0
-      e10: 0
-      e11: 1
-      e12: 0
-      e13: 0
-      e20: 0
-      e21: 0
-      e22: 1
-      e23: 0
-      e30: 0
-      e31: 0
-      e32: 0
-      e33: 1
-    m_UseCullingMatrixOverride: 0
-  m_Cookie: {fileID: 0}
-  m_DrawHalo: 0
-  m_Flare: {fileID: 0}
-  m_RenderMode: 0
-  m_CullingMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_RenderingLayerMask: 1
-  m_Lightmapping: 1
-  m_LightShadowCasterMode: 0
-  m_AreaSize: {x: 1, y: 1}
-  m_BounceIntensity: 1
-  m_ColorTemperature: 6570
-  m_UseColorTemperature: 0
-  m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
-  m_UseBoundingSphereOverride: 0
-  m_UseViewFrustumForShadowCasterCull: 1
-  m_ForceVisible: 0
-  m_ShadowRadius: 0
-  m_ShadowAngle: 0
-  m_LightUnit: 1
-  m_LuxAtDistance: 1
-  m_EnableSpotReflector: 1
---- !u!4 &705507995
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 705507993}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
-  m_LocalPosition: {x: 0, y: 3, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
---- !u!1 &963194225
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 963194228}
-  - component: {fileID: 963194227}
-  - component: {fileID: 963194226}
-  - component: {fileID: 963194229}
-  - component: {fileID: 963194230}
-  - component: {fileID: 963194231}
-  - component: {fileID: 963194232}
-  m_Layer: 0
-  m_Name: Main Camera
-  m_TagString: MainCamera
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!81 &963194226
-AudioListener:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 963194225}
-  m_Enabled: 1
---- !u!20 &963194227
-Camera:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 963194225}
-  m_Enabled: 1
-  serializedVersion: 2
-  m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
-  m_projectionMatrixMode: 1
-  m_GateFitMode: 2
-  m_FOVAxisMode: 0
-  m_Iso: 200
-  m_ShutterSpeed: 0.005
-  m_Aperture: 16
-  m_FocusDistance: 10
-  m_FocalLength: 50
-  m_BladeCount: 5
-  m_Curvature: {x: 2, y: 11}
-  m_BarrelClipping: 0.25
-  m_Anamorphism: 0
-  m_SensorSize: {x: 36, y: 24}
-  m_LensShift: {x: 0, y: 0}
-  m_NormalizedViewPortRect:
-    serializedVersion: 2
-    x: 0
-    y: 0
-    width: 1
-    height: 1
-  near clip plane: 0.3
-  far clip plane: 1000
-  field of view: 60
-  orthographic: 0
-  orthographic size: 5
-  m_Depth: -1
-  m_CullingMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_RenderingPath: -1
-  m_TargetTexture: {fileID: 0}
-  m_TargetDisplay: 0
-  m_TargetEye: 3
-  m_HDR: 1
-  m_AllowMSAA: 1
-  m_AllowDynamicResolution: 0
-  m_ForceIntoRT: 0
-  m_OcclusionCulling: 1
-  m_StereoConvergence: 10
-  m_StereoSeparation: 0.022
---- !u!4 &963194228
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 963194225}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0.11528841, y: 0, z: 0, w: 0.9933321}
-  m_LocalPosition: {x: 0, y: 1.4, z: -3.2}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &963194229
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 963194225}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 95b14b364d5fa644586eb308ec63f7fc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Camera.GodModeFlyCamera
-  moveSpeed: 6
-  sprintMultiplier: 2.5
-  lookSensitivity: 2
-  lockCursorOnStart: 1
---- !u!114 &963194230
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 963194225}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8f5b0d3c2e9a4f7b8c1d6e3a0b5c7d9e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Rendering.HarmonicScreenSpaceFluidRenderer
-  pipeline: {fileID: 539074082}
-  fluidMaterial: {fileID: 2100000, guid: 2c8e3f0a5b7d9e1f4a6c8b0d2e4f6a8c, type: 2}
-  drawInternalParticles: 1
-  drawFallingParticles: 1
-  splatRadiusMultiplier: 1.05
-  thicknessWeight: 0.035
-  fluidColor: {r: 0.1, g: 0.4, b: 0.8, a: 1}
-  useParticleColor: 1
-  blurFalloff: 0.05
-  blurRadius: 3
-  normalScale: 100
-  specularPower: 250
-  specularIntensity: 1.5
-  thicknessAbsorption: 8
-  halfResolutionFluid: 1
-  debugPass0Only: 0
-  debugMaxEyeDepth: 12
---- !u!114 &963194231
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 963194225}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9a6c1e4d3f0b5a8c7d2e9f1b4c6d8e0f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Rendering.HarmonicFluidVisualController
-  pipeline: {fileID: 539074082}
-  screenSpaceRenderer: {fileID: 963194230}
-  debugRenderer: {fileID: 539074085}
-  visualMode: 0
-  useScreenSpaceFluidInPlayMode: 0
---- !u!114 &963194232
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 963194225}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b4e7c2a91d0f4e6b8a3d5c7e9f1b2d4a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HarmonicEngine.Infrastructure.Rendering.HarmonicLabViewController
-  fluidVisualController: {fileID: 963194231}
-  initialMode: 1
-  showModeHint: 1
---- !u!21 &1003747193
-Material:
-  serializedVersion: 8
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: Legacy Shaders/Transparent/Diffuse
-  m_Shader: {fileID: 30, guid: 0000000000000000f000000000000000, type: 0}
-  m_Parent: {fileID: 0}
-  m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
-  m_InvalidKeywords: []
-  m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap: {}
-  disabledShaderPasses: []
-  m_LockedProperties: 
-  m_SavedProperties:
-    serializedVersion: 3
-    m_TexEnvs:
-    - _MainTex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    m_Ints: []
-    m_Floats: []
-    m_Colors:
-    - _Color: {r: 0.82, g: 0.84, b: 0.88, a: 0.3}
-  m_BuildTextureStacks: []
-  m_AllowLocking: 1
 --- !u!21 &1376947134
 Material:
   serializedVersion: 8
@@ -1177,6 +1145,13 @@ MonoBehaviour:
   visualSegments: 48
   enableContainerModeOnStart: 1
   continuouslyUpdate: 1
+  containerHoles:
+  - localPosition: {x: 0.4, y: 0, z: -0.2}
+    radius: 0.35
+    surface: 0
+  - localPosition: {x: 0.43, y: 1.4, z: 0.25}
+    radius: 0.3
+    surface: 1
 --- !u!4 &1527919047
 Transform:
   m_ObjectHideFlags: 0
@@ -1373,6 +1348,37 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2100000002}
   m_LocalEulerAnglesHint: {x: 0, y: 45, z: 0}
+--- !u!1 &3999990001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3999990002}
+  m_Layer: 0
+  m_Name: CONFIG_NOTE_LabCanvas_planeY-2_cullingOff_NOT_MainSimulation
+  m_TagString: EditorOnly
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &3999990002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3999990001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 539074083}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

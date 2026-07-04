@@ -1052,6 +1052,7 @@ public class RigidCarrySpinHeadlessTests
         for (int step = 0; step < steps; step++)
         {
             pipeline.ComputeFrameSortSize(activeCount);
+            pipeline.ClassifyParticleFieldFrom(pingPong.ReadSet.Block0, activeCount);
             InvokeSpatialHashBuild(pipeline, pingPong.ReadSet, activeCount);
 
             foreach (int idx in traceIndices)
@@ -1072,6 +1073,8 @@ public class RigidCarrySpinHeadlessTests
             DispatchPbfPredict(pipeline, activeCount);
             SyncGpu();
 
+            InvokeSpatialHashBuild(pipeline, pipeline.PbfScratch.PredictedBlock0, activeCount);
+
             foreach (int idx in traceIndices)
             {
                 SampleCornerStage(
@@ -1086,11 +1089,11 @@ public class RigidCarrySpinHeadlessTests
                     includePredictClampAudit: true);
             }
 
-            InvokeSpatialHashBuild(pipeline, pipeline.PbfScratch.PredictedBlock0, activeCount);
-
             int pbfIterations = pipeline.PbfIterations;
             for (int iter = 0; iter < pbfIterations; iter++)
             {
+                pipeline.ClassifyParticleFieldFrom(pipeline.PbfScratch.PredictedBlock0, activeCount);
+
                 foreach (int idx in traceIndices)
                 {
                     Vector3 preSolvePos = ReadBufferPosition(pipeline.PbfScratch.PredictedBlock0, idx);
@@ -1241,7 +1244,7 @@ public class RigidCarrySpinHeadlessTests
                     wallClampFired: wallSim);
             }
 
-            pingPong.WriteSet.SetCounterValue(activeCount);
+            // Apply appended survivors and set the counter itself (mirrors production); do not overwrite.
             pingPong.Swap();
             activeCount = InvokeRepairParticleCount(pipeline, pingPong.ReadSet);
         }
@@ -1671,6 +1674,7 @@ public class RigidCarrySpinHeadlessTests
         for (int step = 0; step < steps; step++)
         {
             pipeline.ComputeFrameSortSize(activeCount);
+            pipeline.ClassifyParticleFieldFrom(pingPong.ReadSet.Block0, activeCount);
             InvokeSpatialHashBuild(pipeline, pingPong.ReadSet, activeCount);
 
             SamplePbfTraceStage(trace, "prePredict", pingPong.ReadSet, traceIndex, worldToLocal, readVelFromSoa: true);
@@ -1687,6 +1691,7 @@ public class RigidCarrySpinHeadlessTests
             int pbfIterations = pipeline.PbfIterations;
             for (int iter = 0; iter < pbfIterations; iter++)
             {
+                pipeline.ClassifyParticleFieldFrom(pipeline.PbfScratch.PredictedBlock0, activeCount);
                 DispatchPbfDensity(pipeline, activeCount);
                 SyncGpu();
                 DispatchPbfLambda(pipeline, activeCount);
@@ -1700,7 +1705,7 @@ public class RigidCarrySpinHeadlessTests
             SyncGpu();
             SamplePbfTraceStage(trace, "postApply", pingPong.WriteSet, traceIndex, worldToLocal, readVelFromSoa: true);
 
-            pingPong.WriteSet.SetCounterValue(activeCount);
+            // Apply appended survivors and set the counter itself (mirrors production); do not overwrite.
             pingPong.Swap();
             activeCount = InvokeRepairParticleCount(pipeline, pingPong.ReadSet);
         }
@@ -1745,6 +1750,7 @@ public class RigidCarrySpinHeadlessTests
     private static void DispatchPbfPredict(HarmonicPipelineController host, uint activeCount)
     {
         host.PassBindReadSoa(host.PbfSolverShader, host.KernelPbfPredict, host.PingPong.ReadSet);
+        host.BindParticleFieldRead(host.PbfSolverShader, host.KernelPbfPredict);
         host.PbfSolverShader.SetBuffer(host.KernelPbfPredict, HarmonicShaderPropertyIds.OldBlock0, host.PbfScratch.OldBlock0);
         host.PbfSolverShader.SetBuffer(host.KernelPbfPredict, HarmonicShaderPropertyIds.PredictedBlock0, host.PbfScratch.PredictedBlock0);
         host.PbfSolverShader.SetBuffer(host.KernelPbfPredict, HarmonicShaderPropertyIds.SortedGridKeyValueBuffer, host.GridKeyValueBuffer);
@@ -1758,6 +1764,7 @@ public class RigidCarrySpinHeadlessTests
         host.PbfSolverShader.SetBuffer(host.KernelPbfDensity, HarmonicShaderPropertyIds.PredictedBlock0, host.PbfScratch.PredictedBlock0);
         host.PbfSolverShader.SetBuffer(host.KernelPbfDensity, HarmonicShaderPropertyIds.SortedGridKeyValueBuffer, host.GridKeyValueBuffer);
         host.PbfSolverShader.SetBuffer(host.KernelPbfDensity, HarmonicShaderPropertyIds.CellStartEndBuffer, host.CellStartEndBuffer);
+        host.BindParticleFieldRead(host.PbfSolverShader, host.KernelPbfDensity);
         host.PassBindDensityCacheRw(host.PbfSolverShader, host.KernelPbfDensity);
         host.PbfSolverShader.SetInt(HarmonicShaderPropertyIds.ActiveParticleCount, (int)activeCount);
         host.PbfSolverShader.DispatchIndirect(host.KernelPbfDensity, host.IndirectArgsBuffer, 0);
@@ -1768,6 +1775,7 @@ public class RigidCarrySpinHeadlessTests
         host.PbfSolverShader.SetBuffer(host.KernelPbfLambda, HarmonicShaderPropertyIds.PredictedBlock0, host.PbfScratch.PredictedBlock0);
         host.PbfSolverShader.SetBuffer(host.KernelPbfLambda, HarmonicShaderPropertyIds.SortedGridKeyValueBuffer, host.GridKeyValueBuffer);
         host.PbfSolverShader.SetBuffer(host.KernelPbfLambda, HarmonicShaderPropertyIds.CellStartEndBuffer, host.CellStartEndBuffer);
+        host.BindParticleFieldRead(host.PbfSolverShader, host.KernelPbfLambda);
         host.PassBindDensityCacheRead(host.PbfSolverShader, host.KernelPbfLambda);
         host.PbfSolverShader.SetBuffer(host.KernelPbfLambda, HarmonicShaderPropertyIds.Lambdas, host.PbfScratch.Lambdas);
         host.PbfSolverShader.SetBuffer(host.KernelPbfLambda, HarmonicShaderPropertyIds.GradSqSum, host.PbfScratch.GradSqSum);
@@ -1781,17 +1789,26 @@ public class RigidCarrySpinHeadlessTests
         host.PbfSolverShader.SetBuffer(host.KernelPbfSolve, HarmonicShaderPropertyIds.SortedGridKeyValueBuffer, host.GridKeyValueBuffer);
         host.PbfSolverShader.SetBuffer(host.KernelPbfSolve, HarmonicShaderPropertyIds.CellStartEndBuffer, host.CellStartEndBuffer);
         host.PbfSolverShader.SetBuffer(host.KernelPbfSolve, HarmonicShaderPropertyIds.Lambdas, host.PbfScratch.Lambdas);
+        host.BindParticleFieldRead(host.PbfSolverShader, host.KernelPbfSolve);
         host.PbfSolverShader.SetInt(HarmonicShaderPropertyIds.ActiveParticleCount, (int)activeCount);
         host.PbfSolverShader.DispatchIndirect(host.KernelPbfSolve, host.IndirectArgsBuffer, 0);
     }
 
+    // ApplyPositionsKernel now compacts survivors via append (SphAppendInternal) instead of indexed
+    // writes, so it must be driven with the append binding + a zeroed WriteSet counter, exactly like the
+    // production OpenTopCylinderPbfSimulationPass. NOTE (exploratory harness only): because append
+    // compaction assigns output slots in nondeterministic completion order, WriteSet index i after this
+    // dispatch is no longer guaranteed to be the same particle as ReadSet index i. The per-index
+    // "postApply" traces below therefore sample whatever survivor landed in that slot, not a stable
+    // particle identity — acceptable here since this class is out-of-gate diagnostics.
     private static void DispatchPbfApply(HarmonicPipelineController host, PingPongSoaManager pingPong, uint activeCount)
     {
+        pingPong.WriteSet.SetCounterValue(0);
         host.PassBindReadSoa(host.PbfSolverShader, host.KernelPbfApply, pingPong.ReadSet);
         host.PbfSolverShader.SetBuffer(host.KernelPbfApply, HarmonicShaderPropertyIds.OldBlock0, host.PbfScratch.OldBlock0);
         host.PbfSolverShader.SetBuffer(host.KernelPbfApply, HarmonicShaderPropertyIds.PredictedBlock0, host.PbfScratch.PredictedBlock0);
         host.PassBindDensityCacheDensitiesOnly(host.PbfSolverShader, host.KernelPbfApply);
-        host.PassBindWriteSoaIndexed(host.PbfSolverShader, host.KernelPbfApply, pingPong.WriteSet);
+        host.PassBindInternalAppendSoa(host.PbfSolverShader, host.KernelPbfApply, pingPong.WriteSet);
         host.PbfSolverShader.SetBuffer(host.KernelPbfApply, HarmonicShaderPropertyIds.CanvasHitAppend, host.CanvasHitsBuffer);
         host.PbfSolverShader.SetInt(HarmonicShaderPropertyIds.ActiveParticleCount, (int)activeCount);
         host.PbfSolverShader.DispatchIndirect(host.KernelPbfApply, host.IndirectArgsBuffer, 0);

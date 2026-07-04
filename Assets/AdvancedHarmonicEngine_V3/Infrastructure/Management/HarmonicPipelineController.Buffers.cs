@@ -255,6 +255,8 @@ namespace HarmonicEngine.Infrastructure.Management
             autoRunPipeline = autoRun;
             InitializeBuffers();
             CacheKernels();
+            ResolveOtcParticleFieldShader();
+            CacheOtcFieldKernel();
             _lastBucketPosition = GetBucketPosition();
         }
 

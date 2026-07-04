@@ -19,6 +19,7 @@ float _ContainerRestitution;
 float _ContainerFriction;
 
 #include "Include/OpenTopCylinderBoundary.hlsl"
+#include "Include/OtcParticleField.hlsl"
 
 RWStructuredBuffer<float4> _Block0;
 RWStructuredBuffer<float4> _Block1;
@@ -49,7 +50,7 @@ void ContainerRigidCarryKernel(uint3 id : SV_DispatchThreadID)
     float3 pos = block0.xyz;
     float3 vel = block1.xyz;
 
-    bool currentlyInside = OtcIsInsideForRigidCarry(pos);
+    bool currentlyInside = OtcFieldInsideRigidCarry(i);
     bool wasEarnedLastFrame = _PrevInsideForCarry[i] != 0u;
 
     float3 arm = pos - _ContainerFloorPivot;

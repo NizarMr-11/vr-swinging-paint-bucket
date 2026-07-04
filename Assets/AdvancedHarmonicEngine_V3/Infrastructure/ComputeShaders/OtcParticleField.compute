@@ -1,0 +1,54 @@
+// OtcParticleField.compute
+//
+// Phase 1a: per-particle classification pass. Computes the unified OtcSampleField once per particle
+// from a source position buffer and writes a packed classification record. NO production consumer
+// reads this yet (Phase 1b migrates consumers); in 1a it exists to prove the kernel compiles and
+// round-trips correctly, and as the vehicle the migration will dispatch.
+//
+// Source positions are container-agnostic world positions in _SourceBlock0[i].xyz; the kernel applies
+// _ContainerWorldToLocal before sampling, matching how every legacy predicate derives local space.
+
+#pragma kernel ClassifyParticleFieldKernel
+
+// Container uniforms (superset required by OpenTopCylinderBoundary.hlsl even for unused functions).
+float4x4 _ContainerLocalToWorld;
+float4x4 _ContainerWorldToLocal;
+int _ContainerUsesOrientation;
+float _ContainerHeight;
+float _ContainerRadius;
+float _ContainerFloorY;
+float _ContainerRimY;
+float3 _ContainerCenter;
+float3 _ContainerFloorPivot;
+float _ContainerRestitution;
+float _ContainerFriction;
+
+#include "Include/OpenTopCylinderBoundary.hlsl"
+#define OTC_PARTICLE_FIELD_CLASSIFY_PASS
+#include "Include/OtcParticleField.hlsl"
+
+StructuredBuffer<float4> _SourceBlock0;                 // xyz = world position
+RWStructuredBuffer<OtcParticleClassification> _ParticleFieldRw;
+
+uint _ActiveParticleCount;
+uint _MaxParticleCount;
+
+[numthreads(64, 1, 1)]
+void ClassifyParticleFieldKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount || i >= _MaxParticleCount)
+    {
+        return;
+    }
+
+    float3 worldPos = _SourceBlock0[i].xyz;
+    float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
+    OtcFieldSample s = OtcSampleField(localPos);
+
+    OtcParticleClassification c;
+    c.signedDist = s.signedDist;
+    c.regionFlags = s.region;
+    c.pad = float2(0.0, 0.0);
+    _ParticleFieldRw[i] = c;
+}

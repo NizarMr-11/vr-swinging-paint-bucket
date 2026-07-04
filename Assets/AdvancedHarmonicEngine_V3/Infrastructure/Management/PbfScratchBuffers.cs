@@ -15,15 +15,19 @@ namespace HarmonicEngine.Infrastructure.Management
         public ComputeBuffer Lambdas;
         /// <summary>Σ|∇C|² per particle from the lambda pass (solver tuning output).</summary>
         public ComputeBuffer GradSqSum;
+        /// <summary>Per-particle OtcSampleField classification (dist + region flags).</summary>
+        public ComputeBuffer ParticleField;
 
         public static PbfScratchBuffers Create(int maxCapacity)
         {
+            const int particleFieldStride = sizeof(float) + sizeof(uint) + sizeof(float) * 2;
             return new PbfScratchBuffers
             {
                 PredictedBlock0 = new ComputeBuffer(maxCapacity, sizeof(float) * 4, ComputeBufferType.Structured),
                 OldBlock0 = new ComputeBuffer(maxCapacity, sizeof(float) * 4, ComputeBufferType.Structured),
                 Lambdas = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured),
-                GradSqSum = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured)
+                GradSqSum = new ComputeBuffer(maxCapacity, sizeof(float), ComputeBufferType.Structured),
+                ParticleField = new ComputeBuffer(maxCapacity, particleFieldStride, ComputeBufferType.Structured)
             };
         }
 
@@ -33,10 +37,12 @@ namespace HarmonicEngine.Infrastructure.Management
             OldBlock0?.Release();
             Lambdas?.Release();
             GradSqSum?.Release();
+            ParticleField?.Release();
             PredictedBlock0 = null;
             OldBlock0 = null;
             Lambdas = null;
             GradSqSum = null;
+            ParticleField = null;
         }
     }
 }

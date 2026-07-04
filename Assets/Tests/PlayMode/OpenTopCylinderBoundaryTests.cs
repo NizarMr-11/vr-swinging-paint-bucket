@@ -33,6 +33,7 @@ public class OpenTopCylinderBoundaryTests
     const float RESTITUTION = 0.3f;
     const float FRICTION = 0.9f;
     const float EPS = 1e-4f;
+    const float CANVAS_PLANE_Y = -1.0f;
 
     const string TestKernelAssetPath = "Assets/Tests/Shaders/OtcBoundaryTestKernels.compute";
 
@@ -77,6 +78,7 @@ public class OpenTopCylinderBoundaryTests
         _cs.SetVector("_ContainerFloorPivot", Vector3.zero);
         _cs.SetFloat("_ContainerRestitution", RESTITUTION);
         _cs.SetFloat("_ContainerFriction", FRICTION);
+        _cs.SetFloat("_CanvasPlaneY", CANVAS_PLANE_Y);
     }
 
     void RunClamp(Vector3 pos, Vector3 vel, out Vector3 outPos, out Vector3 outVel)
@@ -209,16 +211,106 @@ public class OpenTopCylinderBoundaryTests
     [Test]
     public void ParticipatesInPbf_RejectsSubFloorParticle()
     {
-        // Same invariant, for the PBF gate this time.
+        // DECIDED (Zone-A beam fix): a sub-floor, in-radius particle is the "beam" — radially inside
+        // the column but never in the 3D cup. It must NOT participate in the PBF density/pressure
+        // solve (otherwise it couples into the cup fluid and free-falls with pressure-driven motion,
+        // claimed by no collision handler). Participation now also requires localY >= -floor_tol.
         bool participates = RunBoolKernel("CS_ParticipatesInPbf", new Vector3(0.5f, -0.5f, 0f));
-        // Depending on your intended design this may be expected true (PBF still
-        // acts on it so the floor clamp can correct it next step) or false.
-        // Flagging as a explicit assumption to confirm with Cursor rather than
-        // asserting blindly:
-        Assert.Inconclusive(
-            "Confirm intended behavior with Cursor: should a sub-floor, in-radius " +
-            "particle still participate in PBF (so the floor clamp can correct it), " +
-            "or should participation also require y >= 0? Currently returned: " + participates);
+        Assert.IsFalse(participates,
+            "Sub-floor in-radius particle (the Zone-A beam) must be excluded from PBF participation " +
+            "(localY < -OTC_FLOOR_GATE_TOLERANCE).");
+    }
+
+    [Test]
+    public void ParticipatesInPbf_AcceptsSloshAboveRim()
+    {
+        // Guardrail for the beam fix: the floor bound must NOT introduce an upper bound. Slosh above
+        // the rim (localY > height, r <= radius) must keep participating so it re-enters via open top.
+        bool participates = RunBoolKernel("CS_ParticipatesInPbf", new Vector3(0.5f, HEIGHT + 1.0f, 0f));
+        Assert.IsTrue(participates,
+            "Slosh above the rim (inside radius) must still participate in PBF — no upper vertical bound.");
+    }
+
+    [Test]
+    public void ParticipatesInPbf_AcceptsInteriorAndFloorRestingFluid()
+    {
+        // Interior fluid and floor-resting fluid (within the tolerance band) must keep participating.
+        Assert.IsTrue(RunBoolKernel("CS_ParticipatesInPbf", new Vector3(0.5f, 1.0f, 0f)),
+            "Interior fluid (0 < localY < height, r <= radius) must participate in PBF.");
+        Assert.IsTrue(RunBoolKernel("CS_ParticipatesInPbf", new Vector3(0.5f, -0.005f, 0f)),
+            "Floor-resting fluid within the FP tolerance band (localY >= -floor_tol) must participate.");
+    }
+
+    [Test]
+    public void CanvasCollisionApplies_BeamBelowFloor_IsClaimed()
+    {
+        // Option A: a sub-floor, in-radius beam particle must be claimed by canvas collision.
+        bool applies = RunBoolKernel("CS_CanvasCollisionApplies", new Vector3(0.5f, -0.5f, 0f));
+        Assert.IsTrue(applies,
+            "Beam particle (radially inside, below floor band) must be claimed by canvas collision.");
+    }
+
+    [Test]
+    public void CanvasCollisionApplies_ExteriorParticle_IsClaimed()
+    {
+        // Existing behavior preserved: radially outside the footprint is still claimed.
+        bool applies = RunBoolKernel("CS_CanvasCollisionApplies", new Vector3(RADIUS + 0.5f, -0.5f, 0f));
+        Assert.IsTrue(applies, "Exterior (r > radius) particle must be claimed by canvas collision.");
+    }
+
+    [Test]
+    public void CanvasCollisionApplies_InteriorFluid_IsNotClaimed()
+    {
+        // Genuine in-cup fluid must NOT be canvas-claimed.
+        bool applies = RunBoolKernel("CS_CanvasCollisionApplies", new Vector3(0.5f, 1.0f, 0f));
+        Assert.IsFalse(applies, "Interior in-cup fluid (0 <= localY <= height, r <= radius) must not be canvas-claimed.");
+    }
+
+    [Test]
+    public void CanvasCollisionApplies_SloshAboveRimInsideRadius_IsNotClaimed()
+    {
+        // Critical Option-A guardrail: slosh above the rim (inside radius) must NOT be canvas-claimed —
+        // it stays aloft and re-enters PBF via the open top. This is the behavior the full-volume
+        // variant would have broken; Option A must preserve it.
+        bool applies = RunBoolKernel("CS_CanvasCollisionApplies", new Vector3(0.5f, HEIGHT + 1.0f, 0f));
+        Assert.IsFalse(applies,
+            "Slosh above the rim (localY > height, r <= radius) must NOT be canvas-claimed under Option A.");
+    }
+
+    // --- Zone-A beam despawn predicate (OtcBeamDespawnApplies) ---
+    [Test]
+    public void BeamDespawn_BeamBelowFloorAtCanvasPlane_IsDespawned()
+    {
+        // A sub-floor in-radius beam particle that has reached/passed the canvas plane must be dropped.
+        bool despawn = RunBoolKernel("CS_BeamDespawnApplies", new Vector3(0.5f, CANVAS_PLANE_Y - 0.5f, 0f));
+        Assert.IsTrue(despawn,
+            "Beam particle (radially inside, below floor band) at/below the canvas plane must be despawned.");
+    }
+
+    [Test]
+    public void BeamDespawn_BeamBelowFloorAboveCanvasPlane_IsNotDespawned()
+    {
+        // Still-falling beam particle above the canvas plane must be kept (it hasn't landed yet).
+        bool despawn = RunBoolKernel("CS_BeamDespawnApplies", new Vector3(0.5f, CANVAS_PLANE_Y + 0.5f, 0f));
+        Assert.IsFalse(despawn,
+            "Beam particle above the canvas plane has not landed yet and must NOT be despawned.");
+    }
+
+    [Test]
+    public void BeamDespawn_ExteriorParticleAtCanvasPlane_IsNotDespawned()
+    {
+        // Beam-only: exterior/rim-spill particles keep their existing lifecycle even at the plane.
+        bool despawn = RunBoolKernel("CS_BeamDespawnApplies", new Vector3(RADIUS + 0.5f, CANVAS_PLANE_Y - 0.5f, 0f));
+        Assert.IsFalse(despawn,
+            "Exterior (r > radius) particle must NOT be beam-despawned — its lifecycle is untouched.");
+    }
+
+    [Test]
+    public void BeamDespawn_InteriorFluid_IsNotDespawned()
+    {
+        // Genuine in-cup fluid must never be beam-despawned regardless of depth query.
+        bool despawn = RunBoolKernel("CS_BeamDespawnApplies", new Vector3(0.5f, 1.0f, 0f));
+        Assert.IsFalse(despawn, "Interior in-cup fluid must not be beam-despawned.");
     }
 
     [Test]

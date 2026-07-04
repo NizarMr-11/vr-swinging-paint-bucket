@@ -24,8 +24,13 @@
 #pragma kernel CS_IsOutsideFootprint
 #pragma kernel CS_ParticipatesInPbf
 #pragma kernel CS_IsSpilledOutside
+#pragma kernel CS_CanvasCollisionApplies
+#pragma kernel CS_BeamDespawnApplies
+#pragma kernel CS_BatchParity
+#pragma kernel CS_ApplyInlineParity
 
 float _ContainerHeight;
+float _CanvasPlaneY;
 float4x4 _ContainerLocalToWorld;
 float4x4 _ContainerWorldToLocal;
 int _ContainerUsesOrientation;
@@ -38,11 +43,99 @@ float _ContainerRestitution;
 float _ContainerFriction;
 
 #include "../../AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/Include/OpenTopCylinderBoundary.hlsl"
+#include "../../AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/Include/OtcParticleField.hlsl"
 
 RWStructuredBuffer<float3> _TestPos;   // in/out
 RWStructuredBuffer<float3> _TestVel;   // in/out
 RWStructuredBuffer<float3> _TestPrevPos; // in
 RWStructuredBuffer<uint>   _TestFlag;  // out (bool as 0/1)
+
+// --- Phase 1a parity harness -------------------------------------------------------------------
+// Legacy predicate bit layout (chosen to align with OTC_REGION_* where they correspond):
+//   bit0 participates, bit1 insideVolume, bit2 insideRigidCarry, bit3 canvasClaim,
+//   bit4 beamDespawn (WITH canvasY), bit5 outsideFootprint.
+struct OtcParityResult
+{
+    uint  legacyBits;
+    uint  fieldRegion;
+    float fieldDist;
+    float pad;
+};
+
+StructuredBuffer<float3> _ParityPos;            // world positions (== local under identity container)
+RWStructuredBuffer<OtcParityResult> _ParityOut;
+uint _ParityCount;
+
+[numthreads(64, 1, 1)]
+void CS_BatchParity(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ParityCount)
+    {
+        return;
+    }
+
+    float3 worldPos = _ParityPos[i];
+    float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
+
+    uint legacy = 0u;
+    if (OtcParticipatesInPbf(worldPos))              legacy |= (1u << 0);
+    if (OtcInsideVolumeForFloorGate(worldPos))       legacy |= (1u << 1);
+    if (OtcIsInsideForRigidCarry(worldPos))          legacy |= (1u << 2);
+    if (OtcCanvasCollisionApplies(worldPos))         legacy |= (1u << 3);
+    if (OtcBeamDespawnApplies(worldPos, _CanvasPlaneY)) legacy |= (1u << 4);
+    if (OtcIsOutsideFootprint(worldPos))             legacy |= (1u << 5);
+
+    OtcFieldSample s = OtcSampleField(localPos);
+
+    OtcParityResult r;
+    r.legacyBits = legacy;
+    r.fieldRegion = s.region;
+    r.fieldDist = s.signedDist;
+    r.pad = 0.0;
+    _ParityOut[i] = r;
+}
+
+// ApplyPositionsKernel inline path (OtcFieldCanvasClaimAtLocal / OtcFieldBeamDespawnAtWorld) must
+// agree with OtcSampleField at the same final position when identical hole uniforms are bound.
+struct OtcApplyInlineResult
+{
+    uint canvasClaimInline;
+    uint beamDespawnInline;
+    uint canvasClaimFromSample;
+    uint beamDespawnFromSample;
+    uint throughHoleFromSample;
+    float fieldDist;
+    float pad;
+};
+
+StructuredBuffer<float3> _ApplyInlinePos;
+RWStructuredBuffer<OtcApplyInlineResult> _ApplyInlineOut;
+uint _ApplyInlineCount;
+
+[numthreads(64, 1, 1)]
+void CS_ApplyInlineParity(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ApplyInlineCount)
+    {
+        return;
+    }
+
+    float3 worldPos = _ApplyInlinePos[i];
+    float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
+    OtcFieldSample s = OtcSampleField(localPos);
+
+    OtcApplyInlineResult r;
+    r.canvasClaimInline = OtcFieldCanvasClaimAtLocal(localPos) ? 1u : 0u;
+    r.beamDespawnInline = OtcFieldBeamDespawnAtWorld(worldPos, _CanvasPlaneY) ? 1u : 0u;
+    r.canvasClaimFromSample = (s.region & OTC_REGION_CANVAS_CLAIM) != 0u ? 1u : 0u;
+    r.beamDespawnFromSample = ((s.region & OTC_REGION_BEAM) != 0u && worldPos.y <= _CanvasPlaneY) ? 1u : 0u;
+    r.throughHoleFromSample = (s.region & OTC_REGION_THROUGH_HOLE) != 0u ? 1u : 0u;
+    r.fieldDist = s.signedDist;
+    r.pad = 0.0;
+    _ApplyInlineOut[i] = r;
+}
 
 [numthreads(1,1,1)]
 void CS_ClampContainer(uint3 id : SV_DispatchThreadID)
@@ -87,4 +180,16 @@ void CS_ParticipatesInPbf(uint3 id : SV_DispatchThreadID)
 void CS_IsSpilledOutside(uint3 id : SV_DispatchThreadID)
 {
     _TestFlag[0] = OtcIsSpilledOutside(_TestPos[0]) ? 1u : 0u;
+}
+
+[numthreads(1,1,1)]
+void CS_CanvasCollisionApplies(uint3 id : SV_DispatchThreadID)
+{
+    _TestFlag[0] = OtcCanvasCollisionApplies(_TestPos[0]) ? 1u : 0u;
+}
+
+[numthreads(1,1,1)]
+void CS_BeamDespawnApplies(uint3 id : SV_DispatchThreadID)
+{
+    _TestFlag[0] = OtcBeamDespawnApplies(_TestPos[0], _CanvasPlaneY) ? 1u : 0u;
 }

@@ -313,10 +313,14 @@ public class RigidCarryContinuityTests
 #if UNITY_EDITOR
         var carryShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
             "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/ContainerRigidCarry.compute");
+        var otcFieldShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(
+            "Assets/AdvancedHarmonicEngine_V3/Infrastructure/ComputeShaders/OtcParticleField.compute");
 #else
         ComputeShader carryShader = null;
+        ComputeShader otcFieldShader = null;
 #endif
         Assert.IsNotNull(carryShader, "ContainerRigidCarry.compute not found.");
+        Assert.IsNotNull(otcFieldShader, "OtcParticleField.compute not found.");
 
         var go = new GameObject("RigidCarryContinuityTestPipeline");
         var pipeline = go.AddComponent<HarmonicPipelineController>();
@@ -325,6 +329,11 @@ public class RigidCarryContinuityTests
             "containerRigidCarryShader",
             BindingFlags.Instance | BindingFlags.NonPublic);
         carryField?.SetValue(pipeline, carryShader);
+
+        FieldInfo otcField = typeof(HarmonicPipelineController).GetField(
+            "otcParticleFieldShader",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        otcField?.SetValue(pipeline, otcFieldShader);
 
         FieldInfo muteField = typeof(HarmonicPipelineController).GetField(
             "perfDiagnosticsMuted",

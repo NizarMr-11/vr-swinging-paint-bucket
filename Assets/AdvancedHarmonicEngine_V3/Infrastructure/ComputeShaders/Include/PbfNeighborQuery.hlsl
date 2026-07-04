@@ -4,7 +4,7 @@
 StructuredBuffer<GridKeyPair> _SortedGridKeyValueBuffer;
 
 // Neighbor iteration over predicted positions using the spatial hash grid.
-// Parent shader must include OpenTopCylinderBoundary.hlsl before this file.
+// Parent shader must include OtcParticleField.hlsl before this file.
 
 float3 PbfLoadPredictedPosition(uint i)
 {
@@ -13,7 +13,7 @@ float3 PbfLoadPredictedPosition(uint i)
 
 float PbfComputeDensityAtPosition(uint particleIndex, float3 selfPos)
 {
-    if (!OtcParticipatesInPbf(selfPos))
+    if (!OtcFieldParticipatesInPbf(particleIndex))
     {
         return 0.0;
     }
@@ -41,7 +41,7 @@ float PbfComputeDensityAtPosition(uint particleIndex, float3 selfPos)
             }
 
             float3 neighborPos = PbfLoadPredictedPosition(pair.ParticleIndex);
-            if (!OtcParticipatesInPbf(neighborPos))
+            if (!OtcFieldParticipatesInPbf(pair.ParticleIndex))
             {
                 continue;
             }

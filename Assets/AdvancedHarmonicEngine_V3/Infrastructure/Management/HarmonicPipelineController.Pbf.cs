@@ -38,6 +38,8 @@ namespace HarmonicEngine.Infrastructure.Management
             shader.SetFloat(FloorRestitutionId, floorRestitution);
             shader.SetFloat(FloorFrictionId, floorFriction);
             ApplyContainerPbfUniforms(shader);
+            // Same _Holes/_HoleCount arrays as classify (ApplyOtcFieldUniforms → ApplyOtcHoleUniforms).
+            ApplyOtcHoleUniforms(shader);
         }
     }
 }

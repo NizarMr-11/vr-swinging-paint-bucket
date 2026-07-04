@@ -117,5 +117,13 @@ namespace HarmonicEngine.Infrastructure.Management.Gpu
         public static readonly int ContainerAngularVelocityWorld = Shader.PropertyToID("_ContainerAngularVelocityWorld");
         public static readonly int ContainerLinearVelocityWorld = Shader.PropertyToID("_ContainerLinearVelocityWorld");
         public static readonly int ContainerFloorPivot = Shader.PropertyToID("_ContainerFloorPivot");
+        public static readonly int ParticleField = Shader.PropertyToID("_ParticleField");
+        public static readonly int ParticleFieldRw = Shader.PropertyToID("_ParticleFieldRw");
+        public static readonly int SourceBlock0 = Shader.PropertyToID("_SourceBlock0");
+        public static readonly int HoleCount = Shader.PropertyToID("_HoleCount");
+        public static readonly int Holes = Shader.PropertyToID("_Holes");
+        public static readonly int HoleAxis = Shader.PropertyToID("_HoleAxis");
+        public static readonly int HoleClipDepthScale = Shader.PropertyToID("_HoleClipDepthScale");
+        public static readonly int OtcParticipationFadeWidth = Shader.PropertyToID("_OtcParticipationFadeWidth");
     }
 }

@@ -212,8 +212,10 @@ namespace HarmonicEngine.Infrastructure.Management
             ResolveIntegrateShader();
             ResolvePbfShader();
             ResolveRadixSortShader();
+            ResolveOtcParticleFieldShader();
             InitializeBuffers();
             CacheKernels();
+            CacheOtcFieldKernel();
             ApplyFluidProfileIfAssigned();
             _lastBucketPosition = GetBucketPosition();
         }

@@ -15,10 +15,10 @@ RWStructuredBuffer<float> _DensityCacheDensities;
 RWStructuredBuffer<float> _Lambdas;
 RWStructuredBuffer<float> _GradSqSum;
 
-RWStructuredBuffer<float4> _WriteBlock0;
-RWStructuredBuffer<float4> _WriteBlock1;
-RWStructuredBuffer<uint> _WritePackedColors;
-RWStructuredBuffer<float> _WriteWetness;
+// Provides the append-compaction write buffers (_InternalBlock0.., SphAppendInternal) used by the
+// integrate/Apply path, mirroring WcsphIntegration. ApplyPositionsKernel appends survivors instead of
+// indexed writes so beam debris can be dropped (see OtcBeamDespawnApplies).
+#include "Include/SphSoaStore.hlsl"
 
 struct CanvasPaintHit
 {
@@ -75,6 +75,7 @@ float _FloorRestitution;
 float _FloorFriction;
 
 #include "Include/OpenTopCylinderBoundary.hlsl"
+#include "Include/OtcParticleField.hlsl"
 #include "Include/PbfNeighborQuery.hlsl"
 
 // Volume-continuity floor-clamp gate. Returns true (legacy: floor always clamps) unless the gate is
@@ -93,6 +94,17 @@ bool PbfFloorClampAllowed(uint i)
     }
 
     return _OldBlock0[i].w != 0.0;
+}
+
+bool PbfEffectiveFloorClampAllowed(uint i, float3 worldPos)
+{
+    if (!PbfFloorClampAllowed(i))
+    {
+        return false;
+    }
+
+    float3 localPos = mul(_ContainerWorldToLocal, float4(worldPos, 1.0)).xyz;
+    return !OtcFieldSuppressesFloorClamp(localPos);
 }
 
 void AppendCanvasHit(float3 worldPos, float weight, uint packedColor, float wetnessDeposit)
@@ -178,7 +190,7 @@ float3 ComputeXsphViscosity(uint particleIndex, float3 selfPos, float3 selfVel)
 
             uint neighborIndex = pair.ParticleIndex;
             float3 neighborPos = SphLoadPosition(neighborIndex);
-            if (!OtcParticipatesInPbf(neighborPos))
+            if (!OtcFieldParticipatesInPbf(neighborIndex))
             {
                 continue;
             }
@@ -236,7 +248,7 @@ float3 ComputeCohesionForce(uint particleIndex, float3 selfPos)
             }
 
             float3 neighborPos = SphLoadPosition(neighborIndex);
-            if (!OtcParticipatesInPbf(neighborPos))
+            if (!OtcFieldParticipatesInPbf(neighborIndex))
             {
                 continue;
             }
@@ -283,7 +295,7 @@ void PredictPositionsKernel(uint3 id : SV_DispatchThreadID)
         float3 gateLocalPos = mul(_ContainerWorldToLocal, float4(prevPos, 1.0)).xyz;
         float gateRadialDist = length(gateLocalPos.xz);
         bool wasEligibleLastFrame = _OldBlock0[i].w != 0.0;
-        bool insideNow = OtcInsideVolumeForFloorGate(prevPos);
+        bool insideNow = OtcFieldInsideVolume(i);
         // Match the floor-clamp footprint predicate (includes OTC_RADIAL_BOUNDARY_EPS) so wall-edge
         // resting fluid does not lose persistence one epsilon outside the strict wall cylinder.
         bool inFloorFootprint = OtcRadialInsideFloorFootprint(gateRadialDist);
@@ -298,7 +310,10 @@ void PredictPositionsKernel(uint3 id : SV_DispatchThreadID)
     _OldBlock0[i] = float4(pos, frameStartInsideVolume);
 
     float3 accel = _Gravity;
-    if (OtcIsOutsideFootprint(pos))
+    // Non-participating particles (radially outside the footprint OR below the floor band — the
+    // Zone-A beam) get ordinary world drag, not interior viscosity/cohesion, so beam-depth debris
+    // free-falls instead of coupling into the cup fluid. Matches OtcParticipatesInPbf exactly.
+    if (!OtcFieldParticipatesInPbf(i))
     {
         vel *= max(0.0, 1.0 - _WorldDrag * _DeltaTime);
     }
@@ -309,7 +324,7 @@ void PredictPositionsKernel(uint3 id : SV_DispatchThreadID)
 
     vel += accel * _DeltaTime;
     pos += vel * _DeltaTime;
-    OtcClampToContainer(pos, vel, prevPos, PbfFloorClampAllowed(i));
+    OtcClampToContainer(pos, vel, prevPos, PbfEffectiveFloorClampAllowed(i, pos));
 
     _PredictedBlock0[i] = float4(pos, 0.0);
 }
@@ -324,7 +339,7 @@ void ComputeDensityKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float3 selfPos = PbfLoadPredictedPosition(i);
-    if (!OtcParticipatesInPbf(selfPos))
+    if (!OtcFieldParticipatesInPbf(i))
     {
         _DensityCacheDensities[i] = 0.0;
         return;
@@ -343,7 +358,7 @@ void ComputeLambdaKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float3 selfPos = PbfLoadPredictedPosition(i);
-    if (!OtcParticipatesInPbf(selfPos))
+    if (!OtcFieldParticipatesInPbf(i))
     {
         _GradSqSum[i] = 0.0;
         _Lambdas[i] = 0.0;
@@ -376,7 +391,7 @@ void ComputeLambdaKernel(uint3 id : SV_DispatchThreadID)
             }
 
             float3 neighborPos = PbfLoadPredictedPosition(pair.ParticleIndex);
-            if (!OtcParticipatesInPbf(neighborPos))
+            if (!OtcFieldParticipatesInPbf(pair.ParticleIndex))
             {
                 continue;
             }
@@ -408,7 +423,7 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float3 selfPos = PbfLoadPredictedPosition(i);
-    if (!OtcParticipatesInPbf(selfPos))
+    if (!OtcFieldParticipatesInPbf(i))
     {
         return;
     }
@@ -438,7 +453,7 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
 
             uint j = pair.ParticleIndex;
             float3 neighborPos = PbfLoadPredictedPosition(j);
-            if (!OtcParticipatesInPbf(neighborPos))
+            if (!OtcFieldParticipatesInPbf(j))
             {
                 continue;
             }
@@ -464,7 +479,7 @@ void SolvePositionsKernel(uint3 id : SV_DispatchThreadID)
         delta *= _PbfMaxPositionDelta / deltaLen;
     }
     selfPos += delta;
-    OtcClampToContainerPosition(selfPos, PbfFloorClampAllowed(i));
+    OtcClampToContainerPosition(selfPos, PbfEffectiveFloorClampAllowed(i, selfPos));
     _PredictedBlock0[i] = float4(selfPos, 0.0);
 }
 
@@ -489,14 +504,25 @@ void ApplyPositionsKernel(uint3 id : SV_DispatchThreadID)
     float density = _DensityCacheDensities[i];
     float pressure = 0.0;
 
-    OtcClampToContainer(newPos, vel, oldPos, PbfFloorClampAllowed(i));
-    if (OtcIsOutsideFootprint(newPos))
+    OtcClampToContainer(newPos, vel, oldPos, PbfEffectiveFloorClampAllowed(i, newPos));
+    float3 finalLocal = mul(_ContainerWorldToLocal, float4(newPos, 1.0)).xyz;
+    if (OtcFieldCanvasClaimAtLocal(finalLocal))
     {
         ApplyOutsideCanvasCollision(newPos, vel, wetness, packedColor);
     }
 
-    _WriteBlock0[i] = float4(newPos, density);
-    _WriteBlock1[i] = float4(vel, pressure);
-    _WritePackedColors[i] = packedColor;
-    _WriteWetness[i] = wetness;
+    // Beam-arrested debris (radially inside the footprint but below the floor band, having reached the
+    // canvas plane) is excluded from the PBF solve, so it has no self-repulsion and only stacks into a
+    // degenerate pile. Drop it here instead of writing a survivor. The canvas hit was already appended
+    // by ApplyOutsideCanvasCollision above, so the landing is still recorded before the particle is
+    // removed. Exterior/rim-spill particles are NOT beam-despawned (predicate is beam-only), so their
+    // lifecycle is unchanged; they continue to append below.
+    if (OtcFieldBeamDespawnAtWorld(newPos, _CanvasPlaneY))
+    {
+        return;
+    }
+
+    // Survivors are compacted via append. The WriteSet append counter is reset to 0 before this
+    // dispatch and becomes the new active count after it, so dropped particles simply do not appear.
+    SphAppendInternal(newPos, vel, density, pressure, packedColor, wetness);
 }

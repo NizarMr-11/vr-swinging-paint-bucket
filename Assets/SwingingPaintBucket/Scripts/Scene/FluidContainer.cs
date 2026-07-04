@@ -1,3 +1,4 @@
+using HarmonicEngine.Domain.Models;
 using HarmonicEngine.Infrastructure.Management;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -42,6 +43,9 @@ namespace SwingingPaintBucket.Scene
         [SerializeField] private bool enableContainerModeOnStart = true;
         [Tooltip("Re-push bounds every frame so a moving/resized container stays in sync.")]
         [SerializeField] private bool continuouslyUpdate = true;
+
+        [Header("Holes (surface-clipped, container-local)")]
+        [SerializeField] private OtcContainerHole[] containerHoles;
 
         private Transform _visualTransform;
         private MeshFilter _visualMeshFilter;
@@ -123,6 +127,8 @@ namespace SwingingPaintBucket.Scene
                 restitution,
                 friction,
                 wallStiffness);
+
+            pipeline.SetContainerHoles(containerHoles, radius, height);
 
             if (_hasLastLocalToWorld)
             {
