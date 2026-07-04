@@ -1,0 +1,89 @@
+// External forces pass (spec sections 4-6.2, plan Phase 4):
+// gravity + bucket moving-frame contribution (Inside) + priority zone force
+// (single highest-priority zone, already resolved by classification) + top-band
+// push-down. Consumes classification flags read-only; writes velocities in place.
+
+#pragma kernel ExternalForcesKernel
+
+#include "Include/V4Common.hlsl"
+#include "Include/V4BucketZones.hlsl"
+#include "Include/V4Profiles.hlsl"
+
+#define COUNTER_TOP_BAND 3
+
+StructuredBuffer<float4> _Block0;          // position.xyz, radius
+RWStructuredBuffer<float4> _Block1;        // velocity.xyz, unused
+StructuredBuffer<uint> _Flags;
+StructuredBuffer<V4Hole> _Holes;
+StructuredBuffer<V4GpuProfile> _Profiles;
+StructuredBuffer<uint> _Counters;
+
+float4x4 _BucketWorldToLocal;
+float4x4 _BucketLocalToWorld;
+float3 _BucketLinearVelocity;
+float3 _BucketAngularVelocity;
+float3 _BucketWorldOrigin;
+float3 _Gravity;
+float _DeltaTime;
+float _CarryRate;              // relaxation rate toward the bucket frame velocity
+float _TotalExpectedLoss;      // CPU-side EMA sum across holes (spec section 5)
+float _DownwardScale;
+uint _ActiveParticleCount;
+
+[numthreads(64, 1, 1)]
+void ExternalForcesKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    uint flags = _Flags[i];
+    V4GpuProfile profile = _Profiles[V4GetProfile(flags)];
+
+    float3 pos = _Block0[i].xyz;
+    float3 vel = _Block1[i].xyz;
+
+    // Gravity applies to everyone, escaped included (they still fall to the canvas).
+    vel += _Gravity * _DeltaTime;
+
+    if (V4IsInside(flags))
+    {
+        // Moving-reference-frame contribution (spec section 4): relax toward the
+        // bucket's rigid frame velocity at this particle's position.
+        float3 frameVel = _BucketLinearVelocity + cross(_BucketAngularVelocity, pos - _BucketWorldOrigin);
+        vel += (frameVel - vel) * saturate(_CarryRate * _DeltaTime);
+    }
+
+    uint zone = V4GetZone(flags);
+    if (zone == V4_ZONE_HOLE0 || zone == V4_ZONE_HOLE1 || zone == V4_ZONE_HOLE2)
+    {
+        V4Hole hole = _Holes[V4GetHole(flags)];
+        float3 localPos = mul(_BucketWorldToLocal, float4(pos, 1.0)).xyz;
+        float3 dirLocal = V4ZoneForceDirection(localPos, hole, zone);
+        float3 dirWorld = normalize(mul((float3x3)_BucketLocalToWorld, dirLocal));
+
+        if (zone == V4_ZONE_HOLE0)
+        {
+            // Eject impulse (not dt-scaled): kick along the hole's outward normal and
+            // let normal PBF integration carry the particle out (spec section 5).
+            vel += dirWorld * profile.zoneStrength0;
+        }
+        else
+        {
+            float strength = zone == V4_ZONE_HOLE1 ? profile.zoneStrength1 : profile.zoneStrength2;
+            vel += dirWorld * strength * _DeltaTime;
+        }
+    }
+    else if (zone == V4_ZONE_TOPBAND)
+    {
+        // Level 2 pressure redistribution (spec section 5):
+        // pushDown = totalExpectedLoss / max(topLayerCount, 1) * downwardScale.
+        uint topCount = max(_Counters[COUNTER_TOP_BAND], 1u);
+        float pushDown = _TotalExpectedLoss / (float)topCount * _DownwardScale * profile.topBandScale;
+        vel.y -= pushDown * _DeltaTime;
+    }
+
+    _Block1[i] = float4(vel, 0.0);
+}

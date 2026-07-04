@@ -1,0 +1,78 @@
+// Uniform-grid spatial hash build. Ported from AdvancedHarmonicEngine_V3
+// SpatialHashGridIndirect.compute (quarantined behind V4SpatialHashTests).
+// Sorting is done exclusively by V4RadixSort (the V3 bitonic fallback is dropped).
+
+#pragma kernel ClearGridCellsKernel
+#pragma kernel GenerateGridKeysKernel
+#pragma kernel BuildCellRangesKernel
+
+#include "Include/V4Common.hlsl"
+
+RWStructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
+RWStructuredBuffer<uint2> _GridKeyValueBuffer;
+StructuredBuffer<float4> _Block0;
+uint _PaddedGridSize;
+uint _ActiveParticleCount;
+uint _GridResolution;
+float _CellSize;
+
+[numthreads(256, 1, 1)]
+void ClearGridCellsKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _PaddedGridSize)
+    {
+        return;
+    }
+
+    _CellStartEndBuffer[id.x].StartIndex = -1;
+    _CellStartEndBuffer[id.x].EndIndex = -1;
+}
+
+[numthreads(64, 1, 1)]
+void GenerateGridKeysKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    if (index >= _PaddedGridSize)
+    {
+        return;
+    }
+
+    if (index >= _ActiveParticleCount)
+    {
+        _GridKeyValueBuffer[index] = uint2(0xFFFFFFFF, 0xFFFFFFFF);
+        return;
+    }
+
+    float3 position = _Block0[index].xyz;
+    uint hash = V4HashPosition(position, _CellSize, _GridResolution);
+    _GridKeyValueBuffer[index] = uint2(hash, index);
+}
+
+[numthreads(64, 1, 1)]
+void BuildCellRangesKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _PaddedGridSize)
+    {
+        return;
+    }
+
+    uint currKey = _GridKeyValueBuffer[i].x;
+    if (currKey == 0xFFFFFFFFu)
+    {
+        return;
+    }
+
+    uint prevKey = (i > 0) ? _GridKeyValueBuffer[i - 1].x : 0xFFFFFFFFu;
+    uint nextKey = (i + 1 < _PaddedGridSize) ? _GridKeyValueBuffer[i + 1].x : 0xFFFFFFFFu;
+
+    if (i == 0 || prevKey != currKey)
+    {
+        _CellStartEndBuffer[currKey].StartIndex = (int)i;
+    }
+
+    if (i == _PaddedGridSize - 1 || nextKey != currKey)
+    {
+        _CellStartEndBuffer[currKey].EndIndex = (int)i;
+    }
+}

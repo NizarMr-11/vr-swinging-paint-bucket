@@ -1,0 +1,170 @@
+// Canvas painting (spec section 7, plan Phase 5).
+// SplatApplyKernel processes this frame's settle events SEQUENTIALLY in one thread:
+// event counts are tiny (particles settle rarely) and sequential processing makes
+// the canvas fully deterministic - the same seed and choreography always produce
+// bit-identical grids. Mirrors V4CanvasSplatMath.cs exactly.
+//
+// CanvasToTextureKernel converts the grid buffer to a texture for rendering.
+
+#pragma kernel ClearCanvasKernel
+#pragma kernel SplatApplyKernel
+#pragma kernel CanvasToTextureKernel
+
+#include "Include/V4Common.hlsl"
+
+#define COUNTER_SPLAT_EVENTS 4
+
+struct V4SplatEvent
+{
+    float2 uv;
+    float radius;
+    float contribution;
+    uint color;
+    uint pad0;
+    uint pad1;
+    uint pad2;
+};
+
+RWStructuredBuffer<float4> _CanvasGrid;    // rgb = color, w = paint depth
+StructuredBuffer<V4SplatEvent> _SplatEvents;
+StructuredBuffer<uint> _Counters;
+RWTexture2D<float4> _CanvasTexture;
+
+uint2 _CanvasGridSize;   // cols, rows
+float _CanvasCellSize;
+float _CanvasMaxDepthDefault;
+float4 _CanvasBaseColor;
+uint _MaxSplatEvents;
+
+[numthreads(64, 1, 1)]
+void ClearCanvasKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint cellCount = _CanvasGridSize.x * _CanvasGridSize.y;
+    if (id.x >= cellCount)
+    {
+        return;
+    }
+
+    _CanvasGrid[id.x] = float4(_CanvasBaseColor.rgb, 0.0);
+}
+
+void ApplyToCell(int x, int y, float weight, float contribution, float3 particleColor)
+{
+    if (x < 0 || y < 0 || x >= (int)_CanvasGridSize.x || y >= (int)_CanvasGridSize.y)
+    {
+        return;
+    }
+
+    float cellContribution = contribution * weight;
+    if (cellContribution <= 0.0)
+    {
+        return;
+    }
+
+    uint idx = (uint)y * _CanvasGridSize.x + (uint)x;
+    float4 cell = _CanvasGrid[idx];
+
+    // Saturating depth blend (spec section 7 stacking rule).
+    float newDepth = min(cell.w + cellContribution, _CanvasMaxDepthDefault);
+    float alpha = saturate(cellContribution / max(newDepth, 1e-6));
+    float3 color = lerp(cell.rgb, particleColor, alpha);
+    _CanvasGrid[idx] = float4(color, newDepth);
+}
+
+[numthreads(1, 1, 1)]
+void SplatApplyKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x != 0u)
+    {
+        return;
+    }
+
+    uint eventCount = min(_Counters[COUNTER_SPLAT_EVENTS], _MaxSplatEvents);
+
+    // Events land in slots via InterlockedAdd, whose order is scheduling-dependent,
+    // but the blend below is order-dependent. Process events in ascending source-index
+    // order (evt.pad0, unique per frame) via repeated selection - eventCount is tiny.
+    uint lastKey = 0u;
+    bool first = true;
+    for (uint rank = 0u; rank < eventCount; rank++)
+    {
+        uint bestKey = 0xFFFFFFFFu;
+        uint bestSlot = 0u;
+        for (uint s = 0u; s < eventCount; s++)
+        {
+            uint key = _SplatEvents[s].pad0;
+            if ((first || key > lastKey) && key < bestKey)
+            {
+                bestKey = key;
+                bestSlot = s;
+            }
+        }
+
+        first = false;
+        lastKey = bestKey;
+        V4SplatEvent evt = _SplatEvents[bestSlot];
+        float3 particleColor = V4UnpackColor(evt.color);
+        float radius = max(evt.radius, 1e-6);
+
+        int minX = (int)floor((evt.uv.x - radius) / _CanvasCellSize);
+        int maxX = (int)floor((evt.uv.x + radius) / _CanvasCellSize);
+        int minY = (int)floor((evt.uv.y - radius) / _CanvasCellSize);
+        int maxY = (int)floor((evt.uv.y + radius) / _CanvasCellSize);
+
+        // Pass 1: total weight (linear falloff from the footprint center).
+        float totalWeight = 0.0;
+        for (int y = minY; y <= maxY; y++)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                if (x < 0 || y < 0 || x >= (int)_CanvasGridSize.x || y >= (int)_CanvasGridSize.y)
+                {
+                    continue;
+                }
+
+                float2 cellCenter = float2((x + 0.5) * _CanvasCellSize, (y + 0.5) * _CanvasCellSize);
+                totalWeight += max(0.0, 1.0 - distance(cellCenter, evt.uv) / radius);
+            }
+        }
+
+        if (totalWeight <= 0.0)
+        {
+            // Degenerate footprint: everything into the containing cell.
+            int cx = (int)floor(evt.uv.x / _CanvasCellSize);
+            int cy = (int)floor(evt.uv.y / _CanvasCellSize);
+            ApplyToCell(cx, cy, 1.0, evt.contribution, particleColor);
+            continue;
+        }
+
+        // Pass 2: apply normalized weights.
+        for (int y2 = minY; y2 <= maxY; y2++)
+        {
+            for (int x2 = minX; x2 <= maxX; x2++)
+            {
+                if (x2 < 0 || y2 < 0 || x2 >= (int)_CanvasGridSize.x || y2 >= (int)_CanvasGridSize.y)
+                {
+                    continue;
+                }
+
+                float2 cellCenter = float2((x2 + 0.5) * _CanvasCellSize, (y2 + 0.5) * _CanvasCellSize);
+                float weight = max(0.0, 1.0 - distance(cellCenter, evt.uv) / radius);
+                if (weight > 0.0)
+                {
+                    ApplyToCell(x2, y2, weight / totalWeight, evt.contribution, particleColor);
+                }
+            }
+        }
+    }
+}
+
+[numthreads(8, 8, 1)]
+void CanvasToTextureKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _CanvasGridSize.x || id.y >= _CanvasGridSize.y)
+    {
+        return;
+    }
+
+    float4 cell = _CanvasGrid[id.y * _CanvasGridSize.x + id.x];
+    _CanvasTexture[id.xy] = float4(cell.rgb, 1.0);
+}

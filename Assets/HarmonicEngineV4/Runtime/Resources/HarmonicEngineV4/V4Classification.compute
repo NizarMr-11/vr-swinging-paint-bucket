@@ -1,0 +1,100 @@
+// Classification pass (spec sections 4-5, plan Phase 3 Step 3).
+// The single authoritative source of per-particle state each frame:
+// Inside/Outside, hole zone or top band (priority-resolved), and the permanent
+// hasEscaped latch. This is the ONLY kernel allowed to set the escape latch.
+// Every other pass consumes these flags read-only.
+
+#pragma kernel ClearFrameCountersKernel
+#pragma kernel ClassifyKernel
+
+#include "Include/V4Common.hlsl"
+#include "Include/V4BucketZones.hlsl"
+
+// Counter slot layout (mirror of V4Counters in C#):
+//   0 write/compaction count   1 escaped total   2 settled total
+//   3 top-band count           4 splat event count
+//   8.. per-hole ejected-this-frame
+#define COUNTER_WRITE_COUNT 0
+#define COUNTER_ESCAPED_TOTAL 1
+#define COUNTER_SETTLED_TOTAL 2
+#define COUNTER_TOP_BAND 3
+#define COUNTER_SPLAT_EVENTS 4
+#define COUNTER_EJECTED_BASE 8
+
+StructuredBuffer<float4> _Block0;      // position.xyz, radius
+RWStructuredBuffer<uint> _Flags;
+RWStructuredBuffer<uint> _Counters;
+StructuredBuffer<V4Hole> _Holes;
+
+float4x4 _BucketWorldToLocal;
+float _BucketInnerRadius;
+float _BucketHeight;
+float _BucketWallThickness;
+float _TopBandHeight;
+uint _HoleCount;
+uint _ActiveParticleCount;
+
+[numthreads(64, 1, 1)]
+void ClearFrameCountersKernel(uint3 id : SV_DispatchThreadID)
+{
+    // Per-frame counters only; totals (escaped/settled) persist across frames.
+    if (id.x == 0u)
+    {
+        _Counters[COUNTER_WRITE_COUNT] = 0u;
+        _Counters[COUNTER_TOP_BAND] = 0u;
+        _Counters[COUNTER_SPLAT_EVENTS] = 0u;
+    }
+
+    if (id.x < 32u)
+    {
+        _Counters[COUNTER_EJECTED_BASE + id.x] = 0u;
+    }
+}
+
+[numthreads(64, 1, 1)]
+void ClassifyKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    uint flags = _Flags[i];
+
+    // Escaped particles are permanently Outside and never re-classified (spec section 4).
+    if (V4HasEscaped(flags))
+    {
+        flags = flags & ~V4_FLAG_INSIDE;
+        flags = V4SetZone(flags, V4_ZONE_NONE);
+        _Flags[i] = flags;
+        return;
+    }
+
+    float3 worldPos = _Block0[i].xyz;
+    float3 localPos = mul(_BucketWorldToLocal, float4(worldPos, 1.0)).xyz;
+
+    bool inside = V4BucketIsInside(localPos, _BucketInnerRadius, _BucketHeight);
+    flags = inside ? (flags | V4_FLAG_INSIDE) : (flags & ~V4_FLAG_INSIDE);
+
+    uint holeIndex;
+    uint zone = V4ClassifyZones(localPos, inside, _Holes, _HoleCount, _BucketHeight, _TopBandHeight, holeIndex);
+
+    if (zone == V4_ZONE_HOLE0)
+    {
+        // At the hole: flag Outside + permanent escape latch (spec section 5, Zone 0).
+        // The eject impulse itself is applied by the forces pass this same frame.
+        flags = flags & ~V4_FLAG_INSIDE;
+        flags = flags | V4_FLAG_ESCAPED;
+        InterlockedAdd(_Counters[COUNTER_ESCAPED_TOTAL], 1u);
+        InterlockedAdd(_Counters[COUNTER_EJECTED_BASE + holeIndex], 1u);
+    }
+    else if (zone == V4_ZONE_TOPBAND)
+    {
+        InterlockedAdd(_Counters[COUNTER_TOP_BAND], 1u);
+    }
+
+    flags = V4SetZone(flags, zone);
+    flags = V4SetHole(flags, holeIndex);
+    _Flags[i] = flags;
+}

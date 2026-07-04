@@ -1,0 +1,439 @@
+// PBF core (spec section 6, plan Phase 4). Written fresh for V4 - no V3 solver code.
+// Per frame: Predict -> grid build (external) -> 2x (Density -> Lambda -> SolveDelta
+// -> ApplyDelta) -> Finalize -> compaction sort (external) -> Gather.
+//
+// Determinism: SolveDelta writes into _Deltas (Jacobi style, no in-place races) and
+// compaction goes through the radix sort (order preserving), so identical inputs
+// produce identical outputs - required by the golden-frame and canvas-determinism tests.
+
+#pragma kernel PredictKernel
+#pragma kernel DensityKernel
+#pragma kernel LambdaKernel
+#pragma kernel SolveDeltaKernel
+#pragma kernel ApplyDeltaKernel
+#pragma kernel FinalizeKernel
+#pragma kernel GatherKernel
+
+#include "Include/V4Common.hlsl"
+#include "Include/V4BucketZones.hlsl"
+#include "Include/V4Profiles.hlsl"
+#include "Include/V4NeighborQuery.hlsl"
+
+#define COUNTER_WRITE_COUNT 0
+#define COUNTER_ESCAPED_TOTAL 1
+#define COUNTER_SETTLED_TOTAL 2
+#define COUNTER_SPLAT_EVENTS 4
+
+struct V4SplatEvent
+{
+    float2 uv;            // canvas-local meters from the min corner
+    float radius;
+    float contribution;
+    uint color;
+    uint pad0;
+    uint pad1;
+    uint pad2;
+};
+
+// Read set (canonical state)
+StructuredBuffer<float4> _Block0;
+StructuredBuffer<float4> _Block1;
+StructuredBuffer<uint> _PackedColorsRead;
+StructuredBuffer<uint> _Flags;
+
+// In-place color target (bound to the same buffer as _PackedColorsRead; each thread
+// only ever writes its own index, so this is race-free and deterministic).
+RWStructuredBuffer<uint> _PackedColors;
+
+// Scratch
+RWStructuredBuffer<float4> _Predicted;     // predicted position.xyz, radius
+RWStructuredBuffer<float> _Densities;
+RWStructuredBuffer<float> _Lambdas;
+RWStructuredBuffer<float4> _Deltas;
+RWStructuredBuffer<float4> _BlendedColors; // rgb = weighted color sum, w = weight sum
+
+// Write set (compaction staging)
+RWStructuredBuffer<float4> _WriteBlock0;
+RWStructuredBuffer<float4> _WriteBlock1;
+RWStructuredBuffer<uint> _WritePackedColors;
+RWStructuredBuffer<uint> _WriteFlags;
+
+// Grid (read-only in density/lambda/solve/finalize)
+StructuredBuffer<HashCellGridRange> _CellStartEndBuffer;
+StructuredBuffer<uint2> _GridKeyValueBuffer;
+
+// Compaction staging: (key, index) pairs written by Finalize, sorted externally by
+// the radix sort (removed particles get the max key so survivors keep their order).
+RWStructuredBuffer<uint2> _CompactionPairs;
+
+// Read-only alias of _Predicted for FinalizeKernel (bound to the same buffer in a
+// different dispatch; keeps Finalize within the UAV budget).
+StructuredBuffer<float4> _PredictedRead;
+
+// Gather bindings (GatherKernel only). Sources are the write-staging buffers and the
+// sorted pairs, re-declared under read-only names so the kernel stays at 4 UAVs;
+// targets are the canonical read-set buffers.
+StructuredBuffer<uint2> _SortedPairs;
+StructuredBuffer<float4> _StageBlock0;
+StructuredBuffer<float4> _StageBlock1;
+StructuredBuffer<uint> _StageColors;
+StructuredBuffer<uint> _StageFlags;
+RWStructuredBuffer<float4> _GatherBlock0;
+RWStructuredBuffer<float4> _GatherBlock1;
+RWStructuredBuffer<uint> _GatherColors;
+RWStructuredBuffer<uint> _GatherFlags;
+
+RWStructuredBuffer<uint> _Counters;
+RWStructuredBuffer<V4SplatEvent> _SplatEvents;
+StructuredBuffer<V4GpuProfile> _Profiles;
+StructuredBuffer<V4Hole> _Holes;
+
+float4x4 _BucketWorldToLocal;
+float4x4 _BucketLocalToWorld;
+float _BucketInnerRadius;
+float _BucketHeight;
+float _BucketWallThickness;
+
+float _DeltaTime;
+float _SmoothingRadius;
+float _CellSize;
+uint _GridResolution;
+uint _ActiveParticleCount;
+float _PbfEpsilon;             // CFM relaxation epsilon
+
+float _CanvasPlaneY;
+float2 _CanvasMinCorner;       // world XZ of the canvas min corner
+float2 _CanvasSize;            // world meters (width, depth)
+float _SettleDistance;         // how close above the plane counts as "on canvas"
+uint _MaxSplatEvents;
+
+// ---------------------------------------------------------------------------
+
+float3 V4ToLocal(float3 worldPos)
+{
+    return mul(_BucketWorldToLocal, float4(worldPos, 1.0)).xyz;
+}
+
+float3 V4ToWorld(float3 localPos)
+{
+    return mul(_BucketLocalToWorld, float4(localPos, 1.0)).xyz;
+}
+
+// Position-only bucket clamp used inside the solver loop (velocity untouched).
+float3 V4ClampPositionToBucket(float3 worldPos, uint flags)
+{
+    if (V4HasEscaped(flags))
+    {
+        return worldPos;
+    }
+
+    float3 localPos = V4ToLocal(worldPos);
+    float3 localVel = float3(0, 0, 0);
+    V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, 0.0, 0.0);
+    return V4ToWorld(localPos);
+}
+
+[numthreads(64, 1, 1)]
+void PredictKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    float4 p = _Block0[i];
+    float3 vel = _Block1[i].xyz;
+    float3 predicted = p.xyz + vel * _DeltaTime;
+
+    predicted = V4ClampPositionToBucket(predicted, _Flags[i]);
+    predicted.y = max(predicted.y, _CanvasPlaneY + p.w);
+
+    _Predicted[i] = float4(predicted, p.w);
+}
+
+[numthreads(64, 1, 1)]
+void DensityKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    float3 pi = _Predicted[i].xyz;
+    float h = _SmoothingRadius;
+
+    float density = V4Poly6(0.0, h); // self contribution
+    float3 colorSum = float3(0, 0, 0);
+    float weightSum = 0.0;
+
+    V4_FOREACH_NEIGHBOR_BEGIN(pi, j)
+        if (j == i || j >= _ActiveParticleCount)
+        {
+            continue;
+        }
+
+        float3 diff = pi - _Predicted[j].xyz;
+        float r = length(diff);
+        if (r > h)
+        {
+            continue;
+        }
+
+        float w = V4Poly6(r, h);
+        density += w;
+
+        // Kernel-weighted neighbor color accumulation (spec section 6.4):
+        // reuses the same neighbor iteration as density, so blending is free.
+        colorSum += V4UnpackColor(_PackedColorsRead[j]) * w;
+        weightSum += w;
+    V4_FOREACH_NEIGHBOR_END
+
+    _Densities[i] = density;
+    _BlendedColors[i] = float4(colorSum, weightSum);
+}
+
+[numthreads(64, 1, 1)]
+void LambdaKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    float3 pi = _Predicted[i].xyz;
+    float h = _SmoothingRadius;
+    float restDensity = max(_Profiles[V4GetProfile(_Flags[i])].restDensity, 1e-4);
+
+    float constraint = _Densities[i] / restDensity - 1.0;
+    if (constraint <= 0.0)
+    {
+        _Lambdas[i] = 0.0;
+        return;
+    }
+
+    float3 gradSelf = float3(0, 0, 0);
+    float gradSum = 0.0;
+
+    V4_FOREACH_NEIGHBOR_BEGIN(pi, j)
+        if (j == i || j >= _ActiveParticleCount)
+        {
+            continue;
+        }
+
+        float3 diff = pi - _Predicted[j].xyz;
+        float r = length(diff);
+        if (r > h)
+        {
+            continue;
+        }
+
+        float3 grad = V4SpikyGradient(diff, r, h) / restDensity;
+        gradSelf += grad;
+        gradSum += dot(grad, grad);
+    V4_FOREACH_NEIGHBOR_END
+
+    gradSum += dot(gradSelf, gradSelf);
+    _Lambdas[i] = -constraint / (gradSum + _PbfEpsilon);
+}
+
+[numthreads(64, 1, 1)]
+void SolveDeltaKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    float3 pi = _Predicted[i].xyz;
+    float h = _SmoothingRadius;
+    float restDensity = max(_Profiles[V4GetProfile(_Flags[i])].restDensity, 1e-4);
+    float lambdaI = _Lambdas[i];
+
+    float3 delta = float3(0, 0, 0);
+    V4_FOREACH_NEIGHBOR_BEGIN(pi, j)
+        if (j == i || j >= _ActiveParticleCount)
+        {
+            continue;
+        }
+
+        float3 diff = pi - _Predicted[j].xyz;
+        float r = length(diff);
+        if (r > h)
+        {
+            continue;
+        }
+
+        delta += (lambdaI + _Lambdas[j]) * V4SpikyGradient(diff, r, h);
+    V4_FOREACH_NEIGHBOR_END
+
+    _Deltas[i] = float4(delta / restDensity, 0.0);
+}
+
+[numthreads(64, 1, 1)]
+void ApplyDeltaKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    float4 p = _Predicted[i];
+    float3 predicted = p.xyz + _Deltas[i].xyz;
+    predicted = V4ClampPositionToBucket(predicted, _Flags[i]);
+    predicted.y = max(predicted.y, _CanvasPlaneY + p.w);
+    _Predicted[i] = float4(predicted, p.w);
+
+    // Color blend, once per PBF iteration (spec section 6.4):
+    // color = lerp(color, kernelWeightedNeighborAverage, k).
+    // Reads and writes only this thread's own slot of the RW color buffer
+    // (a buffer cannot be bound as both SRV and UAV in one dispatch).
+    float4 blend = _BlendedColors[i];
+    if (blend.w > 1e-6)
+    {
+        float k = _Profiles[V4GetProfile(_Flags[i])].colorDiffusionRate;
+        float3 own = V4UnpackColor(_PackedColors[i]);
+        float3 avg = blend.xyz / blend.w;
+        _PackedColors[i] = V4PackColor(lerp(own, avg, saturate(k)));
+    }
+}
+
+[numthreads(64, 1, 1)]
+void FinalizeKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    uint flags = _Flags[i];
+    V4GpuProfile profile = _Profiles[V4GetProfile(flags)];
+
+    float4 oldP = _Block0[i];
+    float radius = oldP.w;
+    float3 predicted = _PredictedRead[i].xyz;
+    float3 vel = _DeltaTime > 1e-6 ? (predicted - oldP.xyz) / _DeltaTime : float3(0, 0, 0);
+
+    // XSPH viscosity + cohesion over the predicted-position grid.
+    float h = _SmoothingRadius;
+    float3 xsph = float3(0, 0, 0);
+    float3 cohesion = float3(0, 0, 0);
+    V4_FOREACH_NEIGHBOR_BEGIN(predicted, j)
+        if (j == i || j >= _ActiveParticleCount)
+        {
+            continue;
+        }
+
+        float3 diff = predicted - _PredictedRead[j].xyz;
+        float r = length(diff);
+        if (r > h)
+        {
+            continue;
+        }
+
+        float w = V4Poly6(r, h);
+        float3 vj = _DeltaTime > 1e-6 ? (_PredictedRead[j].xyz - _Block0[j].xyz) / _DeltaTime : float3(0, 0, 0);
+        xsph += (vj - vel) * w;
+        if (r > 1e-6)
+        {
+            cohesion -= (diff / r) * w;
+        }
+    V4_FOREACH_NEIGHBOR_END
+
+    float selfW = max(V4Poly6(0.0, h), 1e-6);
+    vel += profile.viscosity * (xsph / selfW);
+    vel += profile.cohesion * (cohesion / selfW) * _DeltaTime;
+
+    float3 pos = predicted;
+
+    // Full bucket collision (position + velocity). Escaped particles skip it forever.
+    if (!V4HasEscaped(flags))
+    {
+        float3 localPos = V4ToLocal(pos);
+        float3 localVel = mul((float3x3)_BucketWorldToLocal, vel);
+        V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness,
+            profile.surfaceRestitution, profile.surfaceFriction);
+        pos = V4ToWorld(localPos);
+        vel = mul((float3x3)_BucketLocalToWorld, localVel);
+    }
+
+    // Canvas plane acts as the world floor.
+    if (pos.y - radius < _CanvasPlaneY)
+    {
+        pos.y = _CanvasPlaneY + radius;
+        V4ReflectAgainstNormal(vel, float3(0, 1, 0), profile.surfaceRestitution, profile.surfaceFriction);
+    }
+
+    // Settle check (spec section 7): register only once velocity < epsilon, then
+    // remove the particle from the live buffer entirely.
+    bool removed = false;
+    float2 uv = float2(pos.x, pos.z) - _CanvasMinCorner;
+    bool onCanvasRect = uv.x >= 0.0 && uv.y >= 0.0 && uv.x <= _CanvasSize.x && uv.y <= _CanvasSize.y;
+    bool nearPlane = (pos.y - radius) <= (_CanvasPlaneY + _SettleDistance);
+
+    if (!V4IsInside(flags) && nearPlane && onCanvasRect && length(vel) < profile.settleEpsilon)
+    {
+        uint slot;
+        InterlockedAdd(_Counters[COUNTER_SPLAT_EVENTS], 1u, slot);
+        if (slot < _MaxSplatEvents)
+        {
+            V4SplatEvent evt;
+            evt.uv = uv;
+            evt.radius = radius;
+            evt.contribution = 1.0;
+            evt.color = _PackedColorsRead[i];
+            // Stable sort key: InterlockedAdd slot order is scheduling-dependent, so
+            // the splat kernel re-sorts events by source index for determinism.
+            evt.pad0 = i;
+            evt.pad1 = 0u;
+            evt.pad2 = 0u;
+            _SplatEvents[slot] = evt;
+        }
+
+        InterlockedAdd(_Counters[COUNTER_SETTLED_TOTAL], 1u);
+        removed = true;
+    }
+
+    // Stage state + compaction pair. Sorting (removed = max key) preserves the
+    // relative order of survivors, keeping compaction fully deterministic.
+    _WriteBlock0[i] = float4(pos, radius);
+    _WriteBlock1[i] = float4(vel, 0.0);
+    _WritePackedColors[i] = _PackedColorsRead[i];
+    _WriteFlags[i] = flags;
+    _CompactionPairs[i] = uint2(removed ? 0xFFFFFFFFu : i, i);
+
+    if (!removed)
+    {
+        InterlockedAdd(_Counters[COUNTER_WRITE_COUNT], 1u);
+    }
+}
+
+// After the external radix sort of _CompactionPairs, survivors occupy the prefix
+// in their original order. Copy them from the write staging back into the
+// canonical read set (bound here as the _Gather* targets).
+[numthreads(64, 1, 1)]
+void GatherKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    uint2 pair = _SortedPairs[i];
+    if (pair.x == 0xFFFFFFFFu)
+    {
+        return; // removed - slot i is beyond the new live count
+    }
+
+    uint src = pair.y;
+    _GatherBlock0[i] = _StageBlock0[src];
+    _GatherBlock1[i] = _StageBlock1[src];
+    _GatherColors[i] = _StageColors[src];
+    _GatherFlags[i] = _StageFlags[src];
+}

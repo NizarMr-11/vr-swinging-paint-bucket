@@ -1,0 +1,184 @@
+// 6-bit LSD radix sort (Satish et al. 2009) with groupshared histograms.
+// Ported from AdvancedHarmonicEngine_V3 RadixSort.compute (validated block,
+// quarantined behind V4RadixSortTests before anything builds on it).
+
+#pragma kernel ExtractGridKeysKernel
+#pragma kernel PackGridKeysKernel
+#pragma kernel ClearHistogramKernel
+#pragma kernel HistogramKernel
+#pragma kernel ScanKernel
+#pragma kernel ScatterKernel
+
+#define RADIX_BITS 6
+#define BUCKETS 64
+#define GROUP_SIZE 64
+
+RWStructuredBuffer<uint> _SortKeys;
+RWStructuredBuffer<uint> _SortValues;
+RWStructuredBuffer<uint> _TempKeys;
+RWStructuredBuffer<uint> _TempValues;
+RWStructuredBuffer<uint> _GlobalHistogram;
+RWStructuredBuffer<uint> _GlobalPrefix;
+RWStructuredBuffer<uint> _GroupHistogram;
+RWStructuredBuffer<uint> _GroupOffsets;
+RWStructuredBuffer<uint2> _GridKeyValueBuffer;
+
+uint _BitShift;
+uint _SortSize;
+uint _NumGroups;
+
+[numthreads(GROUP_SIZE, 1, 1)]
+void ExtractGridKeysKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _SortSize)
+    {
+        return;
+    }
+
+    uint2 pair = _GridKeyValueBuffer[id.x];
+    _SortKeys[id.x] = pair.x;
+    _SortValues[id.x] = pair.y;
+}
+
+[numthreads(GROUP_SIZE, 1, 1)]
+void PackGridKeysKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _SortSize)
+    {
+        return;
+    }
+
+    _GridKeyValueBuffer[id.x] = uint2(_SortKeys[id.x], _SortValues[id.x]);
+}
+
+[numthreads(GROUP_SIZE, 1, 1)]
+void ClearHistogramKernel(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < BUCKETS)
+    {
+        _GlobalHistogram[id.x] = 0;
+    }
+}
+
+groupshared uint localHist[BUCKETS];
+
+[numthreads(GROUP_SIZE, 1, 1)]
+void HistogramKernel(uint3 id : SV_DispatchThreadID,
+                     uint groupIndex : SV_GroupIndex,
+                     uint3 groupId : SV_GroupID)
+{
+    if (groupIndex < BUCKETS)
+    {
+        localHist[groupIndex] = 0;
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    if (id.x < _SortSize)
+    {
+        uint key = _SortKeys[id.x];
+        uint digit = (key >> _BitShift) & 0x3Fu;
+        InterlockedAdd(localHist[digit], 1);
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    if (groupIndex < BUCKETS)
+    {
+        uint count = localHist[groupIndex];
+        _GroupHistogram[groupId.x * BUCKETS + groupIndex] = count;
+        InterlockedAdd(_GlobalHistogram[groupIndex], count);
+    }
+}
+
+groupshared uint scanTemp[BUCKETS];
+
+[numthreads(GROUP_SIZE, 1, 1)]
+void ScanKernel(uint3 id : SV_DispatchThreadID,
+                uint groupIndex : SV_GroupIndex)
+{
+    if (groupIndex < BUCKETS)
+    {
+        scanTemp[groupIndex] = _GlobalHistogram[groupIndex];
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    [unroll]
+    for (uint stride = 1u; stride < BUCKETS; stride <<= 1u)
+    {
+        uint add = 0u;
+        if (groupIndex >= stride)
+        {
+            add = scanTemp[groupIndex - stride];
+        }
+
+        GroupMemoryBarrierWithGroupSync();
+        scanTemp[groupIndex] += add;
+        GroupMemoryBarrierWithGroupSync();
+    }
+
+    if (groupIndex < BUCKETS)
+    {
+        _GlobalPrefix[groupIndex] = groupIndex == 0u ? 0u : scanTemp[groupIndex - 1u];
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    uint bucket = id.x;
+    if (bucket >= BUCKETS)
+    {
+        return;
+    }
+
+    uint sum = _GlobalPrefix[bucket];
+    for (uint group = 0u; group < _NumGroups; group++)
+    {
+        uint idx = group * BUCKETS + bucket;
+        uint count = _GroupHistogram[idx];
+        _GroupOffsets[idx] = sum;
+        sum += count;
+    }
+}
+
+groupshared uint threadDigits[GROUP_SIZE];
+
+[numthreads(GROUP_SIZE, 1, 1)]
+void ScatterKernel(uint3 id : SV_DispatchThreadID,
+                   uint groupIndex : SV_GroupIndex,
+                   uint3 groupId : SV_GroupID)
+{
+    if (groupIndex < GROUP_SIZE)
+    {
+        if (id.x < _SortSize)
+        {
+            uint key = _SortKeys[id.x];
+            threadDigits[groupIndex] = (key >> _BitShift) & 0x3Fu;
+        }
+        else
+        {
+            threadDigits[groupIndex] = 0u;
+        }
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+
+    if (id.x < _SortSize)
+    {
+        uint key = _SortKeys[id.x];
+        uint value = _SortValues[id.x];
+        uint digit = threadDigits[groupIndex];
+        uint rank = 0u;
+        for (uint t = 0u; t < groupIndex; t++)
+        {
+            if (threadDigits[t] == digit)
+            {
+                rank++;
+            }
+        }
+
+        uint dstIdx = _GroupOffsets[groupId.x * BUCKETS + digit] + rank;
+        _TempKeys[dstIdx] = key;
+        _TempValues[dstIdx] = value;
+    }
+}

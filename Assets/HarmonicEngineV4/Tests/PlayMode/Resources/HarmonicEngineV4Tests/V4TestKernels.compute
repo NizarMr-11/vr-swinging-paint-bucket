@@ -1,0 +1,116 @@
+// Test-only kernels exposing V4 HLSL functions as standalone dispatches so the
+// GPU/CPU parity tests (plan Testing Strategy, Layer 2) can assert the HLSL
+// transliteration matches the C# reference exactly. Never shipped in a build path.
+
+#pragma kernel GeometryParityKernel
+#pragma kernel CollisionParityKernel
+#pragma kernel FlagsParityKernel
+#pragma kernel ColorPackParityKernel
+
+#include "../../../../Runtime/Resources/HarmonicEngineV4/Include/V4Common.hlsl"
+#include "../../../../Runtime/Resources/HarmonicEngineV4/Include/V4BucketZones.hlsl"
+
+StructuredBuffer<float4> _TestPositions;   // bucket-local positions
+StructuredBuffer<float4> _TestVelocities;
+StructuredBuffer<uint> _TestUintInput;
+StructuredBuffer<V4Hole> _Holes;
+
+RWStructuredBuffer<uint> _OutUint0;
+RWStructuredBuffer<uint> _OutUint1;
+RWStructuredBuffer<uint> _OutUint2;
+RWStructuredBuffer<uint> _OutUint3;
+RWStructuredBuffer<float4> _OutFloat0;
+RWStructuredBuffer<float4> _OutFloat1;
+
+float _BucketInnerRadius;
+float _BucketHeight;
+float _BucketWallThickness;
+float _TopBandHeight;
+float _Restitution;
+float _Friction;
+uint _HoleCount;
+uint _TestCount;
+
+[numthreads(64, 1, 1)]
+void GeometryParityKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _TestCount)
+    {
+        return;
+    }
+
+    float3 localPos = _TestPositions[i].xyz;
+    bool inside = V4BucketIsInside(localPos, _BucketInnerRadius, _BucketHeight);
+    bool shell = V4BucketIsInSolidShell(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
+
+    uint holeIndex;
+    uint zone = V4ClassifyZones(localPos, inside, _Holes, _HoleCount, _BucketHeight, _TopBandHeight, holeIndex);
+
+    float3 forceDir = float3(0, 0, 0);
+    if (zone == V4_ZONE_HOLE0 || zone == V4_ZONE_HOLE1 || zone == V4_ZONE_HOLE2)
+    {
+        forceDir = V4ZoneForceDirection(localPos, _Holes[holeIndex], zone);
+    }
+
+    _OutUint0[i] = inside ? 1u : 0u;
+    _OutUint1[i] = shell ? 1u : 0u;
+    _OutUint2[i] = zone;
+    _OutUint3[i] = holeIndex;
+    _OutFloat0[i] = float4(forceDir, 0.0);
+}
+
+[numthreads(64, 1, 1)]
+void CollisionParityKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _TestCount)
+    {
+        return;
+    }
+
+    float3 pos = _TestPositions[i].xyz;
+    float3 vel = _TestVelocities[i].xyz;
+    V4BucketResolveCollision(pos, vel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, _Restitution, _Friction);
+    _OutFloat0[i] = float4(pos, 0.0);
+    _OutFloat1[i] = float4(vel, 0.0);
+}
+
+[numthreads(64, 1, 1)]
+void FlagsParityKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _TestCount)
+    {
+        return;
+    }
+
+    // Input layout: _TestUintInput packs (zone << 0, hole << 8, profile << 16).
+    uint packedParams = _TestUintInput[i];
+    uint zone = packedParams & 0xFFu;
+    uint hole = (packedParams >> 8) & 0xFFu;
+    uint profile = (packedParams >> 16) & 0xFFu;
+
+    uint flags = 0u;
+    flags = flags | V4_FLAG_INSIDE;
+    flags = V4SetZone(flags, zone);
+    flags = V4SetHole(flags, hole);
+    flags = V4SetProfile(flags, profile);
+
+    _OutUint0[i] = flags;
+    _OutUint1[i] = V4GetZone(flags);
+    _OutUint2[i] = V4GetHole(flags);
+    _OutUint3[i] = V4GetProfile(flags);
+}
+
+[numthreads(64, 1, 1)]
+void ColorPackParityKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _TestCount)
+    {
+        return;
+    }
+
+    _OutUint0[i] = V4PackColor(V4UnpackColor(_TestUintInput[i]));
+}

@@ -1,0 +1,25 @@
+{
+    "name": "HarmonicEngineV4.Tests.EditMode",
+    "rootNamespace": "HarmonicEngineV4.Tests.EditMode",
+    "references": [
+        "HarmonicEngineV4.Runtime",
+        "HarmonicEngineV4.Editor",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
