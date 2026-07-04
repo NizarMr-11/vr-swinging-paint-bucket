@@ -59,7 +59,7 @@ namespace SwingingPaintBucket.Canvas
         public void OnParticleHit(Vector3 hitPosition, Color color, float viscosity)
         {
             //Testgggg
-            Debug.Log($"[Canvas] Hit recieved at {hitPosition}, color = {color}");
+            //Debug.Log($"[Canvas] Hit recieved at {hitPosition}, color = {color}");
             float u = (hitPosition.x - transform.position.x + _canvasWidth * 0.5f) / _canvasWidth;
             float v = (hitPosition.z - transform.position.z + _canvasHeight * 0.5f) / _canvasHeight;
 

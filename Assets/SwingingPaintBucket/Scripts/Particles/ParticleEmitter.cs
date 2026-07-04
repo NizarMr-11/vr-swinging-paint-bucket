@@ -37,7 +37,7 @@ namespace SwingingPaintBucket.Particles
         {
             if (_bucket == null || !_bucket.HasPaint) return;
 
-            float dt = Time.fixedDeltaTime;
+            float dt = SimulationConstants.FixedTimeStep;
 
 
             float rawCount = (_bucket.VolumeThisFrame / VolumePerParticle) + _leftOver;
@@ -90,7 +90,7 @@ namespace SwingingPaintBucket.Particles
 
         private void UpdateParticles()
         {
-            float dt = Time.fixedDeltaTime;
+            float dt =SimulationConstants.FixedTimeStep;
 
             for (int i = 0; i < _particles.Length; i++)
             {

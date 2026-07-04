@@ -612,7 +612,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2fd83941f335fd649bfc093c232cc624, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SwingingPaintBucket.Environment.EnvironmentController
-  WindForce: {x: 15, y: 30, z: 15}
+  WindForce: {x: 5, y: 5, z: 5}
   Temperature: 20
   Humidity: 50
 --- !u!1 &2072273972
