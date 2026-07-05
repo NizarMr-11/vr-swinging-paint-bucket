@@ -8,6 +8,7 @@ namespace HarmonicEngineV4.Logging
     {
         public V4PipelineRoot pipeline;
         [Min(1)] public int sampleEveryNFrames = 10;
+        public V4ChannelLogSettings channelSettings = new V4ChannelLogSettings();
 
         private V4RunRecorder _recorder;
 
@@ -36,7 +37,7 @@ namespace HarmonicEngineV4.Logging
         {
             if (pipeline != null && pipeline.Initialized)
             {
-                _recorder = new V4RunRecorder(pipeline, sampleEveryNFrames);
+                _recorder = new V4RunRecorder(pipeline, sampleEveryNFrames, channelSettings: channelSettings);
             }
         }
 

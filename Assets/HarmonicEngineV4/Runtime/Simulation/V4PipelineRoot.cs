@@ -648,10 +648,17 @@ namespace HarmonicEngineV4.Simulation
 
             int settledNow = (int)_countersReadback[V4Counters.SettledTotal];
             int removedThisFrame = settledNow - SettledTotal;
+            int splatEventsThisFrame = (int)_countersReadback[V4Counters.SplatEventCount];
             SettledTotal = settledNow;
             EscapedTotal = (int)_countersReadback[V4Counters.EscapedTotal];
             TopBandCountLastFrame = (int)_countersReadback[V4Counters.TopBandCount];
             ActiveParticleCount = Mathf.Max(0, ActiveParticleCount - removedThisFrame);
+
+            if (removedThisFrame > 0 || splatEventsThisFrame > 0)
+            {
+                V4Log.Info(V4LogCategory.CanvasSettle,
+                    $"frame={FrameIndex} settled+={removedThisFrame} splatEvents={splatEventsThisFrame} live={ActiveParticleCount} escaped={EscapedTotal} settled={SettledTotal}");
+            }
 
             for (int i = 0; i < _emaModel.HoleCount; i++)
             {

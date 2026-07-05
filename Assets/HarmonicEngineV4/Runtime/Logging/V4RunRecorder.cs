@@ -7,9 +7,9 @@ using UnityEngine;
 namespace HarmonicEngineV4.Logging
 {
     /// <summary>
-    /// Run recording (spec section 12): one JSON file per run with full config header,
-    /// sampled time-series, warnings/errors, and a final summary. Registered as a log
-    /// sink so warnings/errors flow in without any pipeline coupling.
+    /// Run recording (spec section 12): one folder per run with manifest.json (header,
+    /// sampled time-series, warnings/errors, summary) plus per-channel text logs under
+    /// channels/*.log via <see cref="V4ChannelFileSink"/>.
     /// </summary>
     public sealed class V4RunRecorder : IV4LogSink, IDisposable
     {
@@ -27,6 +27,8 @@ namespace HarmonicEngineV4.Logging
         public class Header
         {
             public string startedAtUtc;
+            public string runDirectory;
+            public string channelsDirectory;
             public string unityVersion;
             public string gpuName;
             public int gpuMemoryMb;
@@ -69,35 +71,80 @@ namespace HarmonicEngineV4.Logging
 
         private readonly V4PipelineRoot _root;
         private readonly int _sampleEveryNFrames;
+        private readonly V4ChannelLogSettings _channelSettings;
         private readonly RunFile _data = new RunFile();
         private readonly DateTime _startedUtc;
+        private readonly V4ChannelFileSink _channelSink;
+        private readonly V4LogLevel _restoredMinimumLevel;
         private bool _finalized;
 
+        /// <summary>Run folder: {base}/run_yyyyMMdd_HHmmss_fff/</summary>
+        public string RunDirectory { get; }
+
+        /// <summary>Structured manifest inside the run folder.</summary>
         public string FilePath { get; }
 
-        public V4RunRecorder(V4PipelineRoot root, int sampleEveryNFrames = 10, string directoryOverride = null)
+        public V4ChannelFileSink ChannelSink => _channelSink;
+
+        public V4RunRecorder(
+            V4PipelineRoot root,
+            int sampleEveryNFrames = 10,
+            string directoryOverride = null,
+            V4ChannelLogSettings channelSettings = null)
         {
             _root = root != null ? root : throw new ArgumentNullException(nameof(root));
             _sampleEveryNFrames = Mathf.Max(1, sampleEveryNFrames);
             _startedUtc = DateTime.UtcNow;
 
-            string directory = directoryOverride ?? Path.Combine(Application.persistentDataPath, "Runs");
-            Directory.CreateDirectory(directory);
-            FilePath = Path.Combine(directory, $"run_{_startedUtc:yyyyMMdd_HHmmss_fff}.json");
+            string baseDirectory = directoryOverride ?? Path.Combine(Application.persistentDataPath, "Runs");
+            Directory.CreateDirectory(baseDirectory);
+            RunDirectory = Path.Combine(baseDirectory, $"run_{_startedUtc:yyyyMMdd_HHmmss_fff}");
+            Directory.CreateDirectory(RunDirectory);
+            FilePath = Path.Combine(RunDirectory, "manifest.json");
+
+            _channelSettings = channelSettings ?? new V4ChannelLogSettings();
+            _channelSink = new V4ChannelFileSink(RunDirectory, _channelSettings);
+
+            _restoredMinimumLevel = V4Log.MinimumLevel;
+            if (_channelSettings.minimumLevel < V4Log.MinimumLevel)
+            {
+                V4Log.MinimumLevel = _channelSettings.minimumLevel;
+            }
 
             WriteHeader();
             _root.FrameCompleted += OnFrameCompleted;
+            V4Log.AddSink(_channelSink);
             V4Log.AddSink(this);
+            SnapshotStartupState();
 
             // Persist the header immediately so even a hard crash leaves a valid record.
             Flush();
-            V4Log.Info(V4LogCategory.Recording, $"run recording started: {FilePath}");
+            V4Log.Info(V4LogCategory.Recording, $"run recording started dir={RunDirectory}");
+        }
+
+        /// <summary>
+        /// Bake/spawn logs often fire before the recorder attaches; emit a one-line snapshot
+        /// per channel so channel files always capture run configuration.
+        /// </summary>
+        private void SnapshotStartupState()
+        {
+            V4Log.Info(V4LogCategory.Bake,
+                $"snapshot holes={_root.BakedHoles?.Count ?? 0} grid={_root.CanvasGridSize.x}x{_root.CanvasGridSize.y} cell={_root.CanvasCellSize:F4} ok={_root.BakeSucceeded}");
+            V4Log.Info(V4LogCategory.Spawn,
+                $"snapshot spawned={_root.SpawnedTotal} live={_root.ActiveParticleCount} radius={_root.ParticleRadius:F4} density={_root.globalDensity:F0}");
+            if (_root.ActiveManifest != null)
+            {
+                V4Log.Info(V4LogCategory.General,
+                    $"snapshot manifest={_root.ActiveManifest.manifestName} passes={_root.ActiveManifest.passes.Count}");
+            }
         }
 
         private void WriteHeader()
         {
             Header h = _data.header;
             h.startedAtUtc = _startedUtc.ToString("O");
+            h.runDirectory = RunDirectory;
+            h.channelsDirectory = _channelSink.ChannelsDirectory;
             h.unityVersion = Application.unityVersion;
             h.gpuName = SystemInfo.graphicsDeviceName;
             h.gpuMemoryMb = SystemInfo.graphicsMemorySize;
@@ -175,6 +222,8 @@ namespace HarmonicEngineV4.Logging
             {
                 Debug.LogError($"[V4RunRecorder] failed to write {FilePath}: {e.Message}");
             }
+
+            _channelSink.Flush();
         }
 
         /// <summary>Finalizes the summary and writes the file. Safe to call multiple times.</summary>
@@ -188,6 +237,8 @@ namespace HarmonicEngineV4.Logging
             _finalized = true;
             _root.FrameCompleted -= OnFrameCompleted;
             V4Log.RemoveSink(this);
+            V4Log.RemoveSink(_channelSink);
+            V4Log.MinimumLevel = _restoredMinimumLevel;
 
             _data.summary.finalized = true;
             _data.summary.totalFrames = _root.FrameIndex;
@@ -196,6 +247,7 @@ namespace HarmonicEngineV4.Logging
             _data.summary.finalSettled = _root.SettledTotal;
             _data.summary.durationSeconds = (float)(DateTime.UtcNow - _startedUtc).TotalSeconds;
             Flush();
+            _channelSink.Dispose();
         }
 
         public void Dispose()
@@ -203,5 +255,4 @@ namespace HarmonicEngineV4.Logging
             FinalizeRun();
         }
     }
-
 }

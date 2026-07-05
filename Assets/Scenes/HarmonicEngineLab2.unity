@@ -202,10 +202,10 @@ MonoBehaviour:
   wallThickness: 0.05
   holes:
   - localPosition: {x: 0.1, y: 0, z: 0}
-    radius: 0.045
+    radius: 0
     outwardNormal: {x: 0, y: -1, z: 0}
   - localPosition: {x: -0.15, y: 0, z: 0.15}
-    radius: 0.045
+    radius: 0
     outwardNormal: {x: 0, y: -1, z: 0}
   ringSpacing: 0.06
   autoShrinkRings: 1
@@ -595,6 +595,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Logging.V4RunRecording
   pipeline: {fileID: 1272400440}
   sampleEveryNFrames: 10
+  channelSettings:
+    minimumLevel: 1
+    recordGeneral: 1
+    recordBake: 1
+    recordSpawn: 1
+    recordPassExecution: 0
+    recordZoneClassification: 1
+    recordCanvasSettle: 1
+    recordBufferBinding: 0
+    recordRecording: 1
 --- !u!114 &1272400440
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -612,10 +622,10 @@ MonoBehaviour:
   spawnZones:
   - {fileID: 1646445024}
   - {fileID: 124697322}
-  globalDensity: 150000
+  globalDensity: 1000000
   globalProfile: {fileID: 11400000, guid: 3a5b2c589cbcc604a894f7696d0d45f2, type: 2}
   autoRun: 1
-  pbfIterations: 2
+  pbfIterations: 1
   carryRate: 10
   downwardScale: 1
   emaSmoothing: 0.1

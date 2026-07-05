@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace HarmonicEngineV4.Tests.PlayMode
 {
-    /// <summary>Run-recording tests (plan Phase 7): file validity, header completeness, summary accuracy, abnormal teardown.</summary>
+    /// <summary>Run-recording tests (plan Phase 7): manifest validity, per-channel logs, summary accuracy.</summary>
     public sealed class V4RunRecorderTests
     {
         private string _tempDir;
@@ -35,10 +35,14 @@ namespace HarmonicEngineV4.Tests.PlayMode
             rig.Step(30);
             recorder.FinalizeRun();
 
-            Assert.IsTrue(File.Exists(recorder.FilePath), "run file was not written");
+            Assert.IsTrue(Directory.Exists(recorder.RunDirectory), "run directory was not created");
+            Assert.IsTrue(File.Exists(recorder.FilePath), "manifest was not written");
             string json = File.ReadAllText(recorder.FilePath);
             var parsed = JsonUtility.FromJson<V4RunRecorder.RunFile>(json);
-            Assert.IsNotNull(parsed, "run file is not valid JSON");
+            Assert.IsNotNull(parsed, "manifest is not valid JSON");
+
+            Assert.AreEqual(recorder.RunDirectory, parsed.header.runDirectory);
+            Assert.IsTrue(Directory.Exists(parsed.header.channelsDirectory));
 
             // Header (spec section 12): device, manifest, profiles, spawn zones, density, bake.
             Assert.IsNotEmpty(parsed.header.gpuName);
@@ -63,6 +67,51 @@ namespace HarmonicEngineV4.Tests.PlayMode
             Assert.AreEqual(rig.Root.ActiveParticleCount, parsed.summary.finalLive);
             Assert.AreEqual(rig.Root.EscapedTotal, parsed.summary.finalEscaped);
             Assert.AreEqual(rig.Root.SettledTotal, parsed.summary.finalSettled);
+        }
+
+        [Test]
+        public void ScriptedRun_WritesPerChannelLogs()
+        {
+            using var rig = V4TestRig.Create();
+            var settings = new V4ChannelLogSettings { recordPassExecution = false };
+            var recorder = new V4RunRecorder(rig.Root, sampleEveryNFrames: 5, directoryOverride: _tempDir, channelSettings: settings);
+
+            rig.Step(30);
+            recorder.FinalizeRun();
+
+            string bakeLog = recorder.ChannelSink.PathFor(V4LogCategory.Bake);
+            string generalLog = recorder.ChannelSink.PathFor(V4LogCategory.General);
+            string passLog = recorder.ChannelSink.PathFor(V4LogCategory.PassExecution);
+
+            Assert.IsTrue(File.Exists(bakeLog), "bake channel log missing");
+            Assert.IsTrue(File.Exists(generalLog), "general channel log missing");
+            Assert.IsFalse(File.Exists(passLog), "pass_execution should stay off by default");
+
+            string bakeText = File.ReadAllText(bakeLog);
+            Assert.IsTrue(bakeText.Contains("snapshot holes="), "bake log should contain startup snapshot");
+
+            string recordingLog = recorder.ChannelSink.PathFor(V4LogCategory.Recording);
+            Assert.IsTrue(File.Exists(recordingLog));
+            Assert.IsTrue(File.ReadAllText(recordingLog).Contains("run recording started"));
+        }
+
+        [Test]
+        public void PassExecutionChannel_RecordedWhenEnabled()
+        {
+            using var rig = V4TestRig.Create();
+            var settings = new V4ChannelLogSettings
+            {
+                recordPassExecution = true,
+                minimumLevel = V4LogLevel.Verbose
+            };
+            var recorder = new V4RunRecorder(rig.Root, directoryOverride: _tempDir, channelSettings: settings);
+
+            rig.Step(3);
+            recorder.FinalizeRun();
+
+            string passLog = recorder.ChannelSink.PathFor(V4LogCategory.PassExecution);
+            Assert.IsTrue(File.Exists(passLog), "pass_execution log should exist when enabled");
+            Assert.IsTrue(File.ReadAllText(passLog).Contains("pass="), "pass_execution log should contain pass scopes");
         }
 
         [Test]
@@ -94,13 +143,11 @@ namespace HarmonicEngineV4.Tests.PlayMode
         }
 
         [Test]
-        public void WarningsAndErrors_AreCapturedInRunFile()
+        public void WarningsAndErrors_AreCapturedInManifestAndChannelFile()
         {
             using var rig = V4TestRig.Create();
             var recorder = new V4RunRecorder(rig.Root, sampleEveryNFrames: 5, directoryOverride: _tempDir);
 
-            // No console sink is registered in the headless test context, so these only
-            // reach the recorder sink; guard with LogAssert in case one is registered.
             UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
             V4Log.Warning(V4LogCategory.General, "test-warning-xyz");
             V4Log.Error(V4LogCategory.General, "test-error-xyz");
@@ -110,6 +157,10 @@ namespace HarmonicEngineV4.Tests.PlayMode
             var parsed = JsonUtility.FromJson<V4RunRecorder.RunFile>(File.ReadAllText(recorder.FilePath));
             Assert.IsTrue(parsed.warnings.Exists(w => w.Contains("test-warning-xyz")));
             Assert.IsTrue(parsed.errors.Exists(e => e.Contains("test-error-xyz")));
+
+            string generalLog = File.ReadAllText(recorder.ChannelSink.PathFor(V4LogCategory.General));
+            Assert.IsTrue(generalLog.Contains("test-warning-xyz"));
+            Assert.IsTrue(generalLog.Contains("test-error-xyz"));
         }
     }
 }
