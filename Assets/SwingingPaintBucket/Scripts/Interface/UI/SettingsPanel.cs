@@ -13,12 +13,14 @@ namespace SwingingPaintBucket.Interface.UI
         private RetroUIConfig _config;
         private PendulumSimulator _pendulum;
         private BucketController _bucket;
+        private EnvironmentController _environment;
         private Transform _parentTransform;
 
         private Slider _massSlider, _ropeLengthSlider, _gravitySlider, _dampingSlider;
         private Slider _initialAngleSlider, _angularVelocitySlider;
         private Slider _paintVolumeSlider, _viscositySlider, _densitySlider, _nozzleRadiusSlider;
         private Slider _dischargeSlider, _paintLossSlider, _absorptionSlider;
+        private Slider _windSlider, _humiditySlider, _temperatureSlider;
         
         // Material selection using tabs instead of dropdown
         private int _selectedMaterialIndex = 0;
@@ -42,6 +44,7 @@ namespace SwingingPaintBucket.Interface.UI
             {
                 _pendulum = simManager.BucketObject.GetComponent<PendulumSimulator>();
                 _bucket = simManager.BucketObject.GetComponent<BucketController>();
+                _environment = _pendulum?.Environment;
                 Debug.Log("Found Pendulum and Bucket references");
             }
             else
@@ -76,6 +79,7 @@ namespace SwingingPaintBucket.Interface.UI
             BuildPaintSection(parent);
             BuildMaterialSection(parent);
             BuildColorSection(parent);
+            BuildEnvironmentSection(parent);
             
             Debug.Log("All sections built successfully!");
         }
@@ -285,6 +289,21 @@ namespace SwingingPaintBucket.Interface.UI
             Debug.Log("Color Section built");
         }
 
+        private void BuildEnvironmentSection(Transform parent)
+        {
+            Debug.Log("Building Environment Section...");
+            
+            CreateSectionHeader(parent, "🌤 ENVIRONMENT");
+            
+            _windSlider = CreateHorizontalSlider(parent, "Wind Force", 0f, 20f, 0f, "");
+            _temperatureSlider = CreateHorizontalSlider(parent, "Temperature", 0f, 50f, 20f, "°C");
+            _humiditySlider = CreateHorizontalSlider(parent, "Humidity", 0f, 100f, 50f, "%");
+            
+            CreateSeparator(parent);
+            
+            Debug.Log("Environment Section built with 3 sliders");
+        }
+
         private Slider CreateHorizontalSlider(Transform parent, string label, float min, float max, float current, string unit)
         {
             var container = new GameObject("SliderContainer_" + label, typeof(RectTransform));
@@ -479,6 +498,10 @@ namespace SwingingPaintBucket.Interface.UI
             if (_paintLossSlider != null) _paintLossSlider.value = PlayerPrefs.GetFloat("Sim_PaintLoss", _bucket?.PaintLossRate ?? 0f);
             if (_absorptionSlider != null) _absorptionSlider.value = PlayerPrefs.GetFloat("Sim_Absorption", _bucket?.AbsorptionRate ?? 0f);
             
+            if (_windSlider != null) _windSlider.value = PlayerPrefs.GetFloat("Sim_WindForce", _environment != null ? Mathf.Sqrt(_environment.WindForce.x * _environment.WindForce.x + _environment.WindForce.z * _environment.WindForce.z) : 0f);
+            if (_temperatureSlider != null) _temperatureSlider.value = PlayerPrefs.GetFloat("Sim_Temperature", _environment?.Temperature ?? 20f);
+            if (_humiditySlider != null) _humiditySlider.value = PlayerPrefs.GetFloat("Sim_Humidity", _environment?.Humidity ?? 50f);
+            
             // تحميل المادة المختارة
             _selectedMaterialIndex = PlayerPrefs.GetInt("Sim_MaterialIndex", 0);
             
@@ -510,6 +533,10 @@ namespace SwingingPaintBucket.Interface.UI
             if (_paintLossSlider != null) PlayerPrefs.SetFloat("Sim_PaintLoss", _paintLossSlider.value);
             if (_absorptionSlider != null) PlayerPrefs.SetFloat("Sim_Absorption", _absorptionSlider.value);
             
+            if (_windSlider != null) PlayerPrefs.SetFloat("Sim_WindForce", _windSlider.value);
+            if (_temperatureSlider != null) PlayerPrefs.SetFloat("Sim_Temperature", _temperatureSlider.value);
+            if (_humiditySlider != null) PlayerPrefs.SetFloat("Sim_Humidity", _humiditySlider.value);
+            
             // حفظ المادة المختارة
             PlayerPrefs.SetInt("Sim_MaterialIndex", _selectedMaterialIndex);
             
@@ -536,6 +563,15 @@ namespace SwingingPaintBucket.Interface.UI
                 _bucket.AbsorptionRate = _absorptionSlider.value;
                 _bucket.PaintColors = CreateSolidGradient(_selectedPaintColor);
                 Debug.Log("Bucket properties updated. Material: " + (BucketMaterialType)_selectedMaterialIndex);
+            }
+            
+            if (_environment != null)
+            {
+                float windMag = _windSlider.value;
+                _environment.WindForce = new Vector3(windMag, 0f, 0f);
+                _environment.Temperature = _temperatureSlider.value;
+                _environment.Humidity = _humiditySlider.value;
+                Debug.Log("Environment properties updated");
             }
             
             PlayerPrefs.Save();
