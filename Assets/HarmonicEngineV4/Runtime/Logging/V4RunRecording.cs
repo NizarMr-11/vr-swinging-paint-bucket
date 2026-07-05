@@ -3,7 +3,10 @@ using UnityEngine;
 
 namespace HarmonicEngineV4.Logging
 {
-    /// <summary>Scene component that records the pipeline run for the lifetime of the object (spec section 12).</summary>
+    /// <summary>
+    /// Scene component that records the pipeline run for the lifetime of the object.
+    /// Logs are written under {project}/Logs/Engine2/run_*/ (manifest + channels/*.log).
+    /// </summary>
     public sealed class V4RunRecording : MonoBehaviour
     {
         public V4PipelineRoot pipeline;

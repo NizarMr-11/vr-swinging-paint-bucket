@@ -96,7 +96,7 @@ namespace HarmonicEngineV4.Logging
             _sampleEveryNFrames = Mathf.Max(1, sampleEveryNFrames);
             _startedUtc = DateTime.UtcNow;
 
-            string baseDirectory = directoryOverride ?? Path.Combine(Application.persistentDataPath, "Runs");
+            string baseDirectory = directoryOverride ?? V4RunLogPaths.DefaultRunsDirectory();
             Directory.CreateDirectory(baseDirectory);
             RunDirectory = Path.Combine(baseDirectory, $"run_{_startedUtc:yyyyMMdd_HHmmss_fff}");
             Directory.CreateDirectory(RunDirectory);
