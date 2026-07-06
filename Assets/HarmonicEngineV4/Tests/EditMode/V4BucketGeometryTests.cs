@@ -58,6 +58,32 @@ namespace HarmonicEngineV4.Tests.EditMode
             Assert.IsFalse(V4BucketGeometry.IsInside(new Vector3(0f, -1e-4f, 0f), R, H));
         }
 
+        // --- ShouldContainInside ---
+
+        [Test]
+        public void ShouldContainInside_LagsBelowFloor_InFootprint()
+        {
+            Assert.IsTrue(V4BucketGeometry.ShouldContainInside(new Vector3(0.1f, -0.05f, 0f), R, H, T));
+        }
+
+        [Test]
+        public void ShouldContainInside_DeepBelowFloor_IsFalse()
+        {
+            Assert.IsFalse(V4BucketGeometry.ShouldContainInside(new Vector3(0f, -0.5f, 0f), R, H, T));
+        }
+
+        [Test]
+        public void ShouldContainInside_AboveRim_IsFalse()
+        {
+            Assert.IsFalse(V4BucketGeometry.ShouldContainInside(new Vector3(0f, H + 0.01f, 0f), R, H, T));
+        }
+
+        [Test]
+        public void ShouldContainInside_OutsideWallFootprint_IsFalse()
+        {
+            Assert.IsFalse(V4BucketGeometry.ShouldContainInside(new Vector3(R + 0.1f, 0.5f, 0f), R, H, T));
+        }
+
         // --- IsInSolidShell ---
 
         [Test]
@@ -179,6 +205,19 @@ namespace HarmonicEngineV4.Tests.EditMode
 
             Assert.AreEqual(0f, pos.y, 1e-5f);
             Assert.GreaterOrEqual(vel.y, 0f, "downward velocity must be removed");
+        }
+
+        [Test]
+        public void WallBandParticleBelowFloor_IsLiftedToInnerFloor()
+        {
+            // Lateral slosh pushes a particle into the wall band with y slightly below 0.
+            var pos = new Vector3(R + T * 0.3f, -0.016f, 0f);
+            var vel = new Vector3(0.5f, -0.2f, 0f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f, containInside: false);
+
+            Assert.AreEqual(0f, pos.y, 1e-5f, "wall-band particle fell through the floor");
+            float r = Mathf.Sqrt(pos.x * pos.x + pos.z * pos.z);
+            Assert.AreEqual(R, r, 1e-4f, "particle should resolve to the inner wall");
         }
 
         [Test]

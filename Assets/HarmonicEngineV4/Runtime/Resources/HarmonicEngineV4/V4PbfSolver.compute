@@ -130,7 +130,7 @@ float3 V4ClampPositionToBucket(float3 worldPos, uint flags)
     }
 
     float3 localPos = V4ToLocal(worldPos);
-    bool containInside = V4BucketIsInside(localPos, _BucketInnerRadius, _BucketHeight);
+    bool containInside = V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
     float3 localVel = float3(0, 0, 0);
     V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, 0.0, 0.0,
         containInside);
@@ -373,7 +373,7 @@ void FinalizeKernel(uint3 id : SV_DispatchThreadID)
     {
         float3 localPos = V4ToLocal(pos);
         float3 localVel = mul((float3x3)_BucketWorldToLocal, vel);
-        bool containInside = V4BucketIsInside(localPos, _BucketInnerRadius, _BucketHeight);
+        bool containInside = V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
         V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness,
             profile.surfaceRestitution, profile.surfaceFriction, containInside);
         pos = V4ToWorld(localPos);

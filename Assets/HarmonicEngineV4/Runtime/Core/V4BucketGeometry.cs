@@ -27,6 +27,30 @@ namespace HarmonicEngineV4.Core
             return r2 <= innerRadius * innerRadius;
         }
 
+        /// <summary>
+        /// Footprint containment for wall/floor collision (not classification). Any
+        /// particle under the rim inside the inner cylinder radius is pulled back to the
+        /// cavity, including brief y &lt; 0 lag when the bucket moves and fluid trails
+        /// in world space. Deep sub-floor positions (free-fall spawns, canvas particles)
+        /// are excluded. Above the open rim is never contained.
+        /// </summary>
+        public static bool ShouldContainInside(Vector3 localPos, float innerRadius, float height, float wallThickness)
+        {
+            if (localPos.y > height)
+            {
+                return false;
+            }
+
+            float floorLag = Mathf.Max(wallThickness * 4f, 0.02f);
+            if (localPos.y < -floorLag)
+            {
+                return false;
+            }
+
+            float r2 = localPos.x * localPos.x + localPos.z * localPos.z;
+            return r2 <= innerRadius * innerRadius;
+        }
+
         /// <summary>True when the point penetrates the solid shell (wall band below rim, or floor slab).</summary>
         public static bool IsInSolidShell(Vector3 localPos, float innerRadius, float height, float wallThickness)
         {
@@ -124,7 +148,15 @@ namespace HarmonicEngineV4.Core
             // Particles pressed against the inner wall sit at exactly r = innerRadius
             // and float noise can classify them Outside for a frame - nearest-face
             // brings them back inside instead of ejecting them through the wall.
+            // Lateral slosh can also push them slightly below the floor while still
+            // in the wall band; lift to the inner floor before the radial resolve.
             {
+                if (localPos.y < 0f)
+                {
+                    localPos.y = 0f;
+                    ReflectAgainstNormal(ref localVel, Vector3.up, restitution, friction);
+                }
+
                 float toInner = r - innerRadius;
                 float toOuter = outerRadius - r;
                 bool resolveToInner = toInner <= toOuter;

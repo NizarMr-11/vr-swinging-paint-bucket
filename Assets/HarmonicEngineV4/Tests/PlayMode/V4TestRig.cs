@@ -32,6 +32,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
             public float CanvasY = -1f;
             public float CanvasSize = 3f;
             public float GlobalDensity = 120000f;
+            public bool RestrictSpawnToBucketCavity = true;
             public List<(Vector3 localPos, float radius, Color color)> SpawnZones =
                 new List<(Vector3, float, Color)> { (new Vector3(0f, 0.25f, 0f), 0.12f, Color.red) };
             public Action<V4LiquidProfile> ConfigureProfile;
@@ -72,6 +73,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
             root.canvas = rig.Canvas;
             root.globalDensity = config.GlobalDensity;
             root.globalProfile = profile;
+            root.restrictSpawnToBucketCavity = config.RestrictSpawnToBucketCavity;
 
             foreach ((Vector3 localPos, float radius, Color color) zone in config.SpawnZones)
             {

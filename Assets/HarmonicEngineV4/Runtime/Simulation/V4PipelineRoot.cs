@@ -28,6 +28,9 @@ namespace HarmonicEngineV4.Simulation
         [Tooltip("Fallback liquid profile for zones that do not specify one.")]
         public V4LiquidProfile globalProfile;
 
+        [Tooltip("Drop spawn points outside the bucket cavity (used by lab scenes). Tests that need free-fall spawns can disable this.")]
+        public bool restrictSpawnToBucketCavity = true;
+
         [Header("Simulation")]
         public bool autoRun = true;
         [Range(1, 4)] public int pbfIterations = 2;
@@ -278,7 +281,7 @@ namespace HarmonicEngineV4.Simulation
                     bool inCavity = local.y >= ParticleRadius
                         && local.y <= bucket.height - ParticleRadius
                         && r <= bucket.innerRadius - ParticleRadius;
-                    if (!inCavity)
+                    if (restrictSpawnToBucketCavity && !inCavity)
                     {
                         culledOutside++;
                         continue;

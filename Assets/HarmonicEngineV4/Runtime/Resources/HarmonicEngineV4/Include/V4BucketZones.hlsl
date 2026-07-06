@@ -47,6 +47,25 @@ bool V4BucketIsInside(float3 localPos, float innerRadius, float height)
     return r2 <= innerRadius * innerRadius;
 }
 
+// Footprint containment for collision (not classification). Includes brief y < 0 lag when
+// the bucket moves and fluid trails in world space; deep sub-floor positions are excluded.
+bool V4BucketShouldContainInside(float3 localPos, float innerRadius, float height, float wallThickness)
+{
+    if (localPos.y > height)
+    {
+        return false;
+    }
+
+    float floorLag = max(wallThickness * 4.0, 0.02);
+    if (localPos.y < -floorLag)
+    {
+        return false;
+    }
+
+    float r2 = localPos.x * localPos.x + localPos.z * localPos.z;
+    return r2 <= innerRadius * innerRadius;
+}
+
 bool V4BucketIsInSolidShell(float3 localPos, float innerRadius, float height, float wallThickness)
 {
     float outerRadius = innerRadius + wallThickness;
@@ -143,6 +162,14 @@ void V4BucketResolveCollision(
 
     // Outside-flagged particle in the wall band: resolve to the nearer face so
     // wall-touching particles misclassified by float noise come back inside.
+    // Lateral slosh can push them slightly below the floor while still in the
+    // wall band; lift to the inner floor before the radial resolve.
+    if (localPos.y < 0.0)
+    {
+        localPos.y = 0.0;
+        V4ReflectAgainstNormal(localVel, float3(0, 1, 0), restitution, friction);
+    }
+
     float toInner = r - innerRadius;
     float toOuter = outerRadius - r;
     bool resolveToInner = toInner <= toOuter;

@@ -99,6 +99,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
             // wait for the slow settle path.
             var config = new V4TestRig.Config
             {
+                RestrictSpawnToBucketCavity = false,
                 SpawnZones = new List<(Vector3, float, Color)>
                 {
                     (new Vector3(0f, -0.5f, 0f), 0.1f, Color.black)
