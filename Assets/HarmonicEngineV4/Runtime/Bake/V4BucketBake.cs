@@ -33,10 +33,15 @@ namespace HarmonicEngineV4.Bake
             public readonly List<string> Errors = new List<string>();
         }
 
-        /// <summary>d0 = hole radius, then two equal ring steps outward.</summary>
+        /// <summary>
+        /// d0 = hole radius, then two equal ring steps outward. d0 is clamped to a
+        /// fraction of the ring spacing so a zero/near-zero authored radius still gives
+        /// the eject zone a real volume - a point-sized Zone 0 can never claim a
+        /// particle, which jams the outflow into burst clumps instead of a stream.
+        /// </summary>
         public static void ComputeRings(float holeRadius, float ringSpacing, out float d0, out float d1, out float d2)
         {
-            d0 = holeRadius;
+            d0 = Mathf.Max(holeRadius, ringSpacing * 0.25f);
             d1 = d0 + ringSpacing;
             d2 = d1 + ringSpacing;
         }

@@ -120,6 +120,8 @@ float3 V4ToWorld(float3 localPos)
 }
 
 // Position-only bucket clamp used inside the solver loop (velocity untouched).
+// Containment follows geometry, not the Inside flag: the flag drives carry/zone
+// forces, but a particle physically in the cavity must always hit the walls.
 float3 V4ClampPositionToBucket(float3 worldPos, uint flags)
 {
     if (V4HasEscaped(flags))
@@ -128,8 +130,10 @@ float3 V4ClampPositionToBucket(float3 worldPos, uint flags)
     }
 
     float3 localPos = V4ToLocal(worldPos);
+    bool containInside = V4BucketIsInside(localPos, _BucketInnerRadius, _BucketHeight);
     float3 localVel = float3(0, 0, 0);
-    V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, 0.0, 0.0);
+    V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, 0.0, 0.0,
+        containInside);
     return V4ToWorld(localPos);
 }
 
@@ -283,7 +287,20 @@ void ApplyDeltaKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float4 p = _Predicted[i];
-    float3 predicted = p.xyz + _Deltas[i].xyz;
+
+    // Clamp the per-iteration pressure correction. A deeply compressed spawn or
+    // impact column otherwise produces meter-scale corrections in one frame, which
+    // Finalize converts into 10+ m/s detonation velocities that blast particles
+    // over the rim. Excess compression now relaxes over several frames instead.
+    float3 delta = _Deltas[i].xyz;
+    float maxCorrection = 0.2 * _SmoothingRadius;
+    float deltaLen = length(delta);
+    if (deltaLen > maxCorrection)
+    {
+        delta *= maxCorrection / deltaLen;
+    }
+
+    float3 predicted = p.xyz + delta;
     predicted = V4ClampPositionToBucket(predicted, _Flags[i]);
     predicted.y = max(predicted.y, _CanvasPlaneY + p.w);
     _Predicted[i] = float4(predicted, p.w);
@@ -356,14 +373,49 @@ void FinalizeKernel(uint3 id : SV_DispatchThreadID)
     {
         float3 localPos = V4ToLocal(pos);
         float3 localVel = mul((float3x3)_BucketWorldToLocal, vel);
+        bool containInside = V4BucketIsInside(localPos, _BucketInnerRadius, _BucketHeight);
         V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness,
-            profile.surfaceRestitution, profile.surfaceFriction);
+            profile.surfaceRestitution, profile.surfaceFriction, containInside);
         pos = V4ToWorld(localPos);
         vel = mul((float3x3)_BucketLocalToWorld, localVel);
     }
 
-    // Canvas plane acts as the world floor.
-    if (pos.y - radius < _CanvasPlaneY)
+    bool removed = false;
+    float2 uv = float2(pos.x, pos.z) - _CanvasMinCorner;
+    bool onCanvasRect = uv.x >= 0.0 && uv.y >= 0.0 && uv.x <= _CanvasSize.x && uv.y <= _CanvasSize.y;
+    bool touchingPlane = (pos.y - radius) <= (_CanvasPlaneY + 1e-5);
+
+    // Impact speed comes from the incoming velocity, not the position delta: the
+    // predict-stage plane clamp truncates the delta right at contact, which would
+    // hide most of the real approach speed.
+    float impactSpeed = max(0.0, -_Block1[i].y);
+
+    // Impact splash (spec section 7 extension): a particle slamming into the canvas is
+    // absorbed on contact - it explodes into a splat whose footprint and paint depth
+    // grow with impact speed, instead of bouncing and waiting for the slow-settle path.
+    if (!V4IsInside(flags) && touchingPlane && onCanvasRect && impactSpeed > profile.impactAbsorbSpeed)
+    {
+        uint slot;
+        InterlockedAdd(_Counters[COUNTER_SPLAT_EVENTS], 1u, slot);
+        if (slot < _MaxSplatEvents)
+        {
+            V4SplatEvent evt;
+            evt.uv = uv;
+            evt.radius = radius * (1.0 + impactSpeed * profile.impactSplashScale);
+            evt.contribution = 1.0 + impactSpeed * profile.impactSplashScale;
+            evt.color = _PackedColorsRead[i];
+            evt.pad0 = i;
+            evt.pad1 = 0u;
+            evt.pad2 = 0u;
+            _SplatEvents[slot] = evt;
+        }
+
+        InterlockedAdd(_Counters[COUNTER_SETTLED_TOTAL], 1u);
+        removed = true;
+    }
+
+    // Canvas plane acts as the world floor for surviving particles.
+    if (!removed && pos.y - radius < _CanvasPlaneY)
     {
         pos.y = _CanvasPlaneY + radius;
         V4ReflectAgainstNormal(vel, float3(0, 1, 0), profile.surfaceRestitution, profile.surfaceFriction);
@@ -371,12 +423,9 @@ void FinalizeKernel(uint3 id : SV_DispatchThreadID)
 
     // Settle check (spec section 7): register only once velocity < epsilon, then
     // remove the particle from the live buffer entirely.
-    bool removed = false;
-    float2 uv = float2(pos.x, pos.z) - _CanvasMinCorner;
-    bool onCanvasRect = uv.x >= 0.0 && uv.y >= 0.0 && uv.x <= _CanvasSize.x && uv.y <= _CanvasSize.y;
     bool nearPlane = (pos.y - radius) <= (_CanvasPlaneY + _SettleDistance);
 
-    if (!V4IsInside(flags) && nearPlane && onCanvasRect && length(vel) < profile.settleEpsilon)
+    if (!removed && !V4IsInside(flags) && nearPlane && onCanvasRect && length(vel) < profile.settleEpsilon)
     {
         uint slot;
         InterlockedAdd(_Counters[COUNTER_SPLAT_EVENTS], 1u, slot);

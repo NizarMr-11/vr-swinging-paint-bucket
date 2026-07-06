@@ -202,10 +202,10 @@ MonoBehaviour:
   wallThickness: 0.05
   holes:
   - localPosition: {x: 0.1, y: 0, z: 0}
-    radius: 0
+    radius: 0.02
     outwardNormal: {x: 0, y: -1, z: 0}
   - localPosition: {x: -0.15, y: 0, z: 0.15}
-    radius: 0
+    radius: 0.02
     outwardNormal: {x: 0, y: -1, z: 0}
   ringSpacing: 0.06
   autoShrinkRings: 1
@@ -625,7 +625,7 @@ MonoBehaviour:
   globalDensity: 1000000
   globalProfile: {fileID: 11400000, guid: 3a5b2c589cbcc604a894f7696d0d45f2, type: 2}
   autoRun: 1
-  pbfIterations: 1
+  pbfIterations: 2
   carryRate: 10
   downwardScale: 1
   emaSmoothing: 0.1

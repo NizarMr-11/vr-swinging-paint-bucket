@@ -66,9 +66,15 @@ void ExternalForcesKernel(uint3 id : SV_DispatchThreadID)
 
         if (zone == V4_ZONE_HOLE0)
         {
-            // Eject impulse (not dt-scaled): kick along the hole's outward normal and
-            // let normal PBF integration carry the particle out (spec section 5).
-            vel += dirWorld * profile.zoneStrength0;
+            // Eject (not dt-scaled): raise the velocity along the hole's outward normal
+            // up to the profile's target exit speed (spec section 5). Velocity-targeting
+            // instead of a raw add keeps the outflow a continuous stream rather than
+            // per-frame clumps, since particles keep whatever exit speed they built up.
+            float exitSpeed = dot(vel, dirWorld);
+            if (exitSpeed < profile.zoneStrength0)
+            {
+                vel += dirWorld * (profile.zoneStrength0 - exitSpeed);
+            }
         }
         else
         {

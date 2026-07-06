@@ -183,7 +183,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
         }
 
         [Test]
-        public void Collision_GpuMatchesCpu()
+        public void Collision_GpuMatchesCpu([Values(false, true)] bool containInside)
         {
             ComputeShader shader = LoadTestShader();
             const float restitution = 0.3f;
@@ -220,6 +220,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
                 shader.SetFloat("_BucketWallThickness", WallThickness);
                 shader.SetFloat("_Restitution", restitution);
                 shader.SetFloat("_Friction", friction);
+                shader.SetInt("_ContainInside", containInside ? 1 : 0);
                 shader.SetInt("_TestCount", SampleCount);
                 shader.Dispatch(kernel, Mathf.CeilToInt(SampleCount / 64f), 1, 1);
 
@@ -240,7 +241,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
 
                     Vector3 cpuPos = p;
                     Vector3 cpuVel = (Vector3)(Vector4)velocities[i];
-                    V4BucketGeometry.ResolveCollision(ref cpuPos, ref cpuVel, BucketRadius, BucketHeight, WallThickness, restitution, friction);
+                    V4BucketGeometry.ResolveCollision(ref cpuPos, ref cpuVel, BucketRadius, BucketHeight, WallThickness, restitution, friction, containInside);
 
                     Assert.Less(Vector3.Distance(cpuPos, gpuPos[i]), 1e-4f, $"collision pos mismatch at {p} (sample {i})");
                     Assert.Less(Vector3.Distance(cpuVel, gpuVel[i]), 1e-4f, $"collision vel mismatch at {p} (sample {i})");

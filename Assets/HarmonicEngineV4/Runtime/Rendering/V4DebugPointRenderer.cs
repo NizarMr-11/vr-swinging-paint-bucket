@@ -43,7 +43,6 @@ namespace HarmonicEngineV4.Rendering
 
             _material.SetBuffer("_Block0", pipeline.Soa.ReadBlock0);
             _material.SetBuffer("_PackedColors", pipeline.Soa.ReadColors);
-            _material.SetBuffer("_Flags", pipeline.Soa.ReadFlags);
             _material.SetFloat("_PointSize", pointSize > 0f ? pointSize : pipeline.ParticleRadius);
             _material.SetInt("_ActiveParticleCount", pipeline.ActiveParticleCount);
             _material.SetPass(0);

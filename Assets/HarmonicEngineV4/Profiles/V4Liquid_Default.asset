@@ -14,11 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Profiles.V4LiquidProfile
   profileName: DefaultLiquid
   restDensity: 1000
-  viscosity: 0.05
-  cohesion: 0.1
+  viscosity: 0.25
+  cohesion: 0.5
   colorDiffusionRate: 0.05
   settleEpsilon: 0.05
   canvasMaxDepth: 4
+  impactAbsorbSpeed: 0.8
+  impactSplashScale: 0.35
   surfaceFriction: 0.2
   surfaceRestitution: 0.1
   zoneStrengthByLevel:
@@ -26,7 +28,7 @@ MonoBehaviour:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 6
+      value: 2.5
       inSlope: 0
       outSlope: 0
       tangentMode: 0

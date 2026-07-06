@@ -42,6 +42,14 @@ namespace HarmonicEngineV4.Core
         /// Collision response in bucket-local space. Contains inside particles (wall + floor)
         /// and excludes outside particles from the solid shell, with slide friction and
         /// restitution. Escaped particles must never reach this function.
+        ///
+        /// containInside must be true for particles flagged Inside: they are clamped back
+        /// into the cavity no matter how deep they penetrated, because a fast-moving bucket
+        /// can sweep its shell through a particle in a single step (nearest-face resolution
+        /// would eject it through the wall). Outside-flagged particles use nearest-face
+        /// resolution: wall/floor-touching particles drift epsilon outside through float
+        /// rounding and get classified Outside for a frame - they must resolve back to the
+        /// inside face, not be ejected. The open top is the only unguarded exit.
         /// </summary>
         public static void ResolveCollision(
             ref Vector3 localPos,
@@ -50,7 +58,8 @@ namespace HarmonicEngineV4.Core
             float height,
             float wallThickness,
             float restitution,
-            float friction)
+            float friction,
+            bool containInside)
         {
             float outerRadius = innerRadius + wallThickness;
             float r = Mathf.Sqrt(localPos.x * localPos.x + localPos.z * localPos.z);
@@ -61,18 +70,43 @@ namespace HarmonicEngineV4.Core
                 return;
             }
 
+            if (containInside)
+            {
+                if (localPos.y < 0f)
+                {
+                    localPos.y = 0f;
+                    ReflectAgainstNormal(ref localVel, Vector3.up, restitution, friction);
+                }
+
+                if (r > innerRadius)
+                {
+                    float safeR = Mathf.Max(r, 1e-6f);
+                    float scale = innerRadius / safeR;
+                    localPos.x *= scale;
+                    localPos.z *= scale;
+
+                    Vector3 radialDir = new Vector3(localPos.x, 0f, localPos.z) / Mathf.Max(innerRadius, 1e-6f);
+                    ReflectAgainstNormal(ref localVel, -radialDir, restitution, friction);
+                }
+
+                return;
+            }
+
             if (r <= innerRadius)
             {
-                // Inside the cavity footprint: floor clamp (from above) or floor-slab
-                // exclusion (from below).
+                // Outside-flagged particle in the cavity footprint: floor clamp (from
+                // above) or floor-slab exclusion (from below). Nearest-face resolution
+                // is required here: particles resting exactly on the floor drift a hair
+                // below y=0 through float rounding, get classified Outside for a frame,
+                // and must resolve back UP to the floor, not down through the slab.
                 if (localPos.y < 0f)
                 {
                     if (localPos.y > -wallThickness)
                     {
-                        // Penetrating the floor slab: resolve to the nearer face.
                         bool fromAbove = localPos.y > -wallThickness * 0.5f;
                         localPos.y = fromAbove ? 0f : -wallThickness;
-                        ReflectAxis(ref localVel, Vector3.up, restitution, friction, fromAbove ? 1f : -1f);
+                        Vector3 normal = fromAbove ? Vector3.up : Vector3.down;
+                        ReflectAgainstNormal(ref localVel, normal, restitution, friction);
                     }
 
                     return;
@@ -86,26 +120,25 @@ namespace HarmonicEngineV4.Core
                 return;
             }
 
-            // Inside the wall band: push to the nearer radial face.
-            float toInner = r - innerRadius;
-            float toOuter = outerRadius - r;
-            bool resolveToInner = toInner <= toOuter;
+            // Outside-flagged particle in the wall band: resolve to the nearer face.
+            // Particles pressed against the inner wall sit at exactly r = innerRadius
+            // and float noise can classify them Outside for a frame - nearest-face
+            // brings them back inside instead of ejecting them through the wall.
+            {
+                float toInner = r - innerRadius;
+                float toOuter = outerRadius - r;
+                bool resolveToInner = toInner <= toOuter;
 
-            float targetR = resolveToInner ? innerRadius : outerRadius;
-            float safeR = Mathf.Max(r, 1e-6f);
-            float scale = targetR / safeR;
-            localPos.x *= scale;
-            localPos.z *= scale;
+                float targetR = resolveToInner ? innerRadius : outerRadius;
+                float safeR = Mathf.Max(r, 1e-6f);
+                float scale = targetR / safeR;
+                localPos.x *= scale;
+                localPos.z *= scale;
 
-            Vector3 radialDir = new Vector3(localPos.x, 0f, localPos.z) / Mathf.Max(targetR, 1e-6f);
-            Vector3 wallNormal = resolveToInner ? -radialDir : radialDir;
-            ReflectAgainstNormal(ref localVel, wallNormal, restitution, friction);
-        }
-
-        private static void ReflectAxis(ref Vector3 vel, Vector3 axis, float restitution, float friction, float sign)
-        {
-            Vector3 normal = axis * sign;
-            ReflectAgainstNormal(ref vel, normal, restitution, friction);
+                Vector3 radialDir = new Vector3(localPos.x, 0f, localPos.z) / Mathf.Max(targetR, 1e-6f);
+                Vector3 wallNormal = resolveToInner ? -radialDir : radialDir;
+                ReflectAgainstNormal(ref localVel, wallNormal, restitution, friction);
+            }
         }
 
         /// <summary>Removes penetrating velocity along the normal (with restitution) and applies slide friction tangentially.</summary>

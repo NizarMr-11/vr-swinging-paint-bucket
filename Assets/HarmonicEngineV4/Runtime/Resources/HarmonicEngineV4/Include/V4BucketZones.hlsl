@@ -70,6 +70,12 @@ void V4ReflectAgainstNormal(inout float3 vel, float3 normal, float restitution, 
     vel = tangential * (1.0 - friction) - normalComponent * restitution;
 }
 
+// containInside must be true for particles flagged Inside: they are clamped back into
+// the cavity no matter how deep they penetrated (a moving bucket can sweep its shell
+// through a particle in one step; nearest-face resolution would eject it through the
+// wall). Outside-flagged particles use nearest-face resolution: wall/floor-touching
+// particles drift epsilon outside via float rounding and are classified Outside for a
+// frame - they must come back to the inside face, not be ejected. Open top stays free.
 void V4BucketResolveCollision(
     inout float3 localPos,
     inout float3 localVel,
@@ -77,7 +83,8 @@ void V4BucketResolveCollision(
     float height,
     float wallThickness,
     float restitution,
-    float friction)
+    float friction,
+    bool containInside)
 {
     float outerRadius = innerRadius + wallThickness;
     float r = sqrt(localPos.x * localPos.x + localPos.z * localPos.z);
@@ -87,8 +94,32 @@ void V4BucketResolveCollision(
         return;
     }
 
+    if (containInside)
+    {
+        if (localPos.y < 0.0)
+        {
+            localPos.y = 0.0;
+            V4ReflectAgainstNormal(localVel, float3(0, 1, 0), restitution, friction);
+        }
+
+        if (r > innerRadius)
+        {
+            float safeR = max(r, 1e-6);
+            float scale = innerRadius / safeR;
+            localPos.x *= scale;
+            localPos.z *= scale;
+
+            float3 radialDir = float3(localPos.x, 0.0, localPos.z) / max(innerRadius, 1e-6);
+            V4ReflectAgainstNormal(localVel, -radialDir, restitution, friction);
+        }
+
+        return;
+    }
+
     if (r <= innerRadius)
     {
+        // Outside-flagged particle in the cavity footprint: nearest-face resolution
+        // (see CPU reference for the float-noise rationale).
         if (localPos.y < 0.0)
         {
             if (localPos.y > -wallThickness)
@@ -110,6 +141,8 @@ void V4BucketResolveCollision(
         return;
     }
 
+    // Outside-flagged particle in the wall band: resolve to the nearer face so
+    // wall-touching particles misclassified by float noise come back inside.
     float toInner = r - innerRadius;
     float toOuter = outerRadius - r;
     bool resolveToInner = toInner <= toOuter;

@@ -97,7 +97,7 @@ namespace HarmonicEngineV4.Tests.EditMode
         {
             var pos = new Vector3(R + 0.01f, 0.5f, 0f);
             var vel = new Vector3(1f, 0f, 0f);
-            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f, containInside: true);
 
             float r = Mathf.Sqrt(pos.x * pos.x + pos.z * pos.z);
             Assert.AreEqual(R, r, 1e-5f);
@@ -105,11 +105,38 @@ namespace HarmonicEngineV4.Tests.EditMode
         }
 
         [Test]
+        public void InsideParticleTunneledPastWallMidpoint_IsStillPulledBackInside()
+        {
+            // Deeper than half the wall: nearest-face resolution would eject it through
+            // the wall - contained particles must always come back to the inner face.
+            var pos = new Vector3(R + T * 0.9f, 0.5f, 0f);
+            var vel = new Vector3(3f, 0f, 0f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f, containInside: true);
+
+            float r = Mathf.Sqrt(pos.x * pos.x + pos.z * pos.z);
+            Assert.AreEqual(R, r, 1e-5f, "contained particle escaped through the wall");
+            Assert.LessOrEqual(vel.x, 1e-5f, "outward velocity must be removed");
+        }
+
+        [Test]
+        public void InsideParticleSweptBelowFloorSlab_IsClampedBackToFloor()
+        {
+            // Bucket moving up can sweep the whole floor slab past a particle in one
+            // step; contained particles must be recovered, not dropped out the bottom.
+            var pos = new Vector3(0.1f, -T * 2f, 0f);
+            var vel = new Vector3(0f, -2f, 0f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f, containInside: true);
+
+            Assert.AreEqual(0f, pos.y, 1e-5f, "contained particle fell through the floor");
+            Assert.GreaterOrEqual(vel.y, 0f, "downward velocity must be removed");
+        }
+
+        [Test]
         public void OutsideParticlePenetratingWall_IsPushedOutToOuterRadius()
         {
             var pos = new Vector3(R + T - 0.005f, 0.5f, 0f);
             var vel = new Vector3(-1f, 0f, 0f);
-            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f, containInside: false);
 
             float r = Mathf.Sqrt(pos.x * pos.x + pos.z * pos.z);
             Assert.AreEqual(R + T, r, 1e-5f);
@@ -117,24 +144,51 @@ namespace HarmonicEngineV4.Tests.EditMode
         }
 
         [Test]
+        public void WallTouchingParticleMisclassifiedOutside_ResolvesBackToInnerFace()
+        {
+            // A particle pressed against the inner wall sits at exactly r = R; float
+            // rounding can put it epsilon outside, so classification flags it Outside
+            // for one frame. Nearest-face resolution must bring it back to the inner
+            // face - ejecting it to the outer face makes the wall nonexistent.
+            var pos = new Vector3(R + 1e-5f, 0.5f, 0f);
+            var vel = Vector3.zero;
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f, containInside: false);
+
+            float r = Mathf.Sqrt(pos.x * pos.x + pos.z * pos.z);
+            Assert.AreEqual(R, r, 1e-5f, "wall-touching particle was ejected through the wall");
+        }
+
+        [Test]
+        public void FloorTouchingParticleMisclassifiedOutside_ResolvesBackUpToFloor()
+        {
+            // Same float-noise story at the floor: y drifts a hair below 0, one frame
+            // of Outside classification must not drop the particle through the slab.
+            var pos = new Vector3(0.1f, -1e-5f, 0f);
+            var vel = new Vector3(0f, -0.1f, 0f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f, containInside: false);
+
+            Assert.AreEqual(0f, pos.y, 1e-6f, "floor-touching particle fell through the floor slab");
+        }
+
+        [Test]
         public void ParticleBelowFloor_InsideFootprint_IsClampedToFloor()
         {
             var pos = new Vector3(0.1f, -0.01f, 0f);
             var vel = new Vector3(0f, -2f, 0f);
-            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f, containInside: true);
 
             Assert.AreEqual(0f, pos.y, 1e-5f);
             Assert.GreaterOrEqual(vel.y, 0f, "downward velocity must be removed");
         }
 
         [Test]
-        public void ParticleAboveRim_IsUntouched_OpenTop()
+        public void ParticleAboveRim_IsUntouched_OpenTop([Values(false, true)] bool containInside)
         {
             var pos = new Vector3(R + T * 0.5f, H + 0.1f, 0f);
             Vector3 posBefore = pos;
             var vel = new Vector3(0.3f, -0.1f, 0f);
             Vector3 velBefore = vel;
-            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0.5f, friction: 0.5f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0.5f, friction: 0.5f, containInside: containInside);
 
             Assert.AreEqual(posBefore, pos);
             Assert.AreEqual(velBefore, vel);
@@ -145,7 +199,7 @@ namespace HarmonicEngineV4.Tests.EditMode
         {
             var pos = new Vector3(R + 0.01f, 0.5f, 0f);
             var vel = new Vector3(2f, 0f, 0f);
-            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0.5f, friction: 0f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0.5f, friction: 0f, containInside: true);
             Assert.AreEqual(-1f, vel.x, 1e-4f, "restitution 0.5 must reflect half the normal speed");
         }
 
@@ -154,7 +208,7 @@ namespace HarmonicEngineV4.Tests.EditMode
         {
             var pos = new Vector3(R + 0.01f, 0.5f, 0f);
             var vel = new Vector3(1f, -3f, 0f); // x = into wall, y = tangential slide
-            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0.25f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0.25f, containInside: true);
             Assert.AreEqual(-2.25f, vel.y, 1e-4f, "tangential speed must be scaled by (1 - friction)");
         }
 
@@ -168,13 +222,13 @@ namespace HarmonicEngineV4.Tests.EditMode
         }
 
         [Test]
-        public void ParticleInCavity_IsUntouched()
+        public void ParticleInCavity_IsUntouched([Values(false, true)] bool containInside)
         {
             var pos = new Vector3(0.2f, 0.5f, 0.1f);
             Vector3 posBefore = pos;
             var vel = new Vector3(0.5f, 0.5f, 0.5f);
             Vector3 velBefore = vel;
-            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, 0.5f, 0.5f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, 0.5f, 0.5f, containInside);
 
             Assert.AreEqual(posBefore, pos);
             Assert.AreEqual(velBefore, vel);

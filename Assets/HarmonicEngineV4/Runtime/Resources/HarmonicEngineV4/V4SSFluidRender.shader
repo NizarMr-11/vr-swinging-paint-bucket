@@ -257,6 +257,7 @@ Shader "HarmonicEngineV4/SSFluidRender"
 
             float _NormalScale;
             float4 _FluidColor;
+            float _UseParticleColor;
             float _SpecularPower;
             float _SpecularIntensity;
             float _ThicknessAbsorption;
@@ -276,7 +277,9 @@ Shader "HarmonicEngineV4/SSFluidRender"
                 float4 thicknessSample = tex2D(_FluidThicknessTexture, i.uv);
                 float thickness = thicknessSample.a;
                 float3 particleColor = thicknessSample.rgb / max(thickness, 0.0001);
-                float3 baseColor = lerp(_FluidColor.rgb, particleColor, 0.5);
+                // Honor the particle's paint color fully when enabled; blending toward
+                // _FluidColor tinted every liquid blue and made black paint impossible.
+                float3 baseColor = lerp(_FluidColor.rgb, particleColor, saturate(_UseParticleColor));
 
                 // Light and view live in the same +Z-toward-viewer space as viewNormal;
                 // an ambient floor keeps flat fluid from going black.

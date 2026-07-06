@@ -109,6 +109,21 @@ namespace HarmonicEngineV4.Simulation
 
         private void Update()
         {
+            // An in-play assembly reload preserves serializable state (including the
+            // Initialized backing bool) but wipes GPU buffer wrappers. Detect the
+            // half-dead state and rebuild instead of throwing every frame.
+            if (Initialized && _soa == null)
+            {
+                V4Log.Warning(V4LogCategory.General, "assembly reload detected mid-run; reinitializing pipeline");
+                Initialized = false;
+                FrameIndex = 0;
+                ActiveParticleCount = 0;
+                SpawnedTotal = 0;
+                EscapedTotal = 0;
+                SettledTotal = 0;
+                Initialize();
+            }
+
             if (Initialized && autoRun)
             {
                 Step(Mathf.Min(Time.deltaTime, maxDeltaTime));
@@ -227,6 +242,16 @@ namespace HarmonicEngineV4.Simulation
             }
 
             var spawned = new List<SpawnedParticle>();
+
+            // Spawn hygiene: zones authored slightly too large or overlapping each other
+            // must not create particles embedded in the bucket shell (they rain outside)
+            // or doubled-density lattices (they detonate the pressure solver at t=0).
+            float spacing = V4SpawnMath.SpacingFromDensity(globalDensity);
+            float minSeparation = spacing * 0.7f;
+            float minSeparationSq = minSeparation * minSeparation;
+            var occupied = new Dictionary<Vector3Int, Vector3>();
+            Matrix4x4 worldToBucket = bucket.WorldToLocal;
+
             foreach (V4SpawnZone zone in spawnZones)
             {
                 V4LiquidProfile profile = zone.profile != null ? zone.profile : globalProfile;
@@ -243,13 +268,40 @@ namespace HarmonicEngineV4.Simulation
 
                 uint packedColor = PackColor(zone.color);
                 List<Vector3> points = V4SpawnMath.LatticeFillSphere(zone.transform.position, zone.radius, globalDensity);
+                int culledOutside = 0;
+                int culledOverlap = 0;
+                int kept = 0;
                 foreach (Vector3 point in points)
                 {
+                    Vector3 local = worldToBucket.MultiplyPoint3x4(point);
+                    float r = Mathf.Sqrt(local.x * local.x + local.z * local.z);
+                    bool inCavity = local.y >= ParticleRadius
+                        && local.y <= bucket.height - ParticleRadius
+                        && r <= bucket.innerRadius - ParticleRadius;
+                    if (!inCavity)
+                    {
+                        culledOutside++;
+                        continue;
+                    }
+
+                    if (IsSpawnCellOccupied(occupied, point, spacing, minSeparationSq))
+                    {
+                        culledOverlap++;
+                        continue;
+                    }
+
                     spawned.Add(new SpawnedParticle { Position = point, Color = packedColor, ProfileIndex = profileIndex });
+                    kept++;
+                }
+
+                if (culledOutside > 0 || culledOverlap > 0)
+                {
+                    V4Log.Warning(V4LogCategory.Spawn,
+                        $"zone '{zone.name}' culled {culledOutside} points outside the bucket cavity and {culledOverlap} overlapping another zone");
                 }
 
                 V4Log.Info(V4LogCategory.Spawn,
-                    $"zone '{zone.name}' volume={zone.Volume:F4} spawned={points.Count} profile={(profile != null ? profile.profileName : "<default>")}");
+                    $"zone '{zone.name}' volume={zone.Volume:F4} spawned={kept} profile={(profile != null ? profile.profileName : "<default>")}");
             }
 
             if (_profileTable.Count == 0)
@@ -262,6 +314,35 @@ namespace HarmonicEngineV4.Simulation
 
             SpawnedTotal = spawned.Count;
             return spawned;
+        }
+
+        /// <summary>
+        /// Registers the point in a spatial hash of already-spawned particles and reports
+        /// whether another zone's particle already sits closer than the minimum separation
+        /// (zone lattices are center-offset from each other, so overlap regions would
+        /// otherwise double the local density).
+        /// </summary>
+        private static bool IsSpawnCellOccupied(
+            Dictionary<Vector3Int, Vector3> occupied, Vector3 point, float cellSize, float minSeparationSq)
+        {
+            var cell = new Vector3Int(
+                Mathf.FloorToInt(point.x / cellSize),
+                Mathf.FloorToInt(point.y / cellSize),
+                Mathf.FloorToInt(point.z / cellSize));
+
+            for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                var key = new Vector3Int(cell.x + dx, cell.y + dy, cell.z + dz);
+                if (occupied.TryGetValue(key, out Vector3 other) && (other - point).sqrMagnitude < minSeparationSq)
+                {
+                    return true;
+                }
+            }
+
+            occupied[cell] = point;
+            return false;
         }
 
         private void CreateBuffers()

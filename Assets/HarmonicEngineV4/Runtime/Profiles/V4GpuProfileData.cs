@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace HarmonicEngineV4.Profiles
 {
-    /// <summary>GPU mirror of V4LiquidProfile. Must match V4GpuProfile in V4Profiles.hlsl (48 bytes).</summary>
+    /// <summary>GPU mirror of V4LiquidProfile. Must match V4GpuProfile in V4Profiles.hlsl (56 bytes).</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct V4GpuProfileData
     {
@@ -18,8 +18,10 @@ namespace HarmonicEngineV4.Profiles
         public float zoneStrength1;
         public float zoneStrength2;
         public float topBandScale;
+        public float impactAbsorbSpeed;
+        public float impactSplashScale;
 
-        public const int Stride = sizeof(float) * 12;
+        public const int Stride = sizeof(float) * 14;
 
         /// <summary>
         /// Converts an authored profile to GPU form. restDensity is rescaled to the
@@ -42,7 +44,9 @@ namespace HarmonicEngineV4.Profiles
                 zoneStrength0 = profile.ZoneStrength(0),
                 zoneStrength1 = profile.ZoneStrength(1),
                 zoneStrength2 = profile.ZoneStrength(2),
-                topBandScale = profile.ZoneStrength(3)
+                topBandScale = profile.ZoneStrength(3),
+                impactAbsorbSpeed = profile.impactAbsorbSpeed,
+                impactSplashScale = profile.impactSplashScale
             };
         }
     }

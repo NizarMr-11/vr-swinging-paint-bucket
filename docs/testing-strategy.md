@@ -158,3 +158,37 @@ See [`paint-color-and-lifecycle.md`](paint-color-and-lifecycle.md).
 3. `[UnityTest]` + `yield return PlayModeTestUtility.EnsurePlayMode()`.
 4. `[Category("GPU")]` or `[Category("Scale")]` as appropriate.
 5. `Object.DestroyImmediate(pipeline.gameObject)` in cleanup.
+
+---
+
+## HarmonicEngineV4 test strategy
+
+V4 tests live under `Assets/HarmonicEngineV4/Tests/` with their own asmdefs
+(`HarmonicEngineV4.Tests.EditMode`, `HarmonicEngineV4.Tests.PlayMode`) and are
+organized in three layers. Every geometric/zone/flag function exists twice
+(C# reference + HLSL transliteration); the layers keep them provably in lockstep.
+
+| Layer | Where | What it proves |
+|-------|-------|----------------|
+| **1 — CPU reference units** | `Tests/EditMode/` (`V4BucketGeometryTests`, `V4ZoneMathTests`, `V4BucketBakeTests`, `V4CanvasSplatMathTests`, …) | Pure math is correct in isolation, including containment edge cases (deep wall tunneling, floor-slab sweep, outside-never-resolves-inward) |
+| **2 — GPU/CPU parity** | `Tests/PlayMode/V4GpuCpuParityTests` + `V4TestKernels.compute` | The HLSL mirrors match the C# reference on thousands of seeded samples, for both collision modes (`containInside` true/false) |
+| **3 — pipeline invariants** | `Tests/PlayMode/` (`V4PipelineIntegrationTests`, `V4ContainmentTests`, `V4GoldenFrameTests`, `V4CanvasGpuTests`) | Full-pipeline behavior: conservation, determinism, escape latch, golden-frame regression |
+
+Key invariant suites:
+
+- **`V4ContainmentTests`** — bucket motion must never leak fluid:
+  - `LateralShake_NoParticleLeaksThroughWall` — 1 m/s side-to-side sway; every
+    non-escaped particle stays inside the cavity (or above the open rim).
+  - `UpwardMove_NoParticleFallsThroughFloor` — 1.5 m/s upward sweep; the floor
+    slab may not pass through resting fluid.
+  - `FastCanvasImpact_IsAbsorbedAsPaintSplat` — free-falling paint is absorbed
+    on impact (impact splat), shrinking the live count and adding canvas depth.
+- **`V4PipelineIntegrationTests`** — conservation every frame
+  (`spawned == live + settled`), rest stability, escape-latch permanence under
+  violent motion, rigid carry entrainment, bit-exact determinism of state + canvas.
+- **`V4GoldenFrameTests`** — fixed 100-frame choreography; two runs must be
+  bit-identical and the behavior envelope (escapes happen, counts monotonic,
+  no NaN) must hold across code changes.
+
+Run them from Test Runner → PlayMode / EditMode with the `HarmonicEngineV4`
+assembly filter. All V4 PlayMode tests require compute shader support.

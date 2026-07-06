@@ -28,6 +28,7 @@ float _BucketWallThickness;
 float _TopBandHeight;
 float _Restitution;
 float _Friction;
+uint _ContainInside;
 uint _HoleCount;
 uint _TestCount;
 
@@ -71,7 +72,8 @@ void CollisionParityKernel(uint3 id : SV_DispatchThreadID)
 
     float3 pos = _TestPositions[i].xyz;
     float3 vel = _TestVelocities[i].xyz;
-    V4BucketResolveCollision(pos, vel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, _Restitution, _Friction);
+    V4BucketResolveCollision(pos, vel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, _Restitution, _Friction,
+        _ContainInside != 0u);
     _OutFloat0[i] = float4(pos, 0.0);
     _OutFloat1[i] = float4(vel, 0.0);
 }

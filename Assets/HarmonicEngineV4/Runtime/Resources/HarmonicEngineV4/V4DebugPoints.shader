@@ -1,6 +1,6 @@
 // Debug particle point renderer (plan Phase 6): camera-facing quads per particle,
-// colored by particle color with a state tint (Inside normal, Outside dimmed,
-// escaped highlighted). Fast bring-up visual, not the final fluid render.
+// colored purely by particle paint color so every liquid (including black) reads as
+// its authored color. Fast bring-up visual, not the final fluid render.
 Shader "HarmonicEngineV4/DebugPoints"
 {
     Properties
@@ -23,7 +23,6 @@ Shader "HarmonicEngineV4/DebugPoints"
 
             StructuredBuffer<float4> _Block0;
             StructuredBuffer<uint> _PackedColors;
-            StructuredBuffer<uint> _Flags;
             float _PointSize;
             uint _ActiveParticleCount;
 
@@ -52,21 +51,9 @@ Shader "HarmonicEngineV4/DebugPoints"
                 }
 
                 float4 block0 = _Block0[instanceId];
-                uint flags = _Flags[instanceId];
 
                 uint packed = _PackedColors[instanceId];
                 float3 color = float3(packed & 0xFF, (packed >> 8) & 0xFF, (packed >> 16) & 0xFF) / 255.0;
-
-                bool inside = (flags & 1u) != 0u;
-                bool escaped = (flags & 2u) != 0u;
-                if (escaped)
-                {
-                    color = lerp(color, float3(1.0, 0.55, 0.1), 0.35); // escaped: orange tint
-                }
-                else if (!inside)
-                {
-                    color *= 0.55; // outside: dimmed
-                }
 
                 float2 corner = kCorners[vertexId] * _PointSize;
                 float3 camRight = UNITY_MATRIX_V[0].xyz;
