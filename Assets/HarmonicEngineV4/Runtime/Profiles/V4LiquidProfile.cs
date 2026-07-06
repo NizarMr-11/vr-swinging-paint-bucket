@@ -22,6 +22,15 @@ namespace HarmonicEngineV4.Profiles
         [Tooltip("Cohesion (surface tension) force strength.")]
         public float cohesion = 0.5f;
 
+        [Tooltip("Artificial pressure strength (Macklin & Mueller s_corr, §3.4).")]
+        [Range(0f, 0.5f)] public float pbfKCorr = 0.1f;
+
+        [Tooltip("Artificial pressure power exponent (paper default 4).")]
+        [Range(1f, 8f)] public float pbfNCorr = 4f;
+
+        [Tooltip("s_corr reference distance as a fraction of smoothing radius h.")]
+        [Range(0.05f, 0.5f)] public float pbfDeltaQScale = 0.2f;
+
         [Header("Color")]
         [Tooltip("Color diffusion rate k (spec section 6).")]
         [Range(0f, 1f)] public float colorDiffusionRate = 0.05f;

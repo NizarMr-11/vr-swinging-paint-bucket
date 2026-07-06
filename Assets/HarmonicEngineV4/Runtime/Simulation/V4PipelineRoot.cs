@@ -37,7 +37,7 @@ namespace HarmonicEngineV4.Simulation
         [Min(0f)] public float carryRate = 10f;
         [Min(0f)] public float downwardScale = 1f;
         [Range(0f, 1f)] public float emaSmoothing = 0.1f;
-        public float pbfEpsilon = 100f;
+        public float pbfEpsilon = 50f;
         [Min(0.001f)] public float maxDeltaTime = 1f / 50f;
         public Vector3 gravity = new Vector3(0f, -9.81f, 0f);
         [Min(16)] public int maxSplatEvents = 1024;

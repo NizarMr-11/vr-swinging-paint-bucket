@@ -21,6 +21,9 @@ MonoBehaviour:
   canvasMaxDepth: 4
   impactAbsorbSpeed: 0.8
   impactSplashScale: 0.35
+  pbfKCorr: 0.1
+  pbfNCorr: 4
+  pbfDeltaQScale: 0.2
   surfaceFriction: 0.2
   surfaceRestitution: 0.1
   zoneStrengthByLevel:

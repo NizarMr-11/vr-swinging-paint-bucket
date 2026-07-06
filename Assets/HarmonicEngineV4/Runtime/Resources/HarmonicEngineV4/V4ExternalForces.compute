@@ -20,6 +20,9 @@ StructuredBuffer<uint> _Counters;
 
 float4x4 _BucketWorldToLocal;
 float4x4 _BucketLocalToWorld;
+float _BucketInnerRadius;
+float _BucketHeight;
+float _BucketWallThickness;
 float3 _BucketLinearVelocity;
 float3 _BucketAngularVelocity;
 float3 _BucketWorldOrigin;
@@ -48,19 +51,20 @@ void ExternalForcesKernel(uint3 id : SV_DispatchThreadID)
     // Gravity applies to everyone, escaped included (they still fall to the canvas).
     vel += _Gravity * _DeltaTime;
 
-    if (V4IsInside(flags))
+    float3 localPos = mul(_BucketWorldToLocal, float4(pos, 1.0)).xyz;
+    if (V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness))
     {
-        // Moving-reference-frame contribution (spec section 4): relax toward the
-        // bucket's rigid frame velocity at this particle's position.
+        // Same footprint as collision: co-move particles physically in the bucket
+        // volume, including brief sub-floor lag during fast motion.
         float3 frameVel = _BucketLinearVelocity + cross(_BucketAngularVelocity, pos - _BucketWorldOrigin);
-        vel += (frameVel - vel) * saturate(_CarryRate * _DeltaTime);
+        float blend = 1.0 - exp(-_CarryRate * _DeltaTime);
+        vel += (frameVel - vel) * blend;
     }
 
     uint zone = V4GetZone(flags);
     if (zone == V4_ZONE_HOLE0 || zone == V4_ZONE_HOLE1 || zone == V4_ZONE_HOLE2)
     {
         V4Hole hole = _Holes[V4GetHole(flags)];
-        float3 localPos = mul(_BucketWorldToLocal, float4(pos, 1.0)).xyz;
         float3 dirLocal = V4ZoneForceDirection(localPos, hole, zone);
         float3 dirWorld = normalize(mul((float3x3)_BucketLocalToWorld, dirLocal));
 

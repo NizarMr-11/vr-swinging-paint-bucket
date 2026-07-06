@@ -119,6 +119,54 @@ float3 V4ToWorld(float3 localPos)
     return mul(_BucketLocalToWorld, float4(localPos, 1.0)).xyz;
 }
 
+// Mirror-particle boundary density/gradient for bucket floor and inner wall.
+// Mirrors are computed in bucket-local space; kernel distances use world space.
+void V4AddBoundaryGhostDensity(float3 worldPos, float3 localPos, inout float density, float h)
+{
+    if (localPos.y < h)
+    {
+        float3 mirrorLocal = float3(localPos.x, -localPos.y, localPos.z);
+        float3 mirrorWorld = V4ToWorld(mirrorLocal);
+        float rMirror = distance(worldPos, mirrorWorld);
+        density += V4Poly6(rMirror, h);
+    }
+
+    float radXZ = length(localPos.xz);
+    if (radXZ > _BucketInnerRadius - h)
+    {
+        float2 dirXZ = localPos.xz / max(radXZ, 1e-5);
+        float mirrorRad = 2.0 * _BucketInnerRadius - radXZ;
+        float3 mirrorLocal = float3(dirXZ.x * mirrorRad, localPos.y, dirXZ.y * mirrorRad);
+        float3 mirrorWorld = V4ToWorld(mirrorLocal);
+        float rMirror = distance(worldPos, mirrorWorld);
+        density += V4Poly6(rMirror, h);
+    }
+}
+
+void V4AddBoundaryGhostGradSum(float3 worldPos, float3 localPos, inout float gradSum, float h, float restDensity)
+{
+    if (localPos.y < h)
+    {
+        float3 mirrorLocal = float3(localPos.x, -localPos.y, localPos.z);
+        float3 mirrorWorld = V4ToWorld(mirrorLocal);
+        float rMirror = distance(worldPos, mirrorWorld);
+        float3 gradMirror = V4SpikyGradient(worldPos - mirrorWorld, rMirror, h) / restDensity;
+        gradSum += dot(gradMirror, gradMirror);
+    }
+
+    float radXZ = length(localPos.xz);
+    if (radXZ > _BucketInnerRadius - h)
+    {
+        float2 dirXZ = localPos.xz / max(radXZ, 1e-5);
+        float mirrorRad = 2.0 * _BucketInnerRadius - radXZ;
+        float3 mirrorLocal = float3(dirXZ.x * mirrorRad, localPos.y, dirXZ.y * mirrorRad);
+        float3 mirrorWorld = V4ToWorld(mirrorLocal);
+        float rMirror = distance(worldPos, mirrorWorld);
+        float3 gradMirror = V4SpikyGradient(worldPos - mirrorWorld, rMirror, h) / restDensity;
+        gradSum += dot(gradMirror, gradMirror);
+    }
+}
+
 // Position-only bucket clamp used inside the solver loop (velocity untouched).
 // Containment follows geometry, not the Inside flag: the flag drives carry/zone
 // forces, but a particle physically in the cavity must always hit the walls.
@@ -167,6 +215,10 @@ void DensityKernel(uint3 id : SV_DispatchThreadID)
 
     float3 pi = _Predicted[i].xyz;
     float h = _SmoothingRadius;
+    uint flags = _Flags[i];
+    float3 localPos = V4ToLocal(pi);
+    bool addBoundaryGhosts = !V4HasEscaped(flags)
+        && V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
 
     float density = V4Poly6(0.0, h); // self contribution
     float3 colorSum = float3(0, 0, 0);
@@ -194,6 +246,11 @@ void DensityKernel(uint3 id : SV_DispatchThreadID)
         weightSum += w;
     V4_FOREACH_NEIGHBOR_END
 
+    if (addBoundaryGhosts)
+    {
+        V4AddBoundaryGhostDensity(pi, localPos, density, h);
+    }
+
     _Densities[i] = density;
     _BlendedColors[i] = float4(colorSum, weightSum);
 }
@@ -209,7 +266,11 @@ void LambdaKernel(uint3 id : SV_DispatchThreadID)
 
     float3 pi = _Predicted[i].xyz;
     float h = _SmoothingRadius;
-    float restDensity = max(_Profiles[V4GetProfile(_Flags[i])].restDensity, 1e-4);
+    uint flags = _Flags[i];
+    float3 localPos = V4ToLocal(pi);
+    bool addBoundaryGhosts = !V4HasEscaped(flags)
+        && V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
+    float restDensity = max(_Profiles[V4GetProfile(flags)].restDensity, 1e-4);
 
     float constraint = _Densities[i] / restDensity - 1.0;
     if (constraint <= 0.0)
@@ -239,6 +300,11 @@ void LambdaKernel(uint3 id : SV_DispatchThreadID)
         gradSum += dot(grad, grad);
     V4_FOREACH_NEIGHBOR_END
 
+    if (addBoundaryGhosts)
+    {
+        V4AddBoundaryGhostGradSum(pi, localPos, gradSum, h, restDensity);
+    }
+
     gradSum += dot(gradSelf, gradSelf);
     _Lambdas[i] = -constraint / (gradSum + _PbfEpsilon);
 }
@@ -254,10 +320,13 @@ void SolveDeltaKernel(uint3 id : SV_DispatchThreadID)
 
     float3 pi = _Predicted[i].xyz;
     float h = _SmoothingRadius;
-    float restDensity = max(_Profiles[V4GetProfile(_Flags[i])].restDensity, 1e-4);
+    uint flags = _Flags[i];
+    V4GpuProfile profile = _Profiles[V4GetProfile(flags)];
+    float restDensity = max(profile.restDensity, 1e-4);
     float lambdaI = _Lambdas[i];
 
     float3 delta = float3(0, 0, 0);
+    float wCorrDenom = V4Poly6(profile.pbfDeltaQScale * h, h);
     V4_FOREACH_NEIGHBOR_BEGIN(pi, j)
         if (j == i || j >= _ActiveParticleCount)
         {
@@ -271,7 +340,9 @@ void SolveDeltaKernel(uint3 id : SV_DispatchThreadID)
             continue;
         }
 
-        delta += (lambdaI + _Lambdas[j]) * V4SpikyGradient(diff, r, h);
+        float wCorrNum = V4Poly6(r, h);
+        float scorr = -profile.pbfKCorr * pow(wCorrNum / max(wCorrDenom, 1e-6), profile.pbfNCorr);
+        delta += (lambdaI + _Lambdas[j] + scorr) * V4SpikyGradient(diff, r, h);
     V4_FOREACH_NEIGHBOR_END
 
     _Deltas[i] = float4(delta / restDensity, 0.0);
