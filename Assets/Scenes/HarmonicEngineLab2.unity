@@ -798,6 +798,7 @@ MonoBehaviour:
     recordCanvasSettle: 1
     recordBufferBinding: 0
     recordRecording: 1
+    recordWallEscapeForensics: 1
 --- !u!114 &1272400440
 MonoBehaviour:
   m_ObjectHideFlags: 0
