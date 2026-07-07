@@ -1,0 +1,30 @@
+V4 Lab2 — geometry of the unlatched sub-floor leak (where do they cross?)
+R=0.3 outerR=0.35 floorLag(containment gives up below)=-0.20 holeD2=0.135
+
+--- frame 40: unlatched subfloor shallow(0..-0.3)=0 deep(<-0.3)=0 escTot=766 setTot=126 ---
+
+--- frame 50: unlatched subfloor shallow(0..-0.3)=500 deep(<-0.3)=0 escTot=1079 setTot=394 ---
+  r bins: r<0.15: 0, 0.15-0.25: 0, 0.25-0.3(R): 0, R-outerR: 0, >outerR: 500
+  distToNearestHole bins: <d2(0.135): 0, d2-0.2: 0, >0.2: 500
+  vel.y: mean=-0.759 min=-2.219 max=0.035
+
+--- frame 60: unlatched subfloor shallow(0..-0.3)=948 deep(<-0.3)=253 escTot=1415 setTot=693 ---
+  r bins: r<0.15: 0, 0.15-0.25: 0, 0.25-0.3(R): 0, R-outerR: 0, >outerR: 948
+  distToNearestHole bins: <d2(0.135): 0, d2-0.2: 0, >0.2: 948
+  vel.y: mean=-1.281 min=-2.393 max=-0.049
+
+--- frame 75: unlatched subfloor shallow(0..-0.3)=854 deep(<-0.3)=1312 escTot=1847 setTot=1208 ---
+  r bins: r<0.15: 0, 0.15-0.25: 0, 0.25-0.3(R): 0, R-outerR: 0, >outerR: 854
+  distToNearestHole bins: <d2(0.135): 0, d2-0.2: 0, >0.2: 854
+  vel.y: mean=-1.402 min=-2.468 max=-0.001
+
+--- frame 90: unlatched subfloor shallow(0..-0.3)=421 deep(<-0.3)=2213 escTot=2228 setTot=1679 ---
+  r bins: r<0.15: 0, 0.15-0.25: 0, 0.25-0.3(R): 0, R-outerR: 0, >outerR: 421
+  distToNearestHole bins: <d2(0.135): 0, d2-0.2: 0, >0.2: 421
+  vel.y: mean=-1.267 min=-2.411 max=-0.091
+
+--- frame 120: unlatched subfloor shallow(0..-0.3)=93 deep(<-0.3)=2901 escTot=3010 setTot=2476 ---
+  r bins: r<0.15: 0, 0.15-0.25: 0, 0.25-0.3(R): 0, R-outerR: 0, >outerR: 93
+  distToNearestHole bins: <d2(0.135): 0, d2-0.2: 0, >0.2: 93
+  vel.y: mean=-1.837 min=-2.368 max=-0.327
+

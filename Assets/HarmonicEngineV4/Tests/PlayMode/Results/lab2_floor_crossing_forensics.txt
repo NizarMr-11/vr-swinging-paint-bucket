@@ -1,0 +1,13 @@
+V4 Lab2 — floor crossing forensics (300 frames, rest)
+holes at d0=0.015 d1=0.075 d2=0.135
+index-stable frames used: 30/299
+
+floor crossings captured: total=453 latched=453 UNLATCHED=0
+
+=== latched (hole-eject) floor crossings for comparison ===
+count=453 XZ dist to hole: mean=0.0118 p95=0.0199
+
+=== final frame unlatched sub-floor population: 2994 ===
+y histogram: 0..-0.05: 0, -0.05..-0.2: 0, -0.2..-0.5: 0, -0.5..-0.9: 0, canvas layer (<-0.9): 2994
+
+EscapedTotal=7066 SettledTotal=6648 live=14134
