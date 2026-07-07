@@ -105,7 +105,9 @@ Each manifest pass ≤ 8 RW buffers. Validated by `V4ManifestValidation` at init
 
 | Symptom | Likely break |
 |---------|--------------|
-| Particles pass through walls | `containInside` computed from geometry only (must use `ComputeContainInside`); missing face-contact band at `r = R`; wall-band floor gap |
+| Particles pass through walls | `containInside` computed from geometry only (must use `ComputeContainInside`); missing face-contact band at `r = R`; wall-band floor gap; Outside particles drifting past `r = R + T` without beyond-outer clamp |
+| Fluid “escapes” on firm hold but `cif = 0` | Over-rim (`y > height`) or beyond-outer populations — `cif` only tracks footprint mismatch, not open-top or outer-shell drift. Check `wall_escape_forensics.log` |
+| Profile damping (`surfaceRestitution` / `surfaceFriction`) seems ineffective | Wall-band / beyond-outer leak is often PBF motion + shell geometry, not surface coeffs — verify with forensics before retuning profile |
 | Escape particles re-enter bucket | Classify not sole escape authority |
 | Nondeterministic canvas | Splat order not sorted |
 | GPU/CPU test mismatch | HLSL edited without C# reference update |

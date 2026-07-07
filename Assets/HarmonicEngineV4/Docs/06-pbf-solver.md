@@ -66,9 +66,11 @@ Neighbor Spiky gradients plus **ghost mirror gradients** in the denominator only
 Jacobi-style accumulation with **s_corr** artificial pressure (Macklin & Müller §3.4):
 
 ```
-scorr = -kCorr × (W(r,h) / W(δQ·h, h))^nCorr
+scorr = -kCorr × (|W(r,h) / W(δQ·h, h)|)^nCorr
 Δp_i += Σ_j (λ_i + λ_j + scorr) ∇W_ij / ρ₀
 ```
+
+The ratio uses `abs(...)` before `pow` so D3D11 does not warn on negative bases when `W(r,h)` flips sign outside the support radius.
 
 Profile fields: `pbfKCorr`, `pbfNCorr`, `pbfDeltaQScale` (reference distance = scale × h).
 

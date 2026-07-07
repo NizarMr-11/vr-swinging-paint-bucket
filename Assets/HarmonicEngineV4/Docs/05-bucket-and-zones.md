@@ -112,7 +112,9 @@ Outside-flagged particles near shell use **nearest-face resolution**:
 
 - **Cavity footprint, below floor:** snap to inner floor or exclude below slab (float-noise recovery)
 - **Wall band:** radial push to inner or outer face; **also** lift to floor if `y < 0`
-- **Beyond outer wall:** no response
+- **Beyond outer shell** (`r ≥ R + T`, `y ≤ height`): clamp position to outer face (`r = R + T`), reflect outward radial velocity in the moving wall frame (`ReflectAgainstNormalInMovingFrame` with normal `-radialDir`). PBF predict/apply plus bucket motion can push Outside particles past the shell in a single step (`maxCorrection ≈ 0.2h` is much smaller than `wallThickness`); without this path they accumulate outside the solid shell while collision no-ops.
+
+Open top (`y > height`) is unchanged — over-rim slosh is not blocked here.
 
 ### Escaped particles
 
@@ -124,7 +126,8 @@ Skip all bucket collision in Finalize permanently.
 
 | Motion | Expected behavior |
 |--------|-------------------|
-| Lateral shake | Carry force co-moves inside fluid; `ComputeContainInside` + face-contact band prevent wall/floor tunneling |
+| Lateral shake | Carry force co-moves inside fluid; `ComputeContainInside` + face-contact band + beyond-outer clamp prevent wall/floor tunneling |
+| Firm directional hold | Sustained bucket translation can push fluid through the shell; beyond-outer clamp keeps `beyondOuter` at 0; over-rim (`y > height`) remains the dominant open-top path |
 | Upward move | Fluid lags in world space → brief local `y < 0`; `ShouldContainInside` keeps floor collision active |
 | Tilt / spin | `AngularVelocity` in carry; collision reflects in wall moving frame; wall-band floor fix prevents corner leaks |
 

@@ -31,7 +31,7 @@ Run via Unity Test Runner or Unity MCP `run_tests` tool.
 |------|--------|
 | `V4BakeMathTests` | Spawn spacing, lattice, canvas grid |
 | `V4BucketBakeTests` | Hole rings, spacing validation |
-| `V4BucketGeometryTests` | Inside, shell, collision, ShouldContainInside, ComputeContainInside, face-contact band |
+| `V4BucketGeometryTests` | Inside, shell, collision, ShouldContainInside, ComputeContainInside, face-contact band, beyond-outer shell clamp |
 | `V4ZoneMathTests` | Classification priority, force direction |
 | `V4ParticleFlagsTests` | Bit packing |
 | `V4CanvasSplatMathTests` | Cell weights, depth blend |
@@ -102,6 +102,9 @@ These replicate lab scenes or tall columns, log numeric diagnostics to the Unity
 | **`V4GhostWeightSweepTests`** | | | Boundary mirror ghost weight |
 | | `FinalIterScorr_SealedTallColumn_SettledStaysNearZero` | — | **Assertion:** settled count ~0 with final-iter-only s_corr |
 | | `Sweep_GhostWeight_ReportTable` | `ghost_weight_sweep.txt` | ghostWeight sweep table (settled, rim, max inside Y) |
+| **`V4WallEscapeFirmHoldInvestigationTests`** | | | Firm +Z hold (Lab2 config, 4 PBF iters) — wall vs rim vs latch anatomy |
+| | `Investigate_FirmDirectionalHold_WallEscapeForensics` | `wall_escape_firm_hold.txt` | Per-frame `beyondOuter`, `overRim`, `wallBandOutside`, `falseLatch`, `cif`; **asserts** `beyondOuter < 50` at end |
+| | `Investigate_BeyondOuterCrossingDeltas` | `beyond_outer_crossing_forensics.txt` | First crossing into beyond-outer shell: hop distance vs `maxCorrection` |
 
 Report convention: `Assets/HarmonicEngineV4/Tests/PlayMode/Results/*.txt` — regenerate by re-running the test. Files may be gitignored locally.
 
@@ -129,7 +132,8 @@ Always set `autoRun = false` (rig does this). Call `Step` explicitly.
 | Escape latch permanent | Integration + containment |
 | Deterministic replay | `V4GoldenFrameTests` |
 | CPU ↔ GPU geometry | `V4GpuCpuParityTests` |
-| No floor/wall tunnel | `V4ContainmentTests` |
+| No floor/wall tunnel | `V4ContainmentTests`, `OutsideParticleBeyondOuterShell_IsClampedToOuterFace` (`V4BucketGeometryTests`) |
+| Beyond-outer shell drift | `V4WallEscapeFirmHoldInvestigationTests` |
 | Canvas splat math | `V4CanvasGpuTests` |
 
 ---

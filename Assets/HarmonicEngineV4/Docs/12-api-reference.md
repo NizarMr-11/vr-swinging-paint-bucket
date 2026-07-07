@@ -50,8 +50,12 @@ See [Configuration](11-configuration.md).
 | `DebugAfterFinalizeTermsProbe` | When true, runs probe after Finalize |
 | `DebugBeforeApplyDelta` | Hook before ApplyDelta dispatch |
 | `DebugMaxCorrectionScale` | Override ApplyDelta clamp (`0` = default 0.2h, `<0` = uncapped) |
+| `debugLogBoundaryPressure` | Per-frame `boundary_pressure.log` (top-band bins) |
+| `debugLogContainInsideMismatch` | Log `cif` containment-footprint mismatch count |
+| `debugLogWallEscapeForensics` | Per-frame `wall_escape_forensics.log` exit-class counts |
 | `ReadDensities(float[])` | GPU density readback |
 | `ReadPredicted(Vector4[])` | GPU predicted-position readback |
+| `MaxCorrectionDistance()` | Current ApplyDelta clamp distance (meters) |
 
 ### Events
 
@@ -117,6 +121,8 @@ V4BucketGeometry.ShouldContainInside(localPos, innerRadius, height, wallThicknes
 V4BucketGeometry.ComputeContainInside(flags, localPos, refLocalPos, innerRadius, height, wallThickness);
 V4BucketGeometry.ResolveCollision(ref pos, ref vel, ..., contactVelLocal: Vector3.zero);
 V4BucketGeometry.ReflectAgainstNormalInMovingFrame(ref vel, normal, contactVel, restitution, friction);
+V4WallEscapeForensics.ClassifyLocal(localPos, flags, innerRadius, height, wallThickness);
+V4WallEscapeForensics.NearestHole(localPos, bakedHoles);
 V4ZoneMath.Classify(...);
 V4CanvasSplatMath.ApplySplat(...);
 V4ParticleFlags.IsInside / HasEscaped / GetZone / GetProfile;
@@ -132,7 +138,9 @@ V4Log.Info(V4LogCategory.General, "message");
 using (V4Log.BeginPass("MyPass")) { ... }
 ```
 
-Categories: `General`, `Bake`, `Pass`, `CanvasSettle`, etc.
+Categories: `General`, `Bake`, `Spawn`, `PassExecution`, `ZoneClassification`, `CanvasSettle`, `BufferBinding`, `Recording`, `BoundaryPressure`, `WallEscapeForensics`.
+
+File sink mapping (`V4ChannelFileSink`): `boundary_pressure.log`, `wall_escape_forensics.log`, plus per-category defaults for other channels.
 
 ---
 

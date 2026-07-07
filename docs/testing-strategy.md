@@ -170,7 +170,7 @@ organized in three layers. Every geometric/zone/flag function exists twice
 
 | Layer | Where | What it proves |
 |-------|-------|----------------|
-| **1 — CPU reference units** | `Tests/EditMode/` (`V4BucketGeometryTests`, `V4ZoneMathTests`, `V4BucketBakeTests`, `V4CanvasSplatMathTests`, …) | Pure math is correct in isolation, including containment edge cases (deep wall tunneling, floor-slab sweep, outside-never-resolves-inward) |
+| **1 — CPU reference units** | `Tests/EditMode/` (`V4BucketGeometryTests`, `V4ZoneMathTests`, `V4BucketBakeTests`, `V4CanvasSplatMathTests`, …) | Pure math is correct in isolation, including containment edge cases (deep wall tunneling, floor-slab sweep, beyond-outer shell clamp, outside-never-resolves-inward) |
 | **2 — GPU/CPU parity** | `Tests/PlayMode/V4GpuCpuParityTests` + `V4TestKernels.compute` | The HLSL mirrors match the C# reference on thousands of seeded samples, for both collision modes (`containInside` true/false) |
 | **3 — pipeline invariants** | `Tests/PlayMode/` (`V4PipelineIntegrationTests`, `V4ContainmentTests`, `V4GoldenFrameTests`, `V4CanvasGpuTests`) | Full-pipeline behavior: conservation, determinism, escape latch, golden-frame regression |
 
@@ -189,6 +189,9 @@ Key invariant suites:
 - **`V4GoldenFrameTests`** — fixed 100-frame choreography; two runs must be
   bit-identical and the behavior envelope (escapes happen, counts monotonic,
   no NaN) must hold across code changes.
+- **`V4WallEscapeFirmHoldInvestigationTests`** — sustained directional bucket
+  hold (Lab2 config): asserts `beyondOuter` stays near zero after the
+  beyond-outer shell clamp; reports `overRim` / `falseLatch` / `cif` separately.
 
 Run them from Test Runner → PlayMode / EditMode with the `HarmonicEngineV4`
 assembly filter. All V4 PlayMode tests require compute shader support.

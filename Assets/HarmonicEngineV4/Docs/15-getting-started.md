@@ -78,6 +78,13 @@ Start with `V4BucketGeometryTests` and `V4ContainmentTests`.
 
 For run recordings, attach `V4RunRecording` to record JSONL frame samples.
 
+For leak investigation, enable on `V4PipelineRoot`:
+
+- `debugLogWallEscapeForensics` → `Logs/Engine2/run_*/channels/wall_escape_forensics.log`
+- `debugLogBoundaryPressure` → `boundary_pressure.log` (large; optional)
+
+See [Configuration](11-configuration.md) for metric caveats (`cif` vs over-rim / beyond-outer).
+
 ---
 
 ## Troubleshooting
@@ -86,7 +93,8 @@ For run recordings, attach `V4RunRecording` to record JSONL frame samples.
 |---------|-------|
 | No particles | Spawn zones inside bucket cavity; `restrictSpawnToBucketCavity` |
 | Particles explode | Lower density; increase `pbfIterations`; check spawn overlap |
-| Walls don't hold | Shader recompile; see [Bucket & zones](05-bucket-and-zones.md) |
+| Walls don't hold | Shader recompile; see [Bucket & zones](05-bucket-and-zones.md); run `V4ContainmentTests` + `Investigate_FirmDirectionalHold_WallEscapeForensics` |
+| Fluid flies over rim | Open top by design — not a wall leak; check `overRim` in forensics log |
 | Black paint wrong color | Use debug points or SSFR with `_UseParticleColor` |
 | Pipeline disabled on play | Console bake errors; bucket/canvas null refs |
 | Null refs after script reload | Pipeline auto-reinits; stop/start play mode |

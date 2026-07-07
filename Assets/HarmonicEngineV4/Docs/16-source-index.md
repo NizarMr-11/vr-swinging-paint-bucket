@@ -29,6 +29,7 @@ Complete file index for `Assets/HarmonicEngineV4/`. Use with [README](README.md)
 | `V4ShaderLibrary.cs` | Resources.Load shader paths |
 | `V4ParticleFlags.cs` / `V4Zone.cs` | Flag bit layout, zone enum |
 | `V4BucketGeometry.cs` | CPU bucket geometry + collision |
+| `V4WallEscapeForensics.cs` | Wall-escape exit classification + hole proximity (investigation) |
 | `V4ZoneMath.cs` / `V4BakedHole` | Zone classification + baked hole struct |
 | `V4CanvasSplatMath.cs` | CPU canvas splat footprint |
 | `V4SpatialHashMath.cs` | CPU hash/cell math |
@@ -125,7 +126,7 @@ Complete file index for `Assets/HarmonicEngineV4/`. Use with [README](README.md)
 
 ## Tests / PlayMode
 
-`V4TestRig`, `V4PipelineIntegrationTests`, `V4GoldenFrameTests`, `V4GpuCpuParityTests`, `V4ContainmentTests`, `V4CanvasGpuTests`, `V4SpatialHashTests`, `V4RadixSortTests`, `V4RendererSmokeTests`, `V4RunRecorderTests`
+`V4TestRig`, `V4PipelineIntegrationTests`, `V4GoldenFrameTests`, `V4GpuCpuParityTests`, `V4ContainmentTests`, `V4CanvasGpuTests`, `V4SpatialHashTests`, `V4RadixSortTests`, `V4RendererSmokeTests`, `V4RunRecorderTests`, `V4WallEscapeFirmHoldInvestigationTests`, `V4Lab2EscapeStatisticsTests`, `V4Lab2LeakProbeTests`, `V4CollisionEnergyInvestigationTests`, `V4CohesionViscosityInvestigationTests`, `V4ApplyDeltaClampInvestigationTests`, `V4ScorrInvestigationTests`, `V4StackingLeakInvestigationTests`, `V4StackingDepthInstrumentationTests`, `V4GhostWeightSweepTests`
 
 Test GPU: `Resources/HarmonicEngineV4Tests/V4TestKernels.compute`
 

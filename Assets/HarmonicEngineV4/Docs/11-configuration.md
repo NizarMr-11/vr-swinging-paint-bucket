@@ -63,6 +63,20 @@ High density (1M+) → tiny particles, huge counts. Lab may use 200k–1M.
 | `gravity` | (0,-9.81,0) | World gravity |
 | `maxSplatEvents` | 1024 | Max canvas splats per frame |
 
+### Debug instrumentation (`V4PipelineRoot`)
+
+Optional per-frame logs under `Logs/Engine2/run_*/channels/` when `V4ChannelFileSink` is active (Lab2 enables this).
+
+| Field | Default | Log channel / file | What it records |
+|-------|---------|-------------------|-----------------|
+| `debugLogBoundaryPressure` | true | `BoundaryPressure` → `boundary_pressure.log` | Per-y-bin boundary ghost / clamp stats in the top band (`[0, topBandHeight]`) |
+| `debugLogContainInsideMismatch` | false | `General` (inline) | Count of live particles where `ComputeContainInside` disagrees with current footprint (`cif`); does **not** count over-rim or beyond-outer populations |
+| `debugLogWallEscapeForensics` | false | `WallEscapeForensics` → `wall_escape_forensics.log` | Outside-live anatomy: `beyondOuter`, `overRim`, `wallBandOutside`, new escapes, false latch count |
+
+Lab2 ships with `debugLogBoundaryPressure` and `debugLogWallEscapeForensics` enabled for leak investigation. Turn off boundary pressure when you only need forensics — the file is large.
+
+**Metric caveat:** `cif` / boundary-pressure bins measure containment-footprint mismatch, not every visual “escape”. Use `wall_escape_forensics.log` or `V4WallEscapeFirmHoldInvestigationTests` to separate over-rim (open top), beyond-outer shell drift, and legitimate hole latch escapes.
+
 ---
 
 ## V4Bucket parameters
