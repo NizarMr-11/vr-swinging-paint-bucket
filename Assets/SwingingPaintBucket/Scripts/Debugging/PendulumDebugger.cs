@@ -35,9 +35,9 @@ namespace SwingingPaintBucket.Debugging
             //Performance-friendly logging: only log every 30 frames to avoid spamming the memory
             if (Time.frameCount % 30 == 0)
             {
-                Debug.Log($"θ = {(_pendulum.Theta * Mathf.Rad2Deg):F2}°  |  " +
-                          $"ω = {_pendulum.Omega:F3} rad/s  |  " +
-                          $"pos = {transform.position}");
+               // Debug.Log($"θ = {(_pendulum.Theta * Mathf.Rad2Deg):F2}°  |  " +
+                //          $"ω = {_pendulum.Omega:F3} rad/s  |  " +
+                  //        $"pos = {transform.position}");
             }
         }
 

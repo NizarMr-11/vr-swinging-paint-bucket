@@ -1,14 +1,25 @@
 using UnityEngine;
 using System.IO;
 using UnityEngine.InputSystem;
+using SwingingPaintBucket.Materials;
 
 namespace SwingingPaintBucket.Canvas
 {
     public class CanvasController : MonoBehaviour
     {
+        [Header("نوع السطح")]
+        public CanvasSurfaceType SurfaceType = CanvasSurfaceType.Fabric;
+
         [Header("canvas quality")]
         public int TextureWidth = 1024;
         public int TextureHeight = 1024;
+
+        [Header("Teacher Feedback Variables")]
+        [Tooltip("Fabric = 0.5 (absorbs), Standard = 1.0, Plastic = 1.5 (spreads)")]
+        public float MaterialSpreadMultiplier = 1.0f;
+
+        [Tooltip("The physical volume of the paint particle hitting the canvas")]
+        public float ParticleImpactSize = 1.0f;
 
         private Texture2D _canvasTexture;
         private Color[] _pixels;
@@ -54,6 +65,8 @@ namespace SwingingPaintBucket.Canvas
 
         public void OnParticleHit(Vector3 hitPosition, Color color, float viscosity)
         {
+            //Testgggg
+            //Debug.Log($"[Canvas] Hit recieved at {hitPosition}, color = {color}");
             float u = (hitPosition.x - transform.position.x + _canvasWidth * 0.5f) / _canvasWidth;
             float v = (hitPosition.z - transform.position.z + _canvasHeight * 0.5f) / _canvasHeight;
 
@@ -66,7 +79,17 @@ namespace SwingingPaintBucket.Canvas
 
             int pixelX = (int)(u * TextureWidth);
             int pixelY = (int)(v * TextureHeight);
-            int baseRadius = Mathf.Max(2, (int)(10f / viscosity));
+
+            // ---- COMBINED PHYSICS MATH (Nizar's Presets + marzouki's Physics) ----
+            float spread = CanvasSurfacePreset.GetSpreadMultiplier(SurfaceType);
+            float opacity = CanvasSurfacePreset.GetOpacityMultiplier(SurfaceType);
+            color.a = color.a * opacity;
+
+            float calculatedRadius = (10f / viscosity) * spread * ParticleImpactSize;
+            int baseRadius = Mathf.Max(2, (int)calculatedRadius);
+
+
+            
 
             Vector2 currentHitPixel = new Vector2(pixelX, pixelY);
 

@@ -1,7 +1,8 @@
-using UnityEngine;
 using SwingingPaintBucket.Core;
+using SwingingPaintBucket.Simulation;
 using SwingingPaintBucket.Materials;
 using SwingingPaintBucket.Pendulum;
+using UnityEngine;
 
 namespace SwingingPaintBucket.Bucket
 {
@@ -41,6 +42,10 @@ namespace SwingingPaintBucket.Bucket
                 return PaintColors.Evaluate(1f - percentFull);
             }
         }
+
+        [Header("مرجع البيئة")]
+        public EnvironmentController Environment;
+
 
         [Tooltip("Paint viscosity")]
         [Range(0.1f, 10f)]
@@ -143,6 +148,22 @@ namespace SwingingPaintBucket.Bucket
             DischargeCoefficent = BucketMaterialPreset.GetDischargeCoefficent(MaterialType);
             PaintLossRate = BucketMaterialPreset.GetPaintLossRate(MaterialType);
             AbsorptionRate = BucketMaterialPreset.GetAbsorptionRate(MaterialType);
+        }
+
+        public float EffectiveViscosity
+        {
+            get 
+            {
+                if (Environment == null) return Viscosity;
+                return Viscosity * Environment.GetViscosityMultiplier();
+            }
+        }
+        /// <summary>
+        /// Sync internal paint volume with InitialPaintVolume (used by UI after applying new values)
+        /// </summary>
+        public void SyncPaintVolume()
+        {
+            _paintVolume = InitialPaintVolume;
         }
     }
 }

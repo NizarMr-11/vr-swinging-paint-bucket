@@ -1,6 +1,7 @@
 using SwingingPaintBucket.Bucket;
 using SwingingPaintBucket.Canvas;
 using SwingingPaintBucket.Core;
+using SwingingPaintBucket.Simulation;
 using UnityEngine;
 
 namespace SwingingPaintBucket.Particles
@@ -9,8 +10,9 @@ namespace SwingingPaintBucket.Particles
     {
 
         private BucketController _bucket;
+        public EnvironmentController Environment;
 
-        // ---- Particle Settings ----
+        // ---- Particle Settings ----x`
         [Header("Particle Settings")]
         public int MaxParticles = 100000;
 
@@ -35,7 +37,7 @@ namespace SwingingPaintBucket.Particles
         {
             if (_bucket == null || !_bucket.HasPaint) return;
 
-            float dt = Time.fixedDeltaTime;
+            float dt = SimulationConstants.FixedTimeStep;
 
 
             float rawCount = (_bucket.VolumeThisFrame / VolumePerParticle) + _leftOver;
@@ -80,7 +82,7 @@ namespace SwingingPaintBucket.Particles
                 spawnVelocity,
                 mass: mass,
                 color: _bucket.CurrentPaintColor,
-                viscosity: _bucket.Viscosity,
+                viscosity: _bucket.EffectiveViscosity,
                 density: _bucket.Density
             );
 
@@ -88,14 +90,14 @@ namespace SwingingPaintBucket.Particles
 
         private void UpdateParticles()
         {
-            float dt = Time.fixedDeltaTime;
+            float dt =SimulationConstants.FixedTimeStep;
 
             for (int i = 0; i < _particles.Length; i++)
             {
                 if (!_particles[i].IsActive) continue;
 
                 // تطبيق الجاذبية على الجسيم
-                _particles[i].Acceleration = new Vector3(0f, -9.81f, 0f);
+                _particles[i].Acceleration = new Vector3(0f, -9.81f, 0f) + (Environment != null ? Environment.WindForce : Vector3.zero);
 
                 // تحديث الموقع والسرعة
                 _particles[i].Step(dt);
