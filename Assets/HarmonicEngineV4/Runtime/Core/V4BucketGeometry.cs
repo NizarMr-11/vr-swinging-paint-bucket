@@ -67,13 +67,15 @@ namespace HarmonicEngineV4.Core
         /// and excludes outside particles from the solid shell, with slide friction and
         /// restitution. Escaped particles must never reach this function.
         ///
-        /// containInside must be true for particles flagged Inside: they are clamped back
-        /// into the cavity no matter how deep they penetrated, because a fast-moving bucket
-        /// can sweep its shell through a particle in a single step (nearest-face resolution
-        /// would eject it through the wall). Outside-flagged particles use nearest-face
-        /// resolution: wall/floor-touching particles drift epsilon outside through float
-        /// rounding and get classified Outside for a frame - they must resolve back to the
-        /// inside face, not be ejected. The open top is the only unguarded exit.
+        /// Caller contract: containInside = (frame-start Inside flag) OR ShouldContainInside
+        /// footprint. The flag half is load-bearing: a particle that penetrates past the wall
+        /// mid-plane in a single step (impact jet, fast bucket sweep) is geometrically outside
+        /// the footprint, and nearest-face resolution would eject it through the wall - the
+        /// Inside flag pulls it back to the inner face no matter how deep it penetrated.
+        /// Genuinely-outside particles use nearest-face resolution: wall/floor-touching
+        /// particles drift epsilon outside through float rounding and get classified Outside
+        /// for a frame - they must resolve back to the inside face, not be ejected. The open
+        /// top is the only unguarded exit.
         /// </summary>
         public static void ResolveCollision(
             ref Vector3 localPos,
@@ -103,14 +105,23 @@ namespace HarmonicEngineV4.Core
                     ReflectAgainstNormalInMovingFrame(ref localVel, Vector3.up, contactVelLocal, restitution, friction);
                 }
 
-                if (r > innerRadius)
+                // Face-contact band (not just r > R): the solver-loop position clamps pin
+                // pressurized particles at exactly r = R, so the finalize pass never sees
+                // them beyond the face - without the band their outward jet velocity is
+                // never reflected, accumulates across frames, and one flag-flicker frame
+                // hops them past the wall mid-plane where nearest-face resolution ejects.
+                if (r >= innerRadius - 1e-4f)
                 {
-                    float safeR = Mathf.Max(r, 1e-6f);
-                    float scale = innerRadius / safeR;
-                    localPos.x *= scale;
-                    localPos.z *= scale;
+                    if (r > innerRadius)
+                    {
+                        float safeR = Mathf.Max(r, 1e-6f);
+                        float scale = innerRadius / safeR;
+                        localPos.x *= scale;
+                        localPos.z *= scale;
+                    }
 
-                    Vector3 radialDir = new Vector3(localPos.x, 0f, localPos.z) / Mathf.Max(innerRadius, 1e-6f);
+                    float rNow = Mathf.Max(Mathf.Sqrt(localPos.x * localPos.x + localPos.z * localPos.z), 1e-6f);
+                    Vector3 radialDir = new Vector3(localPos.x, 0f, localPos.z) / rNow;
                     ReflectAgainstNormalInMovingFrame(ref localVel, -radialDir, contactVelLocal, restitution, friction);
                 }
 

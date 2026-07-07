@@ -2,71 +2,69 @@ V4 Lab2 — anatomy of live particles by flag state and physical location
 bands: subFloorDeep y<-0.2 | subFloorLag -0.2..0 | cavity 0..H,r<=R | wallBand r in (R,R+t) | overRim y>H | outsideFar
 
 --- frame 30 live=20782 escapedTot=453 settledTot=0 ---
-  inside/cavity: 20197
+  inside/cavity: 20213
   escaped/subFloorDeep: 305
   escaped/subFloorLag: 148
-  outsideLive/cavity: 125
-  inside/wallBand: 5
+  outsideLive/cavity: 108
+  inside/wallBand: 6
   outsideLive/wallBand: 2
-  outsideLive-in-cavity detail (n=125):
-    y: mean=0.0638 p95=0.2047 max=0.2509
+  outsideLive-in-cavity detail (n=108):
+    y: mean=0.0776 p95=0.2430 max=0.3170
     distToWall: mean=0.0000 min=0.000000
-    at floor (y<0.01): 53  at wall (dist<0.001): 124
+    at floor (y<0.01): 46  at wall (dist<0.001): 108
 
---- frame 60 live=20089 escapedTot=1415 settledTot=693 ---
-  inside/cavity: 17612
-  outsideLive/subFloorLagOutsideR: 743
-  escaped/subFloorDeep: 535
-  outsideLive/subFloorDeep: 458
-  outsideLive/cavity: 394
-  escaped/subFloorLag: 187
-  outsideLive/outsideFar: 89
-  inside/outsideFar: 41
-  inside/wallBand: 16
-  inside/subFloorLagOutsideR: 9
-  outsideLive/wallBand: 5
-  outsideLive-in-cavity detail (n=394):
-    y: mean=0.0174 p95=0.0489 max=0.0736
-    distToWall: mean=0.0004 min=0.000000
-    at floor (y<0.01): 169  at wall (dist<0.001): 377
-
---- frame 120 live=18306 escapedTot=3010 settledTot=2476 ---
-  inside/cavity: 14342
-  outsideLive/subFloorDeep: 2957
-  escaped/subFloorDeep: 433
-  outsideLive/cavity: 374
-  escaped/subFloorLag: 146
-  outsideLive/subFloorLagOutsideR: 37
-  inside/wallBand: 12
-  outsideLive/wallBand: 4
-  outsideLive/outsideFar: 1
-  outsideLive-in-cavity detail (n=374):
-    y: mean=0.0131 p95=0.0408 max=0.0578
-    distToWall: mean=0.0003 min=0.000000
-    at floor (y<0.01): 194  at wall (dist<0.001): 358
-
---- frame 300 live=14113 escapedTot=7087 settledTot=6669 ---
-  inside/cavity: 10393
-  outsideLive/subFloorDeep: 2994
-  escaped/subFloorDeep: 348
-  outsideLive/cavity: 252
-  escaped/subFloorLag: 116
-  inside/wallBand: 7
+--- frame 60 live=20094 escapedTot=1380 settledTot=688 ---
+  inside/cavity: 17231
+  outsideLive/subFloorLagOutsideR: 1332
+  escaped/subFloorDeep: 515
+  outsideLive/cavity: 450
+  outsideLive/subFloorDeep: 243
+  escaped/subFloorLag: 177
+  outsideLive/outsideFar: 117
+  inside/wallBand: 26
   outsideLive/wallBand: 3
-  outsideLive-in-cavity detail (n=252):
-    y: mean=0.0113 p95=0.0361 max=0.0497
-    distToWall: mean=0.0000 min=0.000000
-    at floor (y<0.01): 134  at wall (dist<0.001): 252
+  outsideLive-in-cavity detail (n=450):
+    y: mean=0.0216 p95=0.0601 max=0.0791
+    distToWall: mean=0.0021 min=0.000000
+    at floor (y<0.01): 156  at wall (dist<0.001): 350
 
---- frame 599 live=8732 escapedTot=12322 settledTot=12050 ---
-  inside/cavity: 5310
-  outsideLive/subFloorDeep: 2994
-  escaped/subFloorDeep: 236
-  outsideLive/cavity: 106
-  escaped/subFloorLag: 82
-  inside/wallBand: 4
-  outsideLive-in-cavity detail (n=106):
-    y: mean=0.0064 p95=0.0236 max=0.0263
+--- frame 120 live=18398 escapedTot=2863 settledTot=2384 ---
+  inside/cavity: 12878
+  outsideLive/subFloorDeep: 4535
+  escaped/subFloorDeep: 381
+  outsideLive/cavity: 351
+  escaped/subFloorLag: 127
+  outsideLive/subFloorLagOutsideR: 104
+  inside/wallBand: 16
+  outsideLive/wallBand: 4
+  outsideLive/outsideFar: 2
+  outsideLive-in-cavity detail (n=351):
+    y: mean=0.0110 p95=0.0402 max=0.0568
+    distToWall: mean=0.0006 min=0.000000
+    at floor (y<0.01): 210  at wall (dist<0.001): 327
+
+--- frame 300 live=14483 escapedTot=6704 settledTot=6299 ---
+  inside/cavity: 9171
+  outsideLive/subFloorDeep: 4637
+  escaped/subFloorDeep: 330
+  outsideLive/cavity: 223
+  escaped/subFloorLag: 108
+  inside/wallBand: 9
+  outsideLive/wallBand: 5
+  outsideLive-in-cavity detail (n=223):
+    y: mean=0.0097 p95=0.0318 max=0.0390
     distToWall: mean=0.0000 min=0.000000
-    at floor (y<0.01): 69  at wall (dist<0.001): 106
+    at floor (y<0.01): 130  at wall (dist<0.001): 222
+
+--- frame 599 live=9525 escapedTot=11500 settledTot=11257 ---
+  outsideLive/subFloorDeep: 4637
+  inside/cavity: 4510
+  escaped/subFloorDeep: 203
+  outsideLive/cavity: 99
+  escaped/subFloorLag: 73
+  inside/wallBand: 3
+  outsideLive-in-cavity detail (n=99):
+    y: mean=0.0067 p95=0.0219 max=0.0253
+    distToWall: mean=0.0000 min=0.000000
+    at floor (y<0.01): 60  at wall (dist<0.001): 98
 

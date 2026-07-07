@@ -664,7 +664,8 @@ namespace HarmonicEngineV4.Simulation
                     shader = _pbfShader,
                     kernelName = "ApplyDeltaKernel",
                     readWriteBuffers = new[] { "_Predicted", "_Deltas", "_BlendedColors", "_PackedColors" },
-                    readOnlyBuffers = new[] { "_Flags", "_Profiles" }
+                    // _Block0 = frame-start positions, the containment reference for the clamp.
+                    readOnlyBuffers = new[] { "_Block0", "_Flags", "_Profiles" }
                 },
                 new V4PassDef
                 {

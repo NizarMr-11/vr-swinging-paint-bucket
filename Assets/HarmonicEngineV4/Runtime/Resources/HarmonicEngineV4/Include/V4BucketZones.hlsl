@@ -136,14 +136,23 @@ void V4BucketResolveCollision(
             V4ReflectAgainstNormalInMovingFrame(localVel, float3(0, 1, 0), contactVelLocal, restitution, friction);
         }
 
-        if (r > innerRadius)
+        // Face-contact band (not just r > R): the solver-loop position clamps pin
+        // pressurized particles at exactly r = R, so Finalize never sees them beyond
+        // the face - without the band their outward jet velocity is never reflected,
+        // accumulates across frames, and one flag-flicker frame hops them past the
+        // wall mid-plane where nearest-face resolution ejects them.
+        if (r >= innerRadius - 1e-4)
         {
-            float safeR = max(r, 1e-6);
-            float scale = innerRadius / safeR;
-            localPos.x *= scale;
-            localPos.z *= scale;
+            if (r > innerRadius)
+            {
+                float safeR = max(r, 1e-6);
+                float scale = innerRadius / safeR;
+                localPos.x *= scale;
+                localPos.z *= scale;
+            }
 
-            float3 radialDir = float3(localPos.x, 0.0, localPos.z) / max(innerRadius, 1e-6);
+            float rNow = max(sqrt(localPos.x * localPos.x + localPos.z * localPos.z), 1e-6);
+            float3 radialDir = float3(localPos.x, 0.0, localPos.z) / rNow;
             V4ReflectAgainstNormalInMovingFrame(localVel, -radialDir, contactVelLocal, restitution, friction);
         }
 

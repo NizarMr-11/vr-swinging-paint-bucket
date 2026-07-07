@@ -185,10 +185,34 @@ void V4AddBoundaryGhostGradSum(float3 worldPos, float3 localPos, inout float gra
     }
 }
 
+// Containment decision for a mid-frame position (see V4BucketResolveCollision's
+// caller contract). Three ways in:
+//   1. frame-start Inside flag - authoritative classification;
+//   2. current-position footprint - geometric fallback;
+//   3. frame-start reference footprint with a face tolerance: a particle pinned at
+//      exactly r = R flickers Outside by one float ulp in classification, and a
+//      spawn-collapse jet can hop it past the wall mid-plane in a single step -
+//      without the reference check nearest-face resolution ejects it through the
+//      wall (the measured Lab2 floor-corner leak).
+bool V4ComputeContainInside(uint flags, float3 localPos, float3 refLocalPos)
+{
+    if (V4IsInside(flags))
+    {
+        return true;
+    }
+
+    if (V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness))
+    {
+        return true;
+    }
+
+    const float faceEps = 1e-4;
+    return V4BucketShouldContainInside(refLocalPos, _BucketInnerRadius + faceEps, _BucketHeight, _BucketWallThickness);
+}
+
 // Position-only bucket clamp used inside the solver loop (velocity untouched).
-// Containment follows geometry, not the Inside flag: the flag drives carry/zone
-// forces, but a particle physically in the cavity must always hit the walls.
-float3 V4ClampPositionToBucket(float3 worldPos, uint flags)
+// refWorldPos is the pre-step position the containment decision is anchored to.
+float3 V4ClampPositionToBucket(float3 worldPos, uint flags, float3 refWorldPos)
 {
     if (V4HasEscaped(flags))
     {
@@ -196,7 +220,7 @@ float3 V4ClampPositionToBucket(float3 worldPos, uint flags)
     }
 
     float3 localPos = V4ToLocal(worldPos);
-    bool containInside = V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
+    bool containInside = V4ComputeContainInside(flags, localPos, V4ToLocal(refWorldPos));
     float3 localVel = float3(0, 0, 0);
     V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, 0.0, 0.0,
         containInside, float3(0, 0, 0));
@@ -216,7 +240,7 @@ void PredictKernel(uint3 id : SV_DispatchThreadID)
     float3 vel = _Block1[i].xyz;
     float3 predicted = p.xyz + vel * _DeltaTime;
 
-    predicted = V4ClampPositionToBucket(predicted, _Flags[i]);
+    predicted = V4ClampPositionToBucket(predicted, _Flags[i], p.xyz);
     predicted.y = max(predicted.y, _CanvasPlaneY + p.w);
 
     _Predicted[i] = float4(predicted, p.w);
@@ -424,7 +448,7 @@ void ApplyDeltaKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float3 predicted = p.xyz + delta;
-    predicted = V4ClampPositionToBucket(predicted, _Flags[i]);
+    predicted = V4ClampPositionToBucket(predicted, _Flags[i], _Block0[i].xyz);
     predicted.y = max(predicted.y, _CanvasPlaneY + p.w);
     _Predicted[i] = float4(predicted, p.w);
 
@@ -492,13 +516,16 @@ void FinalizeKernel(uint3 id : SV_DispatchThreadID)
     float3 pos = predicted;
 
     // Full bucket collision (position + velocity). Escaped particles skip it forever.
+    // Containment follows the frame-start flag/footprint (V4ComputeContainInside):
+    // a particle that punched past the wall mid-plane this frame must be pulled back
+    // to the inner face, never handed to nearest-face resolution.
     if (!V4HasEscaped(flags))
     {
         float3 localPos = V4ToLocal(pos);
         float3 localVel = mul((float3x3)_BucketWorldToLocal, vel);
         float3 contactVelWorld = _BucketLinearVelocity + cross(_BucketAngularVelocity, pos - _BucketWorldOrigin);
         float3 contactVelLocal = mul((float3x3)_BucketWorldToLocal, contactVelWorld);
-        bool containInside = V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
+        bool containInside = V4ComputeContainInside(flags, localPos, V4ToLocal(oldP.xyz));
         V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness,
             profile.surfaceRestitution, profile.surfaceFriction, containInside, contactVelLocal);
         pos = V4ToWorld(localPos);

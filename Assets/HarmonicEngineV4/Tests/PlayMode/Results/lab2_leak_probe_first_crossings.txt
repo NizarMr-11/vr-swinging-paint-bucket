@@ -1,0 +1,129 @@
+V4 Lab2 leak probe — identity-stable first crossings (settle disabled)
+spawned=20782 frames=150 liveMismatchFrames=0 (must be 0)
+R=0.3 outerR=0.35 midWall=0.325 slabBottom=-0.05
+
+total first-crossings=4670
+  OuterFaceOrBeyond: 4670
+
+crossing frame histogram (10-frame bins):
+  f40-50: 270
+  f50-60: 1272
+  f60-70: 1146
+  f70-80: 731
+  f80-90: 538
+  f90-100: 384
+  f100-110: 244
+  f110-120: 84
+  f120-130: 1
+
+prev-frame state of crossers:
+  prev flagged Inside: 3301/4670   prev flagged Outside: 1369
+  prev r: mean=0.3000 min=0.3000 max=0.3000
+  prev r bins: <R-0.01: 0, R-0.01..R: 4418, R..midWall: 252, >midWall: 0
+  prev y: mean=0.0008 min=0.0000 max=0.0205
+  prev y bins: y<-0.025: 0, -0.025..0: 0, 0..0.02: 4669, >0.02: 1
+  prev radial vel: mean=-2.634 p95=3.827 max=17.843
+  prev vel.y: mean=-0.016 min=-1.448
+  hop distance prev->cur: mean=0.2664 max=1.7357
+
+=== first 25 crossing events (detail) ===
+f42 idx=20609 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.009 vy=0.020
+  prev  in=0 r=0.3000 y=0.0000 vr=1.560 vy=-0.135 |v|=4.163
+  cur   in=0 r=0.3500 y=0.0000 vr=3.340 vy=0.000
+f43 idx=20562 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.041 vy=-0.056
+  prev  in=0 r=0.3000 y=0.0000 vr=1.584 vy=-0.114 |v|=1.604
+  cur   in=0 r=0.3501 y=0.0000 vr=3.006 vy=0.000
+f43 idx=20610 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.002 vy=-0.129
+  prev  in=0 r=0.3000 y=0.0000 vr=1.483 vy=-0.074 |v|=2.396
+  cur   in=0 r=0.3500 y=0.0000 vr=3.083 vy=0.000
+f43 idx=20674 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.420 vy=-0.112
+  prev  in=0 r=0.3000 y=0.0000 vr=0.042 vy=-0.251 |v|=9.976
+  cur   in=0 r=0.3501 y=0.0000 vr=5.154 vy=0.000
+f44 idx=20470 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.2903 y=0.0000 vr=2.796 vy=-0.241
+  prev  in=1 r=0.3000 y=0.0000 vr=-0.012 vy=-0.144 |v|=8.615
+  cur   in=0 r=0.3500 y=0.0000 vr=4.766 vy=0.000
+f44 idx=20506 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.283 vy=0.048
+  prev  in=0 r=0.3000 y=0.0000 vr=0.795 vy=-0.102 |v|=8.837
+  cur   in=0 r=0.3500 y=0.0000 vr=4.698 vy=0.000
+f44 idx=20648 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.2899 y=0.0000 vr=1.313 vy=-0.323
+  prev  in=1 r=0.3000 y=0.0000 vr=-2.481 vy=-0.307 |v|=16.992
+  cur   in=0 r=0.3813 y=-0.0078 vr=10.665 vy=-0.471
+f44 idx=20679 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.078 vy=-0.131
+  prev  in=1 r=0.3000 y=0.0000 vr=-0.027 vy=-0.120 |v|=9.169
+  cur   in=0 r=0.3500 y=0.0000 vr=4.965 vy=0.000
+f44 idx=20682 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.093 vy=-0.150
+  prev  in=1 r=0.3000 y=0.0000 vr=-0.084 vy=-0.247 |v|=8.502
+  cur   in=0 r=0.3500 y=0.0000 vr=4.737 vy=0.000
+f44 idx=20708 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.687 vy=-0.242
+  prev  in=1 r=0.3000 y=0.0000 vr=-1.703 vy=-0.156 |v|=16.191
+  cur   in=0 r=0.3818 y=-0.0053 vr=10.104 vy=-0.320
+f45 idx=13029 ch=OuterFaceOrBeyond
+  prev2 in=0 r=0.3000 y=0.0000 vr=0.933 vy=0.100
+  prev  in=0 r=0.3000 y=0.0000 vr=1.257 vy=-0.180 |v|=6.894
+  cur   in=0 r=0.3500 y=0.0000 vr=4.042 vy=-0.007
+f45 idx=14564 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.020 vy=-0.082
+  prev  in=0 r=0.3000 y=0.0000 vr=1.182 vy=-0.220 |v|=11.028
+  cur   in=0 r=0.3682 y=-0.0064 vr=6.466 vy=-0.384
+f45 idx=15398 ch=OuterFaceOrBeyond
+  prev2 in=0 r=0.3000 y=0.0088 vr=-0.035 vy=-0.806
+  prev  in=1 r=0.3000 y=0.0000 vr=-1.700 vy=1.048 |v|=12.868
+  cur   in=0 r=0.3500 y=0.0147 vr=6.806 vy=0.885
+f45 idx=15786 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0146 vr=-0.030 vy=-0.745
+  prev  in=0 r=0.3000 y=0.0000 vr=3.830 vy=2.201 |v|=5.180
+  cur   in=0 r=0.3666 y=0.0340 vr=4.134 vy=2.038
+f45 idx=20015 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.2725 y=0.0000 vr=3.657 vy=-0.143
+  prev  in=1 r=0.3000 y=0.0000 vr=-0.676 vy=-0.199 |v|=9.613
+  cur   in=0 r=0.3500 y=0.0000 vr=5.217 vy=-0.003
+f45 idx=20069 ch=OuterFaceOrBeyond
+  prev2 in=0 r=0.3000 y=0.0000 vr=0.937 vy=0.061
+  prev  in=0 r=0.3000 y=0.0000 vr=2.144 vy=0.068 |v|=5.050
+  cur   in=0 r=0.3501 y=0.0000 vr=3.547 vy=0.002
+f45 idx=20070 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.138 vy=0.114
+  prev  in=1 r=0.3000 y=0.0000 vr=-0.121 vy=0.094 |v|=10.336
+  cur   in=0 r=0.3500 y=0.0011 vr=5.246 vy=0.058
+f45 idx=20103 ch=OuterFaceOrBeyond
+  prev2 in=0 r=0.3000 y=0.0000 vr=0.716 vy=-0.013
+  prev  in=0 r=0.3000 y=0.0000 vr=2.198 vy=0.050 |v|=6.213
+  cur   in=0 r=0.3505 y=-0.0030 vr=3.826 vy=-0.173
+f45 idx=20252 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.127 vy=-0.147
+  prev  in=1 r=0.3000 y=0.0000 vr=-0.335 vy=-0.199 |v|=8.367
+  cur   in=0 r=0.3500 y=0.0000 vr=4.729 vy=0.000
+f45 idx=20281 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.145 vy=-0.026
+  prev  in=1 r=0.3000 y=0.0000 vr=-0.121 vy=-0.272 |v|=8.655
+  cur   in=0 r=0.3500 y=0.0000 vr=4.797 vy=0.000
+f45 idx=20446 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.052 vy=-0.274
+  prev  in=1 r=0.3000 y=0.0000 vr=-0.266 vy=-0.236 |v|=11.371
+  cur   in=0 r=0.3510 y=-0.0067 vr=5.908 vy=-0.400
+f45 idx=20449 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-1.066 vy=-0.267
+  prev  in=1 r=0.3000 y=0.0000 vr=-0.925 vy=-0.233 |v|=14.086
+  cur   in=0 r=0.3686 y=-0.0066 vr=8.216 vy=-0.396
+f45 idx=20465 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.357 vy=-0.134
+  prev  in=1 r=0.3000 y=0.0000 vr=-1.342 vy=-0.181 |v|=10.467
+  cur   in=0 r=0.3500 y=0.0000 vr=5.723 vy=0.000
+f45 idx=20482 ch=OuterFaceOrBeyond
+  prev2 in=0 r=0.2901 y=0.0000 vr=3.523 vy=-0.173
+  prev  in=1 r=0.3000 y=0.0000 vr=-0.143 vy=-0.247 |v|=8.047
+  cur   in=0 r=0.3500 y=0.0000 vr=4.588 vy=0.000
+f45 idx=20505 ch=OuterFaceOrBeyond
+  prev2 in=1 r=0.3000 y=0.0000 vr=-0.072 vy=-0.056
+  prev  in=0 r=0.3000 y=0.0000 vr=1.702 vy=0.077 |v|=8.641
+  cur   in=0 r=0.3604 y=-0.0020 vr=4.963 vy=-0.108
