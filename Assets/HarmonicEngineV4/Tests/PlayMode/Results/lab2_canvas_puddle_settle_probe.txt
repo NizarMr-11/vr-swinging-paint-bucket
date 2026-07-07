@@ -1,0 +1,9 @@
+V4 Lab2 — canvas puddle settle probe (frame 599, rest)
+settleEpsilon=0.050 canvasY=-1 settleDistance=0.05
+outsideLive=2860 canvasLayer(y<-0.9)=1240 overRim(y>H)=435
+nearPlane=1239 onCanvasRect=1179 speed<eps=0 wouldSettle=0
+canvas-layer speed: mean=56.8175 p50=8.5406 p95=562.8093 max=1778.4490
+speed bins: <eps=0 0.05-0.2=0 0.2-1=2 >=1=1238
+
+interpretation: wouldSettle>0 with live canvas-layer particles => settle guard not needed unless speed jostle blocks calm
+EscapedTotal=11464 SettledTotal=11386

@@ -24,7 +24,7 @@ layer  yCenter   count   avgRho   rho/rho0
 === TALL iter=8 (pbfIterations=8) ===
 targetLayers=20 measuredLayers=20 particles=13461 bucketH=0.4660 restDensity=121173.00 layerBand=0.02027
 bottomLayer rho/rho0=1.1052  topLayer rho/rho0=0.2123
-avgStepMs=116.568  approxFps=8.6
+avgStepMs=83.754  approxFps=11.9
 layer  yCenter   count   avgRho   rho/rho0
    0   0.0045   1587  133923.60   1.1052
    1   0.0308    752  131449.40   1.0848
