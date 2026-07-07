@@ -84,6 +84,33 @@ namespace HarmonicEngineV4.Tests.EditMode
             Assert.IsFalse(V4BucketGeometry.ShouldContainInside(new Vector3(R + 0.1f, 0.5f, 0f), R, H, T));
         }
 
+        [Test]
+        public void ComputeContainInside_FrameStartInsideFlag_IsTrueEvenWhenOutsideFootprint()
+        {
+            uint flags = V4ParticleFlags.SetInside(0u, true);
+            var local = new Vector3(R + T * 0.9f, 0.5f, 0f);
+            var reference = new Vector3(R, 0.5f, 0f);
+            Assert.IsTrue(V4BucketGeometry.ComputeContainInside(flags, local, reference, R, H, T));
+        }
+
+        [Test]
+        public void ComputeContainInside_ReferenceAtWallFace_ContainsWhenFlagFlickeredOutside()
+        {
+            uint flags = V4ParticleFlags.SetInside(0u, false);
+            var local = new Vector3(R + T * 0.9f, 0f, 0f);
+            var reference = new Vector3(R, 0f, 0f);
+            Assert.IsTrue(V4BucketGeometry.ComputeContainInside(flags, local, reference, R, H, T));
+        }
+
+        [Test]
+        public void InsideParticlePinnedAtWallFace_ReflectsOutwardRadialVelocity()
+        {
+            var pos = new Vector3(R, 0.5f, 0f);
+            var vel = new Vector3(2f, 0f, 0f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0f, friction: 0f, containInside: true);
+            Assert.LessOrEqual(vel.x, 1e-5f, "outward radial velocity must be removed at exactly r = R");
+        }
+
         // --- IsInSolidShell ---
 
         [Test]

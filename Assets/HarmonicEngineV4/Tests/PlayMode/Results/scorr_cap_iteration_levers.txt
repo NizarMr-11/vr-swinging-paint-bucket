@@ -1,7 +1,7 @@
 V4 s_corr investigation — cap / iteration levers (kCorr=0.1, ghost ON, iter=8, 320 frames)
-baseline k=0.1: settled=0 live=13461 bottomRhoRatio=1.1069
-ratioMax=3: settled=0 live=13461 bottomRhoRatio=1.1069
-ratioMax=2: settled=0 live=13461 bottomRhoRatio=1.1069
-saturate(pow): settled=0 live=13461 bottomRhoRatio=1.1074
-scorr/iterCount: settled=0 live=13461 bottomRhoRatio=1.0979
-finalIterOnly: settled=0 live=13461 bottomRhoRatio=1.1069
+baseline k=0.1: settled=0 live=13461 bottomRhoRatio=1.1052
+ratioMax=3: settled=0 live=13461 bottomRhoRatio=1.1052
+ratioMax=2: settled=0 live=13461 bottomRhoRatio=1.1052
+saturate(pow): settled=0 live=13461 bottomRhoRatio=1.1031
+scorr/iterCount: settled=0 live=13461 bottomRhoRatio=1.0983
+finalIterOnly: settled=0 live=13461 bottomRhoRatio=1.1052

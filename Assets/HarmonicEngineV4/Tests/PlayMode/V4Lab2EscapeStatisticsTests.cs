@@ -664,5 +664,102 @@ namespace HarmonicEngineV4.Tests.PlayMode
             WriteReport("lab2_leak_channel_geometry.txt", sb.ToString());
             Assert.Pass("Leak channel geometry logged.");
         }
+
+        [Test]
+        public void Investigate_Lab2CanvasPuddleSettleProbe()
+        {
+            using var rig = V4TestRig.Create(Lab2Config());
+            rig.Bucket.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            float settleEps = rig.Root.ProfileTable[0].settleEpsilon;
+            float canvasY = -1f;
+            float canvasSize = 3f;
+
+            for (int frame = 0; frame < Frames; frame++)
+            {
+                rig.Step(1, Dt);
+            }
+
+            Vector4[] positions = rig.ReadPositions();
+            Vector4[] velocities = rig.ReadVelocities();
+            uint[] flags = rig.ReadFlags();
+            int live = rig.Root.ActiveParticleCount;
+
+            var speeds = new List<float>();
+            int outsideLive = 0;
+            int canvasLayer = 0;
+            int nearPlane = 0;
+            int onRect = 0;
+            int calmEnough = 0;
+            int wouldSettle = 0;
+            int overRimBand = 0;
+
+            for (int i = 0; i < live; i++)
+            {
+                if (V4ParticleFlags.IsInside(flags[i]) || V4ParticleFlags.HasEscaped(flags[i]))
+                {
+                    continue;
+                }
+
+                outsideLive++;
+                Vector3 p = positions[i];
+                Vector3 v = velocities[i];
+                float speed = v.magnitude;
+                float radius = positions[i].w;
+                bool near = (p.y - radius) <= (canvasY + 0.05f);
+                bool rect = p.x >= -canvasSize * 0.5f && p.x <= canvasSize * 0.5f &&
+                            p.z >= -canvasSize * 0.5f && p.z <= canvasSize * 0.5f;
+                bool calm = speed < settleEps;
+
+                if (p.y < -0.9f)
+                {
+                    canvasLayer++;
+                    speeds.Add(speed);
+                }
+
+                if (p.y > BucketHeight)
+                {
+                    overRimBand++;
+                }
+
+                if (near)
+                {
+                    nearPlane++;
+                }
+
+                if (rect)
+                {
+                    onRect++;
+                }
+
+                if (calm)
+                {
+                    calmEnough++;
+                }
+
+                if (near && rect && calm)
+                {
+                    wouldSettle++;
+                }
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine("V4 Lab2 — canvas puddle settle probe (frame 599, rest)");
+            sb.AppendLine($"settleEpsilon={settleEps:F3} canvasY={canvasY} settleDistance=0.05");
+            sb.AppendLine($"outsideLive={outsideLive} canvasLayer(y<-0.9)={canvasLayer} overRim(y>H)={overRimBand}");
+            sb.AppendLine($"nearPlane={nearPlane} onCanvasRect={onRect} speed<eps={calmEnough} wouldSettle={wouldSettle}");
+            if (speeds.Count > 0)
+            {
+                speeds.Sort();
+                sb.AppendLine($"canvas-layer speed: mean={speeds.Average():F4} p50={Percentile(speeds, 0.5f):F4} p95={Percentile(speeds, 0.95f):F4} max={speeds.Max():F4}");
+                sb.AppendLine($"speed bins: <eps={speeds.Count(s => s < settleEps)} 0.05-0.2={speeds.Count(s => s >= settleEps && s < 0.2f)} 0.2-1={speeds.Count(s => s >= 0.2f && s < 1f)} >=1={speeds.Count(s => s >= 1f)}");
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("interpretation: wouldSettle>0 with live canvas-layer particles => settle guard not needed unless speed jostle blocks calm");
+            sb.AppendLine($"EscapedTotal={rig.Root.EscapedTotal} SettledTotal={rig.Root.SettledTotal}");
+
+            WriteReport("lab2_canvas_puddle_settle_probe.txt", sb.ToString());
+            Assert.Pass("Canvas puddle settle probe logged.");
+        }
     }
 }

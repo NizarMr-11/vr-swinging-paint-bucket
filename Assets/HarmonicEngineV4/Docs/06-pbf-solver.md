@@ -38,7 +38,7 @@ Default **`pbfIterations = 2`**. Increase for stiffer fluid at higher cost.
 
 ```
 predicted = pos + vel × dt
-predicted = V4ClampPositionToBucket(predicted, flags)   // geometry containment, vel untouched
+predicted = V4ClampPositionToBucket(predicted, flags, refPos=pos)   // ComputeContainInside, vel untouched
 predicted.y = max(predicted.y, canvasPlaneY + radius)   // world canvas floor
 ```
 
@@ -81,9 +81,11 @@ Profile fields: `pbfKCorr`, `pbfNCorr`, `pbfDeltaQScale` (reference distance = s
 ```
 Δp = clamp(|Δp|, max = 0.2 × h)    // prevents detonation from deep compression
 predicted += Δp
-predicted = V4ClampPositionToBucket(predicted)
+predicted = V4ClampPositionToBucket(predicted, flags, refPos=_Block0[i])
 predicted.y = max(predicted.y, canvasPlaneY + radius)
 ```
+
+`ApplyDelta` pass binds `_Block0` read-only for the frame-start containment reference.
 
 Color diffusion (once per iteration):
 
@@ -96,10 +98,12 @@ color = lerp(ownColor, neighborAverage, colorDiffusionRate)
 1. **Velocity** from position delta: `vel = (predicted - oldPos) / dt`
 2. **XSPH viscosity** on predicted grid
 3. **Cohesion** (surface tension) along neighbor gradients
-4. **Bucket collision** (full pos + vel, profile friction/restitution)
+4. **Bucket collision** (full pos + vel, profile friction/restitution, moving-frame reflection with `_BucketLinearVelocity` / `_BucketAngularVelocity` / `_BucketWorldOrigin`, `ComputeContainInside` from flags + oldPos)
 5. **Canvas plane** bounce for survivors
 6. **Impact splat** or **slow settle** → remove particle, emit splat event
 7. Write staging buffers + compaction pair
+
+**s_corr** applies only on the final PBF iteration (`_PbfIterationIndex + 1 >= _PbfIterationCount`). Shipped `boundaryGhostWeight` default is **0** (disabled).
 
 ---
 

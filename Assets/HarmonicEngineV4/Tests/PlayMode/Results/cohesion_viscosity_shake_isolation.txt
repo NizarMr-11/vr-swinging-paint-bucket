@@ -2,14 +2,14 @@ V4 cohesion/XSPH isolation — 300-frame lateral shake
 shake: x = 0.25 * sin(4 * t)
 
 === default ===
-firstRimCrossing=f3 firstSettle=f40 settled@f299=15
-topBand mean vel.y: f0=0.0000 f3=0.1423 f30=0.0000 f299=0.0000
+firstRimCrossing=f3 firstSettle=f40 settled@f299=9
+topBand mean vel.y: f0=0.0000 f3=0.1426 f30=0.0000 f299=0.0000
 
 === cohesion=0 ===
-firstRimCrossing=f3 firstSettle=f39 settled@f299=16
-topBand mean vel.y: f0=0.0000 f3=0.1383 f30=0.0000 f299=0.0000
+firstRimCrossing=f3 firstSettle=f40 settled@f299=12
+topBand mean vel.y: f0=0.0000 f3=0.1363 f30=0.0000 f299=0.0000
 
 === viscosity=0 ===
-firstRimCrossing=f3 firstSettle=f24 settled@f299=1520
-topBand mean vel.y: f0=0.0000 f3=0.2549 f30=-0.2793 f299=0.2159
+firstRimCrossing=f3 firstSettle=f29 settled@f299=508
+topBand mean vel.y: f0=0.0000 f3=0.2571 f30=0.0036 f299=0.3286
 

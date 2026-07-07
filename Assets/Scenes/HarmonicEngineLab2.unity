@@ -195,7 +195,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 95ad25e491bd64c4a800c19928885937, type: 3}
   m_Name: 
   m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Simulation.V4SpawnZone
-  radius: 0.15
+  radius: 0.1
   color: {r: 0, g: 0, b: 0, a: 1}
   profile: {fileID: 0}
 --- !u!4 &811744848

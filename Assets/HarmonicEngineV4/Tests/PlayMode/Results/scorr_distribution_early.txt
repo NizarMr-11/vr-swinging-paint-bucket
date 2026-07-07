@@ -6,22 +6,22 @@ floor pairs: pairs=9596 |s_corr| min=0.000E+000 max=9.059E-003 mean=1.174E-003 r
 mid pairs  : pairs=102223 |s_corr| min=0.000E+000 max=1.039E-001 mean=1.267E-003 r min=0.00779 max=0.04055 mean=0.02994 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
 floor/mid mean |s_corr| ratio=0.9x
 --- frame 5 aboveRim=0 settled=0 ---
-floor pairs: pairs=29691 |s_corr| min=0.000E+000 max=1.629E-001 mean=3.533E-003 r min=0.00053 max=0.04055 mean=0.03009 deltaQ=0.00811 frac(r<deltaQ)=0.4 % frac(wRatio>1)=0.4 %
-mid pairs  : pairs=100925 |s_corr| min=0.000E+000 max=1.609E-001 mean=2.281E-003 r min=0.00141 max=0.04055 mean=0.03084 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
+floor pairs: pairs=29500 |s_corr| min=0.000E+000 max=1.550E-001 mean=3.426E-003 r min=0.00265 max=0.04055 mean=0.03012 deltaQ=0.00811 frac(r<deltaQ)=0.3 % frac(wRatio>1)=0.3 %
+mid pairs  : pairs=101020 |s_corr| min=0.000E+000 max=1.604E-001 mean=2.274E-003 r min=0.00153 max=0.04055 mean=0.03087 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
 floor/mid mean |s_corr| ratio=1.5x
---- frame 10 aboveRim=8 settled=0 ---
-floor pairs: pairs=41804 |s_corr| min=0.000E+000 max=1.632E-001 mean=4.703E-003 r min=0.00001 max=0.04055 mean=0.02975 deltaQ=0.00811 frac(r<deltaQ)=0.9 % frac(wRatio>1)=0.9 %
-mid pairs  : pairs=113867 |s_corr| min=0.000E+000 max=1.434E-001 mean=2.385E-003 r min=0.00420 max=0.04055 mean=0.03093 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
+--- frame 10 aboveRim=4 settled=0 ---
+floor pairs: pairs=40538 |s_corr| min=0.000E+000 max=1.631E-001 mean=4.716E-003 r min=0.00031 max=0.04055 mean=0.02980 deltaQ=0.00811 frac(r<deltaQ)=0.9 % frac(wRatio>1)=0.9 %
+mid pairs  : pairs=112449 |s_corr| min=0.000E+000 max=1.395E-001 mean=2.385E-003 r min=0.00462 max=0.04055 mean=0.03093 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
 floor/mid mean |s_corr| ratio=2.0x
 --- frame 20 aboveRim=0 settled=0 ---
-floor pairs: pairs=43914 |s_corr| min=0.000E+000 max=1.632E-001 mean=5.112E-003 r min=0.00000 max=0.04055 mean=0.02945 deltaQ=0.00811 frac(r<deltaQ)=1.0 % frac(wRatio>1)=1.0 %
-mid pairs  : pairs=152956 |s_corr| min=0.000E+000 max=1.613E-001 mean=2.789E-003 r min=0.00128 max=0.04055 mean=0.03085 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
+floor pairs: pairs=41944 |s_corr| min=0.000E+000 max=1.632E-001 mean=5.056E-003 r min=0.00004 max=0.04055 mean=0.02959 deltaQ=0.00811 frac(r<deltaQ)=1.0 % frac(wRatio>1)=1.0 %
+mid pairs  : pairs=152887 |s_corr| min=0.000E+000 max=1.567E-001 mean=2.804E-003 r min=0.00236 max=0.04055 mean=0.03085 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
 floor/mid mean |s_corr| ratio=1.8x
 --- frame 30 aboveRim=0 settled=0 ---
-floor pairs: pairs=43980 |s_corr| min=0.000E+000 max=1.630E-001 mean=5.202E-003 r min=0.00037 max=0.04055 mean=0.02939 deltaQ=0.00811 frac(r<deltaQ)=1.0 % frac(wRatio>1)=1.0 %
-mid pairs  : pairs=152627 |s_corr| min=0.000E+000 max=1.607E-001 mean=2.831E-003 r min=0.00144 max=0.04055 mean=0.03080 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
+floor pairs: pairs=43782 |s_corr| min=0.000E+000 max=1.632E-001 mean=4.958E-003 r min=0.00008 max=0.04055 mean=0.02955 deltaQ=0.00811 frac(r<deltaQ)=1.0 % frac(wRatio>1)=1.0 %
+mid pairs  : pairs=153952 |s_corr| min=0.000E+000 max=1.600E-001 mean=2.775E-003 r min=0.00166 max=0.04055 mean=0.03084 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
 floor/mid mean |s_corr| ratio=1.8x
 --- frame 39 aboveRim=0 settled=0 ---
-floor pairs: pairs=43384 |s_corr| min=0.000E+000 max=1.632E-001 mean=5.219E-003 r min=0.00008 max=0.04055 mean=0.02943 deltaQ=0.00811 frac(r<deltaQ)=0.9 % frac(wRatio>1)=0.9 %
-mid pairs  : pairs=151643 |s_corr| min=0.000E+000 max=1.551E-001 mean=2.815E-003 r min=0.00263 max=0.04055 mean=0.03081 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
-floor/mid mean |s_corr| ratio=1.9x
+floor pairs: pairs=43247 |s_corr| min=0.000E+000 max=1.632E-001 mean=5.092E-003 r min=0.00002 max=0.04055 mean=0.02949 deltaQ=0.00811 frac(r<deltaQ)=1.0 % frac(wRatio>1)=1.0 %
+mid pairs  : pairs=152849 |s_corr| min=0.000E+000 max=1.589E-001 mean=2.821E-003 r min=0.00192 max=0.04055 mean=0.03083 deltaQ=0.00811 frac(r<deltaQ)=0.0 % frac(wRatio>1)=0.0 %
+floor/mid mean |s_corr| ratio=1.8x

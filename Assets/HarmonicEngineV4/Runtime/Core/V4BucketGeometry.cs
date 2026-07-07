@@ -51,6 +51,28 @@ namespace HarmonicEngineV4.Core
             return r2 <= innerRadius * innerRadius;
         }
 
+        /// <summary>
+        /// Containment decision for a mid-frame position (GPU: V4ComputeContainInside).
+        /// Callers pass frame-start flags, current local position, and frame-start local
+        /// reference position (from _Block0). The reference footprint with face tolerance
+        /// recovers particles pinned at exactly r = R that flicker Outside in classification.
+        /// </summary>
+        public static bool ComputeContainInside(uint flags, Vector3 localPos, Vector3 refLocalPos, float innerRadius, float height, float wallThickness)
+        {
+            if (V4ParticleFlags.IsInside(flags))
+            {
+                return true;
+            }
+
+            if (ShouldContainInside(localPos, innerRadius, height, wallThickness))
+            {
+                return true;
+            }
+
+            const float faceEps = 1e-4f;
+            return ShouldContainInside(refLocalPos, innerRadius + faceEps, height, wallThickness);
+        }
+
         /// <summary>True when the point penetrates the solid shell (wall band below rim, or floor slab).</summary>
         public static bool IsInSolidShell(Vector3 localPos, float innerRadius, float height, float wallThickness)
         {

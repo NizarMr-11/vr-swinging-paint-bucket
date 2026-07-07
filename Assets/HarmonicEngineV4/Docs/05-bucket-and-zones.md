@@ -25,10 +25,22 @@ These are **separate systems**:
 | | Classification | Containment collision |
 |---|----------------|----------------------|
 | **Purpose** | Gameplay state: carry, zones, escape | Physical wall/floor response |
-| **Function** | `V4BucketIsInside` | `V4BucketShouldContainInside` |
+| **Function** | `V4BucketIsInside` | `V4ComputeContainInside` (GPU) / `V4BucketGeometry.ComputeContainInside` (CPU) |
 | **Floor rule** | Strict: `y ≥ 0` | Allows brief sub-floor lag (moving bucket) |
 | **Deep below floor** | Outside | Not contained (free fall to canvas) |
 | **Updated by** | `ClassifyKernel` only | Predict, ApplyDelta, Finalize |
+
+### ComputeContainInside (caller contract)
+
+Containment is **not** geometry-only. Each collision call site passes:
+
+1. **Frame-start Inside flag** — authoritative classification
+2. **Current-position footprint** — `V4BucketShouldContainInside(localPos)`
+3. **Frame-start reference footprint** — `ShouldContainInside(refLocalPos, R + faceEps)` where `faceEps = 1e-4`
+
+The reference check is load-bearing: solver-loop clamps pin pressurized particles at exactly `r = R`. Classification can flicker them Outside by one float ulp; without the reference footprint, a spawn-collapse jet can hop them past the wall mid-plane in a single step and nearest-face resolution ejects them through the wall.
+
+`ApplyDelta` binds `_Block0` for the frame-start reference; `Finalize` uses `oldP.xyz`.
 
 ### ShouldContainInside
 
@@ -77,14 +89,20 @@ Holes are **not** geometric cutouts in collision — escape is exclusively via Z
 
 ## Collision resolution
 
-`V4BucketResolveCollision(ref pos, ref vel, …, containInside)`
+`V4BucketResolveCollision(ref pos, ref vel, …, containInside, contactVelLocal)`
+
+Reflection uses **moving-frame** velocity: subtract bucket contact velocity at the impact point before reflecting, then add it back (`V4ReflectAgainstNormalInMovingFrame`). Contact velocity:
+
+```
+contactVelWorld = linearVel + cross(angularVel, worldPos - bucketOrigin)
+```
 
 ### When `containInside == true`
 
-Used for particles in the **containment footprint** (geometry, not flag):
+Used when `V4ComputeContainInside` returns true:
 
-1. If `y < 0` → clamp to floor (`y = 0`), reflect vertical velocity
-2. If `r > innerRadius` → scale position to inner wall, reflect inward
+1. If `y < 0` → clamp to floor (`y = 0`), reflect vertical velocity (moving frame)
+2. **Face-contact band** (`r ≥ innerRadius - 1e-4`): clamp position to inner wall if `r > R`, reflect inward radial velocity (moving frame). Required because solver-loop clamps pin particles at exactly `r = R` — without the band, outward jet velocity never gets reflected and accumulates until a flag-flicker frame ejects the particle.
 
 Open top (`y > height`): no collision — fluid can slosh over rim.
 
@@ -106,9 +124,9 @@ Skip all bucket collision in Finalize permanently.
 
 | Motion | Expected behavior |
 |--------|-------------------|
-| Lateral shake | Carry force co-moves inside fluid; containment prevents wall/floor tunneling |
+| Lateral shake | Carry force co-moves inside fluid; `ComputeContainInside` + face-contact band prevent wall/floor tunneling |
 | Upward move | Fluid lags in world space → brief local `y < 0`; `ShouldContainInside` keeps floor collision active |
-| Tilt / spin | `AngularVelocity` in carry; wall band floor fix prevents corner leaks |
+| Tilt / spin | `AngularVelocity` in carry; collision reflects in wall moving frame; wall-band floor fix prevents corner leaks |
 
 Regression tests: `V4ContainmentTests` (PlayMode).
 

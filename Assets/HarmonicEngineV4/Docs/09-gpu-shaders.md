@@ -44,11 +44,16 @@ Extra uniforms: `_Gravity`, `_DeltaTime`, `_CarryRate`, bucket linear/angular ve
 | `DensityKernel` | `_Predicted`, `_Densities`, `_BlendedColors` | `_PackedColorsRead`, grid buffers |
 | `LambdaKernel` | `_Predicted`, `_Densities`, `_Lambdas` | `_Flags`, `_Profiles`, grid |
 | `SolveDeltaKernel` | `_Predicted`, `_Lambdas`, `_Deltas` | `_Flags`, `_Profiles`, grid |
-| `ApplyDeltaKernel` | `_Predicted`, `_Deltas`, `_BlendedColors`, `_PackedColors` | `_Flags`, `_Profiles` |
+| `ApplyDeltaKernel` | `_Predicted`, `_Deltas`, `_BlendedColors`, `_PackedColors` | `_Block0`, `_Flags`, `_Profiles` |
+| `FinalizeTermsProbeKernel` | `_DebugFinalizeProbe` | `_Block0`, `_PredictedRead`, `_Densities`, `_Flags`, `_Profiles`, grid |
 | `FinalizeKernel` | `_WriteBlock0/1`, `_WritePackedColors`, `_WriteFlags`, `_CompactionPairs`, `_Counters`, `_SplatEvents` | `_Block0`, `_Block1`, `_Flags`, `_PackedColorsRead`, `_PredictedRead`, `_Profiles`, `_Holes`, grid |
 | `GatherKernel` | `_GatherBlock0/1`, `_GatherColors`, `_GatherFlags` | `_SortedPairs`, `_StageBlock0/1`, `_StageColors`, `_StageFlags` |
 
-Key uniforms: `_DeltaTime`, `_SmoothingRadius`, `_CellSize`, `_GridResolution`, `_PbfEpsilon`, canvas plane/min/size, `_SettleDistance`, `_MaxSplatEvents`.
+Key uniforms: `_DeltaTime`, `_SmoothingRadius`, `_CellSize`, `_GridResolution`, `_PbfEpsilon`, `_PbfIterationIndex`, `_PbfIterationCount`, `_BoundaryGhostWeight`, canvas plane/min/size, `_SettleDistance`, `_MaxSplatEvents`.
+
+**Bucket kinematics** (bound to `V4PbfSolver` for Finalize moving-frame collision, also on `V4ExternalForces` for carry): `_BucketLinearVelocity`, `_BucketAngularVelocity`, `_BucketWorldOrigin`, `_BucketWorldToLocal`, `_BucketLocalToWorld`.
+
+**Test-only debug uniforms** on `V4PbfSolver`: `_DebugTrackCount`, `_DebugTrackIndices[]`, `_DebugFinalizeProbe`, `_DebugMaxCorrectionScale`, `_DebugScorrRatioMax`, `_DebugScorrApplyMode`, `_DebugScorrSaturatePow`, `_DebugDisableBoundaryGhosts`.
 
 ---
 

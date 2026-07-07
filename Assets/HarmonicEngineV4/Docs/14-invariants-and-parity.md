@@ -30,8 +30,9 @@ At most one hole claims a particle (nearest within d2).
 ### 4. Classification vs containment
 
 - **Inside flag** — classification footprint, drives carry/zones
-- **ShouldContainInside** — collision footprint with floor lag band
-- A particle may be Outside flag but still geometry-contained (float noise recovery)
+- **ComputeContainInside** — collision decision: frame-start Inside flag OR current footprint OR frame-start reference footprint (with `faceEps = 1e-4` on radius)
+- A particle may be Outside flag but still contained via reference footprint (float noise at `r = R`)
+- **ShouldContainInside** alone is insufficient at call sites — use `ComputeContainInside`
 
 ### 5. Deterministic compaction
 
@@ -86,6 +87,7 @@ Each manifest pass ≤ 8 RW buffers. Validated by `V4ManifestValidation` at init
 
 - Skip samples within `1e-4` of geometric boundaries (float noise)
 - Test collision for both `containInside = true` and `false`
+- Parity tests pass `contactVelLocal = 0` (stationary bucket); moving-frame reflection is a call-site input — both CPU and GPU must use `ReflectAgainstNormalInMovingFrame` inside `ResolveCollision`
 - Color pack/unpack must be lossless for RGBA8
 - Use `V4TestKernels.compute` parity kernels in PlayMode
 
@@ -103,7 +105,7 @@ Each manifest pass ≤ 8 RW buffers. Validated by `V4ManifestValidation` at init
 
 | Symptom | Likely break |
 |---------|--------------|
-| Particles pass through walls | Containment using Inside flag instead of geometry; wall-band floor gap |
+| Particles pass through walls | `containInside` computed from geometry only (must use `ComputeContainInside`); missing face-contact band at `r = R`; wall-band floor gap |
 | Escape particles re-enter bucket | Classify not sole escape authority |
 | Nondeterministic canvas | Splat order not sorted |
 | GPU/CPU test mismatch | HLSL edited without C# reference update |

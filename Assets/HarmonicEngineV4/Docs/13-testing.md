@@ -60,6 +60,22 @@ Fast — run on every commit without GPU.
 | `V4RendererSmokeTests` | Renderer init smoke |
 | `V4RunRecorderTests` | JSONL recording |
 
+### Investigation suites (report-only, no behavior assertions)
+
+These write numeric reports to `Tests/PlayMode/Results/` and log to the Unity console:
+
+| File | Purpose |
+|------|---------|
+| `V4Lab2EscapeStatisticsTests` | Lab2 rest escape paths, floor/wall forensics, leak channel geometry, canvas puddle settle probe |
+| `V4Lab2LeakProbeTests` | Identity-stable first wall crossings (settle disabled) |
+| `V4CollisionEnergyInvestigationTests` | Shake kinetic energy, moving-frame reflection regression |
+| `V4CohesionViscosityInvestigationTests` | Cohesion/XSPH formula probes, isolation tests |
+| `V4ApplyDeltaClampInvestigationTests` | ApplyDelta max-correction clamp sweeps |
+| `V4ScorrInvestigationTests` | s_corr final-iteration behavior |
+| `V4StackingLeakInvestigationTests` | Stacking depth / rim leak sweeps |
+
+Report convention: `*.txt` under `Assets/HarmonicEngineV4/Tests/PlayMode/Results/` (gitignored in some setups; regenerate by re-running the test).
+
 ### V4TestRig usage
 
 ```csharp

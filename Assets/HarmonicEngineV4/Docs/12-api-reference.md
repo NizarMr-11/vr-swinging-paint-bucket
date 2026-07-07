@@ -42,6 +42,17 @@ See [Configuration](11-configuration.md).
 | `ProfileTable` | IReadOnlyList<V4LiquidProfile> | Profile list |
 | `ActiveManifest` | V4PassManifest | Current pass list |
 
+### Debug / investigation (tests)
+
+| Member | Description |
+|--------|-------------|
+| `DebugTrackParticleIndices` | Up to 8 particle indices for `FinalizeTermsProbeKernel` |
+| `DebugAfterFinalizeTermsProbe` | When true, runs probe after Finalize |
+| `DebugBeforeApplyDelta` | Hook before ApplyDelta dispatch |
+| `DebugMaxCorrectionScale` | Override ApplyDelta clamp (`0` = default 0.2h, `<0` = uncapped) |
+| `ReadDensities(float[])` | GPU density readback |
+| `ReadPredicted(Vector4[])` | GPU predicted-position readback |
+
 ### Events
 
 ```csharp
@@ -103,7 +114,9 @@ Safe to call from EditMode tests or tools without GPU:
 ```csharp
 V4BucketGeometry.IsInside(localPos, innerRadius, height);
 V4BucketGeometry.ShouldContainInside(localPos, innerRadius, height, wallThickness);
-V4BucketGeometry.ResolveCollision(ref pos, ref vel, ...);
+V4BucketGeometry.ComputeContainInside(flags, localPos, refLocalPos, innerRadius, height, wallThickness);
+V4BucketGeometry.ResolveCollision(ref pos, ref vel, ..., contactVelLocal: Vector3.zero);
+V4BucketGeometry.ReflectAgainstNormalInMovingFrame(ref vel, normal, contactVel, restitution, friction);
 V4ZoneMath.Classify(...);
 V4CanvasSplatMath.ApplySplat(...);
 V4ParticleFlags.IsInside / HasEscaped / GetZone / GetProfile;

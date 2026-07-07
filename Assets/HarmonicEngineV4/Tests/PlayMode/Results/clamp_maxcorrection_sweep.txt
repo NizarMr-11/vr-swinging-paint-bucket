@@ -1,5 +1,5 @@
 V4 ApplyDelta maxCorrection sweep — rest tall column, 120 frames
-0.2h (default): settled=0 aboveRim=0 meanClampFrac=18.2 % rimLaunches=10
-0.4h: settled=595 aboveRim=38 meanClampFrac=12.8 % rimLaunches=5664
-0.6h: settled=2138 aboveRim=178 meanClampFrac=12.0 % rimLaunches=40045
-uncapped: settled=1539 aboveRim=3336 meanClampFrac=0.0 % rimLaunches=144199
+0.2h (default): settled=0 aboveRim=0 meanClampFrac=18.1 % rimLaunches=8
+0.4h: settled=566 aboveRim=124 meanClampFrac=32.3 % rimLaunches=7214
+0.6h: settled=1777 aboveRim=638 meanClampFrac=66.9 % rimLaunches=56761
+uncapped: settled=145 aboveRim=5518 meanClampFrac=0.0 % rimLaunches=120024

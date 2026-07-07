@@ -12,8 +12,11 @@ A **Unity VR paint-bucket experience** where fluid is simulated as **millions of
 
 | Layer | Folder | Role |
 |-------|--------|------|
-| **Engine** | `AdvancedHarmonicEngine_V3/` | Reusable GPU fluid simulation framework |
+| **Engine (current)** | `HarmonicEngineV4/` | GPU PBF fluid simulation — bucket zones, holes, canvas splats, deterministic compaction |
+| **Engine (legacy)** | `AdvancedHarmonicEngine_V3/` | Earlier GPU fluid framework (SPH/PBF hybrid) |
 | **Game** | `SwingingPaintBucket/` | Bucket, pendulum, canvas, scene wiring |
+
+> **HarmonicEngineV4** is the active simulation engine for new work. Full documentation: [`Assets/HarmonicEngineV4/Docs/README.md`](../Assets/HarmonicEngineV4/Docs/README.md) (bucket geometry, PBF solver, GPU shaders, testing, parity invariants).
 
 ---
 
