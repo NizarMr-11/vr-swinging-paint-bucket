@@ -1,0 +1,4 @@
+Beyond-outer first-crossing forensics (firm hold)
+maxCorrection(0.2h)=0.004309 wallThickness=0.05
+max single-step budget ~ 5 * maxCorr = 0.02154
+

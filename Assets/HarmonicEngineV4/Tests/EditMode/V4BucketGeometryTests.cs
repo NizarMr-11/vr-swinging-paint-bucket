@@ -185,6 +185,18 @@ namespace HarmonicEngineV4.Tests.EditMode
         }
 
         [Test]
+        public void OutsideParticleBeyondOuterShell_IsClampedToOuterFace()
+        {
+            var pos = new Vector3(R + T + 0.02f, 0.5f, 0f);
+            var vel = new Vector3(2f, 0f, 0f);
+            V4BucketGeometry.ResolveCollision(ref pos, ref vel, R, H, T, restitution: 0.1f, friction: 0.2f, containInside: false);
+
+            float r = Mathf.Sqrt(pos.x * pos.x + pos.z * pos.z);
+            Assert.AreEqual(R + T, r, 1e-5f, "beyond-outer particle must clamp to outer face");
+            Assert.LessOrEqual(vel.x, 1e-4f, "outward radial velocity must be removed");
+        }
+
+        [Test]
         public void OutsideParticlePenetratingWall_IsPushedOutToOuterRadius()
         {
             var pos = new Vector3(R + T - 0.005f, 0.5f, 0f);

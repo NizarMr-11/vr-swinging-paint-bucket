@@ -181,6 +181,13 @@ void V4BucketResolveCollision(
 
     if (r >= outerRadius)
     {
+        float safeR = max(r, 1e-6);
+        float scale = outerRadius / safeR;
+        localPos.x *= scale;
+        localPos.z *= scale;
+
+        float3 radialDir = float3(localPos.x, 0.0, localPos.z) / outerRadius;
+        V4ReflectAgainstNormalInMovingFrame(localVel, -radialDir, contactVelLocal, restitution, friction);
         return;
     }
 

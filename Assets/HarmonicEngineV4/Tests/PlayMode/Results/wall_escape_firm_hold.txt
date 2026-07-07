@@ -1,0 +1,63 @@
+V4 firm directional hold wall-escape forensics
+spawned=12966 frames=300 motion=+Z ramp 60f then hold 1.2m/s
+density=800000 pbfIter=4 ghostWeight=0.149 settle=off
+
+frame  live  outside  beyondOuter  overRim  wallBand  newEsc  falseLatch  in->out  cif  speedZ
+   60 12966     6015           0    5214      192      8          0      26   6   1.20
+   90 12966     5720           0    4923      279      8          0      28  13   1.20
+  120 12966     5378           0    4566      350     13          0      24  11   1.20
+  132 12966     5257           0    4453      371     14          0      17  11   1.20
+  150 12966     5117           0    4276      406      9          0      33  13   1.20
+  180 12966     4882           0    4050      438     14          0      25  15   1.20
+  210 12966     4753           0    3931      449     11          0      24  13   1.20
+  240 12966     4584           0    3765      462     13          0      26  10   1.20
+  270 12966     4419           0    3607      478     10          0      23  19   1.20
+  299 12966     4263           0    3412      499     10          0      24  15   1.20
+
+--- peak frames ---
+peak beyondOuter=0@f0 insideToOutside=349@f17 cif=356@f16
+total falseLatch=0 legitEscape=3122
+
+--- first 40 detail events (escapes + transitions) ---
+f1 legitEscape idx=4795 hole=0 dist=0.0109 d2=0.1350 r=0.0892 y=0.0000
+f1 legitEscape idx=4796 hole=0 dist=0.0141 d2=0.1350 r=0.0897 y=0.0000
+f1 legitEscape idx=4814 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4815 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=4833 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4834 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=4852 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4853 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=4871 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4872 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=4889 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4890 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=4906 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4907 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=4922 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4923 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=4937 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4938 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=4951 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4952 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=4962 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4963 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=4969 hole=0 dist=0.0131 d2=0.1350 r=0.0871 y=0.0000
+f1 legitEscape idx=4970 hole=0 dist=0.0149 d2=0.1350 r=0.0883 y=0.0000
+f1 legitEscape idx=5072 hole=0 dist=0.0017 d2=0.1350 r=0.1000 y=0.0000
+f1 legitEscape idx=5073 hole=0 dist=0.0091 d2=0.1350 r=0.1004 y=0.0000
+f1 legitEscape idx=5091 hole=0 dist=0.0016 d2=0.1350 r=0.1009 y=0.0000
+f1 legitEscape idx=5092 hole=0 dist=0.0131 d2=0.1350 r=0.1027 y=0.0000
+f1 legitEscape idx=5110 hole=0 dist=0.0016 d2=0.1350 r=0.1009 y=0.0000
+f1 legitEscape idx=5111 hole=0 dist=0.0131 d2=0.1350 r=0.1027 y=0.0000
+f1 legitEscape idx=5129 hole=0 dist=0.0016 d2=0.1350 r=0.1009 y=0.0000
+f1 legitEscape idx=5130 hole=0 dist=0.0131 d2=0.1350 r=0.1027 y=0.0000
+f1 legitEscape idx=5148 hole=0 dist=0.0016 d2=0.1350 r=0.1009 y=0.0000
+f1 legitEscape idx=5149 hole=0 dist=0.0131 d2=0.1350 r=0.1027 y=0.0000
+f1 legitEscape idx=5166 hole=0 dist=0.0016 d2=0.1350 r=0.1009 y=0.0000
+f1 legitEscape idx=5167 hole=0 dist=0.0131 d2=0.1350 r=0.1027 y=0.0000
+f1 legitEscape idx=5183 hole=0 dist=0.0016 d2=0.1350 r=0.1009 y=0.0000
+f1 legitEscape idx=5184 hole=0 dist=0.0131 d2=0.1350 r=0.1027 y=0.0000
+f1 legitEscape idx=5199 hole=0 dist=0.0016 d2=0.1350 r=0.1009 y=0.0000
+f1 legitEscape idx=5200 hole=0 dist=0.0131 d2=0.1350 r=0.1027 y=0.0000
+
+--- beyondOuter below rim @ f299 (sample) ---

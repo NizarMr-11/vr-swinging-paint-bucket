@@ -21,7 +21,9 @@ namespace HarmonicEngineV4.Logging
         ZoneClassification,
         CanvasSettle,
         BufferBinding,
-        Recording
+        Recording,
+        BoundaryPressure,
+        WallEscapeForensics
     }
 
     public interface IV4LogSink

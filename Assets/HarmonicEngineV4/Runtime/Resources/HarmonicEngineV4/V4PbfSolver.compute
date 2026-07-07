@@ -13,6 +13,7 @@
 #pragma kernel ApplyDeltaKernel
 #pragma kernel FinalizeKernel
 #pragma kernel FinalizeTermsProbeKernel
+#pragma kernel BoundaryPressureNeighborKernel
 #pragma kernel GatherKernel
 
 #include "Include/V4Common.hlsl"
@@ -119,11 +120,13 @@ float _DebugMaxCorrectionScale;    // test instrumentation: 0=default 0.2h, >0=s
 uint _PbfIterationIndex;
 uint _PbfIterationCount;
 
-// Test instrumentation: FinalizeTermsProbeKernel writes one row per tracked particle.
+// Test instrumentation: FinalizeTermsProbeKernel writes six float4 rows per tracked slot.
 static const uint kV4DebugFinalizeProbeSlots = 8u;
+static const uint kV4DebugFinalizeProbeRowsPerSlot = 6u;
 uint _DebugTrackCount;
 uint _DebugTrackIndices[kV4DebugFinalizeProbeSlots];
 RWStructuredBuffer<float4> _DebugFinalizeProbe;
+RWStructuredBuffer<uint> _DebugBoundaryPressureNeighbors;
 
 // ---------------------------------------------------------------------------
 
@@ -210,8 +213,10 @@ bool V4ComputeContainInside(uint flags, float3 localPos, float3 refLocalPos)
     return V4BucketShouldContainInside(refLocalPos, _BucketInnerRadius + faceEps, _BucketHeight, _BucketWallThickness);
 }
 
-// Position-only bucket clamp used inside the solver loop (velocity untouched).
-// refWorldPos is the pre-step position the containment decision is anchored to.
+// Position-only bucket clamp used inside the solver loop. Uses the same moving contact
+// frame as FinalizeKernel: approach velocity from (worldPos - refWorldPos) and the
+// per-point bucket contact velocity. Reflected velocity delta is fed back into the
+// clamped world position so wall-pinned PBF corrections see a co-moving boundary.
 float3 V4ClampPositionToBucket(float3 worldPos, uint flags, float3 refWorldPos)
 {
     if (V4HasEscaped(flags))
@@ -221,10 +226,15 @@ float3 V4ClampPositionToBucket(float3 worldPos, uint flags, float3 refWorldPos)
 
     float3 localPos = V4ToLocal(worldPos);
     bool containInside = V4ComputeContainInside(flags, localPos, V4ToLocal(refWorldPos));
-    float3 localVel = float3(0, 0, 0);
+    float3 approachVelWorld = (worldPos - refWorldPos) / max(_DeltaTime, 1e-6);
+    float3 localVel = mul((float3x3)_BucketWorldToLocal, approachVelWorld);
+    float3 localVelBefore = localVel;
+    float3 contactVelWorld = _BucketLinearVelocity + cross(_BucketAngularVelocity, worldPos - _BucketWorldOrigin);
+    float3 contactVelLocal = mul((float3x3)_BucketWorldToLocal, contactVelWorld);
     V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, 0.0, 0.0,
-        containInside, float3(0, 0, 0));
-    return V4ToWorld(localPos);
+        containInside, contactVelLocal);
+    float3 velDeltaWorld = mul((float3x3)_BucketLocalToWorld, localVel - localVelBefore) * _DeltaTime;
+    return V4ToWorld(localPos) + velDeltaWorld;
 }
 
 [numthreads(64, 1, 1)]
@@ -396,7 +406,7 @@ void SolveDeltaKernel(uint3 id : SV_DispatchThreadID)
                 wRatio = min(wRatio, _DebugScorrRatioMax);
             }
 
-            float scorrPow = pow(wRatio, profile.pbfNCorr);
+            float scorrPow = pow(abs(wRatio), profile.pbfNCorr);
             if (_DebugScorrSaturatePow != 0u)
             {
                 scorrPow = saturate(scorrPow);
@@ -615,8 +625,13 @@ void FinalizeKernel(uint3 id : SV_DispatchThreadID)
 }
 
 // Test-only probe: mirrors FinalizeKernel XSPH/cohesion neighbor loop without mutating state.
-// Writes 3 float4 rows per tracked slot: meta(density,neighborCount,0,0),
-// cohesionDelta, xsphDelta.
+// Writes 6 float4 rows per tracked slot:
+//   0 meta(density, neighborCount, restDensity, C)
+//   1 cohesionDelta
+//   2 xsphDelta
+//   3 y, r, lambda, deltaPreClamp
+//   4 deltaPostClamp, clamped, inside, containInside
+//   5 zone
 [numthreads(64, 1, 1)]
 void FinalizeTermsProbeKernel(uint3 id : SV_DispatchThreadID)
 {
@@ -680,10 +695,76 @@ void FinalizeTermsProbeKernel(uint3 id : SV_DispatchThreadID)
     float3 cohesionDelta = profile.cohesion * (cohesion / selfW) * _DeltaTime;
     float3 xsphDelta = profile.viscosity * (xsph / selfW);
 
-    uint baseRow = (uint)slot * 3u;
-    _DebugFinalizeProbe[baseRow + 0u] = float4(_Densities[i], (float)neighborCount, 0.0, 0.0);
+    float3 localPos = V4ToLocal(predicted);
+    float radial = length(float2(localPos.x, localPos.z));
+    float restDensity = max(profile.restDensity, 1e-4);
+    float density = _Densities[i];
+    float constraint = density / restDensity - 1.0;
+    float lambda = _Lambdas[i];
+
+    float3 deltaPre = _Deltas[i].xyz;
+    float maxCorrection = 0.2 * h;
+    if (_DebugMaxCorrectionScale < 0.0)
+    {
+        maxCorrection = 1e10;
+    }
+    else if (_DebugMaxCorrectionScale > 0.0)
+    {
+        maxCorrection = _DebugMaxCorrectionScale * h;
+    }
+
+    float deltaPreLen = length(deltaPre);
+    float3 deltaPost = deltaPre;
+    bool clamped = false;
+    if (deltaPreLen > maxCorrection)
+    {
+        clamped = true;
+        deltaPost = deltaPre * (maxCorrection / deltaPreLen);
+    }
+
+    uint zone = V4GetZone(flags);
+    bool inside = V4IsInside(flags);
+    bool containInside = V4ComputeContainInside(flags, localPos, V4ToLocal(oldP.xyz));
+
+    uint baseRow = (uint)slot * kV4DebugFinalizeProbeRowsPerSlot;
+    _DebugFinalizeProbe[baseRow + 0u] = float4(density, (float)neighborCount, restDensity, constraint);
     _DebugFinalizeProbe[baseRow + 1u] = float4(cohesionDelta, 0.0);
     _DebugFinalizeProbe[baseRow + 2u] = float4(xsphDelta, 0.0);
+    _DebugFinalizeProbe[baseRow + 3u] = float4(localPos.y, radial, lambda, deltaPreLen);
+    _DebugFinalizeProbe[baseRow + 4u] = float4(length(deltaPost), clamped ? 1.0 : 0.0, inside ? 1.0 : 0.0, containInside ? 1.0 : 0.0);
+    _DebugFinalizeProbe[baseRow + 5u] = float4((float)zone, 0.0, 0.0, 0.0);
+}
+
+// Diagnostic: per-particle neighbor count via the same 27-cell stencil as DensityKernel.
+[numthreads(64, 1, 1)]
+void BoundaryPressureNeighborKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    float3 pi = _PredictedRead[i].xyz;
+    float h = _SmoothingRadius;
+    uint neighborCount = 0u;
+
+    V4_FOREACH_NEIGHBOR_BEGIN(pi, j)
+        if (j == i || j >= _ActiveParticleCount)
+        {
+            continue;
+        }
+
+        float3 diff = pi - _PredictedRead[j].xyz;
+        if (length(diff) > h)
+        {
+            continue;
+        }
+
+        neighborCount++;
+    V4_FOREACH_NEIGHBOR_END
+
+    _DebugBoundaryPressureNeighbors[i] = neighborCount;
 }
 
 // After the external radix sort of _CompactionPairs, survivors occupy the prefix

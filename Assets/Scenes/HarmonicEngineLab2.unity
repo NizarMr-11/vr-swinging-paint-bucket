@@ -823,15 +823,19 @@ MonoBehaviour:
   globalProfile: {fileID: 11400000, guid: 3a5b2c589cbcc604a894f7696d0d45f2, type: 2}
   restrictSpawnToBucketCavity: 1
   autoRun: 1
-  pbfIterations: 2
+  pbfIterations: 4
   carryRate: 10
   downwardScale: 1
   emaSmoothing: 0.1
   pbfEpsilon: 50
-  boundaryGhostWeight: 0
+  boundaryGhostWeight: 0.149
   maxDeltaTime: 0.02
   gravity: {x: 0, y: -9.81, z: 0}
   maxSplatEvents: 1024
+  debugLogBoundaryPressure: 1
+  debugBoundaryPressureBinCount: 5
+  debugLogContainInsideMismatch: 1
+  debugLogWallEscapeForensics: 1
 --- !u!4 &1272400441
 Transform:
   m_ObjectHideFlags: 0

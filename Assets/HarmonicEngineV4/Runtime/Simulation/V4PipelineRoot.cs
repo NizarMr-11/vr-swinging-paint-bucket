@@ -46,6 +46,25 @@ namespace HarmonicEngineV4.Simulation
         public Vector3 gravity = new Vector3(0f, -9.81f, 0f);
         [Min(16)] public int maxSplatEvents = 1024;
 
+        [Header("Debug instrumentation")]
+        [Tooltip("Log per-tracked-particle boundary-pressure probes and Y-bin aggregates each frame.")]
+        public bool debugLogBoundaryPressure = true;
+        [Min(1)] public int debugBoundaryPressureBinCount = 5;
+        [Tooltip("Log particles where ComputeContainInside disagrees with geometric footprint (max 8/frame).")]
+        public bool debugLogContainInsideMismatch = false;
+        [Tooltip("Log false escape latches, rim vs wall exits, beyond-outer-shell removals, and frame aggregates.")]
+        public bool debugLogWallEscapeForensics = false;
+
+        private const int DebugBoundaryPressureFloorBinCount = 4;
+        private const int MaxContainInsideMismatchLogsPerFrame = 8;
+        private const int MaxWallEscapeDetailLogsPerFrame = 16;
+
+        private struct ForensicsCompactionPair
+        {
+            public uint SortKey;
+            public uint SourceIndex;
+        }
+
         // --- Runtime state ---
         private V4BufferRegistry _registry;
         private V4PassExecutor _executor;
@@ -128,12 +147,40 @@ namespace HarmonicEngineV4.Simulation
             public int NeighborCount;
             public Vector3 CohesionDelta;
             public Vector3 XsphDelta;
+            public float Y;
+            public float R;
+            public float RestDensity;
+            public float C;
+            public float Lambda;
+            public float DeltaPreClamp;
+            public float DeltaPostClamp;
+            public bool Clamped;
+            public uint Zone;
+            public bool Inside;
+            public bool ContainInside;
         }
 
         private const int MaxDebugFinalizeTrackSlots = 8;
+        private const int DebugFinalizeProbeRowsPerSlot = 6;
         private ComputeBuffer _debugFinalizeProbeBuffer;
+        private ComputeBuffer _debugBoundaryPressureNeighborsBuffer;
+        private float _calibratedRestDensity;
+        private bool _calibratedRestDensityLogged;
         private readonly int[] _debugTrackIndexScratch = new int[MaxDebugFinalizeTrackSlots];
-        private readonly Vector4[] _debugFinalizeProbeScratch = new Vector4[MaxDebugFinalizeTrackSlots * 3];
+        private readonly Vector4[] _debugFinalizeProbeScratch = new Vector4[MaxDebugFinalizeTrackSlots * DebugFinalizeProbeRowsPerSlot];
+        private float[] _boundaryPressureDensitiesScratch;
+        private Vector4[] _boundaryPressurePredictedScratch;
+        private Vector4[] _boundaryPressureDeltasScratch;
+        private Vector4[] _boundaryPressureBlock0Scratch;
+        private uint[] _boundaryPressureFlagsScratch;
+        private uint[] _boundaryPressureNeighborsScratch;
+        private Vector4[] _forensicsPrevPosScratch;
+        private uint[] _forensicsPrevFlagsScratch;
+        private int _forensicsPrevActiveCount;
+        private Vector4[] _forensicsFinalizePosScratch;
+        private uint[] _forensicsFinalizeFlagsScratch;
+        private ForensicsCompactionPair[] _forensicsCompactionPairsScratch;
+        private int _forensicsRemovedThisFrame;
 
         /// <summary>Max per-iteration position correction distance (matches ApplyDeltaKernel).</summary>
         public float MaxCorrectionDistance()
@@ -280,6 +327,8 @@ namespace HarmonicEngineV4.Simulation
 
             CreateBuffers();
             UploadProfiles();
+            _calibratedRestDensity = GpuRestDensity(0);
+            _calibratedRestDensityLogged = false;
             UploadParticles(spawned);
             BuildManifestAndExecutor();
             InitializeCanvasGrid();
@@ -471,8 +520,13 @@ namespace HarmonicEngineV4.Simulation
             _splatEventsBuffer = _registry.Create("_SplatEvents", Mathf.Max(16, maxSplatEvents), 32, V4BufferLifetime.PerFrame);
             _debugFinalizeProbeBuffer = _registry.Create(
                 "_DebugFinalizeProbe",
-                MaxDebugFinalizeTrackSlots * 3,
+                MaxDebugFinalizeTrackSlots * DebugFinalizeProbeRowsPerSlot,
                 sizeof(float) * 4,
+                V4BufferLifetime.PerFrame);
+            _debugBoundaryPressureNeighborsBuffer = _registry.Create(
+                "_DebugBoundaryPressureNeighbors",
+                Capacity,
+                sizeof(uint),
                 V4BufferLifetime.PerFrame);
             _canvasGridBuffer = _registry.Create("_CanvasGrid", CanvasGridSize.x * CanvasGridSize.y, sizeof(float) * 4, V4BufferLifetime.Persistent);
 
@@ -675,7 +729,19 @@ namespace HarmonicEngineV4.Simulation
                     readWriteBuffers = new[] { "_DebugFinalizeProbe" },
                     readOnlyBuffers = new[]
                     {
-                        "_Block0", "_PredictedRead", "_Densities", "_Flags", "_Profiles",
+                        "_Block0", "_PredictedRead", "_Densities", "_Lambdas", "_Deltas", "_Flags", "_Profiles",
+                        V4SpatialHashGrid.CellStartEndName, V4SpatialHashGrid.GridKeyValueName
+                    }
+                },
+                new V4PassDef
+                {
+                    passId = "BoundaryPressureNeighbor",
+                    shader = _pbfShader,
+                    kernelName = "BoundaryPressureNeighborKernel",
+                    readWriteBuffers = new[] { "_DebugBoundaryPressureNeighbors" },
+                    readOnlyBuffers = new[]
+                    {
+                        "_PredictedRead",
                         V4SpatialHashGrid.CellStartEndName, V4SpatialHashGrid.GridKeyValueName
                     }
                 },
@@ -765,6 +831,11 @@ namespace HarmonicEngineV4.Simulation
             InvokeFinalizeTermsProbe();
             _executor.DispatchThreads("Finalize", ActiveParticleCount);
 
+            if (debugLogWallEscapeForensics)
+            {
+                CaptureWallEscapeFinalizeSnapshot();
+            }
+
             using (V4Log.BeginPass("CompactionSort"))
             {
                 _compactionSort.SortPairBuffers(
@@ -777,6 +848,12 @@ namespace HarmonicEngineV4.Simulation
             BlitCanvasToTexture();
 
             ReadBackCounters();
+
+            if (debugLogWallEscapeForensics)
+            {
+                LogWallEscapeForensics();
+            }
+
             FrameIndex++;
             FrameCompleted?.Invoke(FrameIndex, ActiveParticleCount, EscapedTotal, SettledTotal);
         }
@@ -849,36 +926,517 @@ namespace HarmonicEngineV4.Simulation
 
         private void InvokeFinalizeTermsProbe()
         {
-            if (DebugAfterFinalizeTermsProbe == null
-                || DebugTrackParticleIndices == null
-                || DebugTrackParticleIndices.Length == 0
-                || ActiveParticleCount <= 0)
+            if (ActiveParticleCount <= 0)
             {
                 return;
             }
 
-            _executor.DispatchThreads("FinalizeTermsProbe", ActiveParticleCount);
+            bool wantCallback = DebugAfterFinalizeTermsProbe != null
+                && DebugTrackParticleIndices != null
+                && DebugTrackParticleIndices.Length > 0;
+            bool wantBoundaryLog = debugLogBoundaryPressure;
+            bool hasTrackIndices = DebugTrackParticleIndices != null && DebugTrackParticleIndices.Length > 0;
+            bool wantProbeDispatch = wantCallback || (wantBoundaryLog && hasTrackIndices);
 
-            int slotCount = Mathf.Min(DebugTrackParticleIndices.Length, MaxDebugFinalizeTrackSlots);
-            _debugFinalizeProbeBuffer.GetData(_debugFinalizeProbeScratch, 0, 0, slotCount * 3);
+            if (!wantProbeDispatch && !wantBoundaryLog)
+            {
+                return;
+            }
 
+            V4FinalizeTermsProbe[] probes = null;
+            if (wantProbeDispatch)
+            {
+                _executor.DispatchThreads("FinalizeTermsProbe", ActiveParticleCount);
+
+                int slotCount = Mathf.Min(DebugTrackParticleIndices.Length, MaxDebugFinalizeTrackSlots);
+                _debugFinalizeProbeBuffer.GetData(_debugFinalizeProbeScratch, 0, 0, slotCount * DebugFinalizeProbeRowsPerSlot);
+                probes = BuildFinalizeTermsProbes(slotCount);
+            }
+
+            if (wantCallback && probes != null)
+            {
+                DebugAfterFinalizeTermsProbe(probes);
+            }
+
+            if (wantBoundaryLog)
+            {
+                if (probes != null)
+                {
+                    LogBoundaryPressureParticles(probes);
+                }
+
+                _executor.DispatchThreads("BoundaryPressureNeighbor", ActiveParticleCount);
+                LogBoundaryPressureBins();
+            }
+
+            if (debugLogContainInsideMismatch)
+            {
+                LogContainInsideMismatchParticles();
+            }
+        }
+
+        private V4FinalizeTermsProbe[] BuildFinalizeTermsProbes(int slotCount)
+        {
             var probes = new V4FinalizeTermsProbe[slotCount];
             for (int slot = 0; slot < slotCount; slot++)
             {
-                Vector4 meta = _debugFinalizeProbeScratch[slot * 3];
-                Vector4 cohesion = _debugFinalizeProbeScratch[slot * 3 + 1];
-                Vector4 xsph = _debugFinalizeProbeScratch[slot * 3 + 2];
+                int row = slot * DebugFinalizeProbeRowsPerSlot;
+                Vector4 meta = _debugFinalizeProbeScratch[row];
+                Vector4 cohesion = _debugFinalizeProbeScratch[row + 1];
+                Vector4 xsph = _debugFinalizeProbeScratch[row + 2];
+                Vector4 geo = _debugFinalizeProbeScratch[row + 3];
+                Vector4 clampRow = _debugFinalizeProbeScratch[row + 4];
+                Vector4 zoneRow = _debugFinalizeProbeScratch[row + 5];
                 probes[slot] = new V4FinalizeTermsProbe
                 {
                     ParticleIndex = DebugTrackParticleIndices[slot],
                     Density = meta.x,
                     NeighborCount = (int)meta.y,
+                    RestDensity = meta.z,
+                    C = meta.w,
                     CohesionDelta = new Vector3(cohesion.x, cohesion.y, cohesion.z),
-                    XsphDelta = new Vector3(xsph.x, xsph.y, xsph.z)
+                    XsphDelta = new Vector3(xsph.x, xsph.y, xsph.z),
+                    Y = geo.x,
+                    R = geo.y,
+                    Lambda = geo.z,
+                    DeltaPreClamp = geo.w,
+                    DeltaPostClamp = clampRow.x,
+                    Clamped = clampRow.y > 0.5f,
+                    Inside = clampRow.z > 0.5f,
+                    ContainInside = clampRow.w > 0.5f,
+                    Zone = (uint)zoneRow.x
                 };
             }
 
-            DebugAfterFinalizeTermsProbe(probes);
+            return probes;
+        }
+
+        private void LogBoundaryPressureParticles(V4FinalizeTermsProbe[] probes)
+        {
+            for (int i = 0; i < probes.Length; i++)
+            {
+                V4FinalizeTermsProbe probe = probes[i];
+                V4Log.Info(
+                    V4LogCategory.BoundaryPressure,
+                    $"frame={FrameIndex} idx={probe.ParticleIndex} y={probe.Y:F6} r={probe.R:F6} density={probe.Density:F6} restDensity={probe.RestDensity:F6} C={probe.C:F6} lambda={probe.Lambda:F6} deltaPreClamp={probe.DeltaPreClamp:F6} deltaPostClamp={probe.DeltaPostClamp:F6} clamped={probe.Clamped} zone={probe.Zone} inside={probe.Inside} containInside={probe.ContainInside} neighborCount={probe.NeighborCount}");
+            }
+        }
+
+        private void LogCalibratedRestDensityOnce()
+        {
+            if (_calibratedRestDensityLogged)
+            {
+                return;
+            }
+
+            _calibratedRestDensityLogged = true;
+            V4Log.Info(V4LogCategory.BoundaryPressure, $"calibratedRestDensity={_calibratedRestDensity:F6}");
+        }
+
+        private void LogBoundaryPressureBins()
+        {
+            int count = ActiveParticleCount;
+            if (count <= 0 || bucket == null)
+            {
+                return;
+            }
+
+            LogCalibratedRestDensityOnce();
+
+            EnsureBoundaryPressureScratch(count);
+
+            ReadDensities(_boundaryPressureDensitiesScratch);
+            ReadPredicted(_boundaryPressurePredictedScratch);
+            ReadDeltas(_boundaryPressureDeltasScratch);
+            _soa.ReadFlags.GetData(_boundaryPressureFlagsScratch, 0, 0, count);
+            _soa.ReadBlock0.GetData(_boundaryPressureBlock0Scratch, 0, 0, count);
+            _debugBoundaryPressureNeighborsBuffer.GetData(_boundaryPressureNeighborsScratch, 0, 0, count);
+
+            float yMax = Mathf.Max(bucket.topBandHeight, 1e-6f);
+            float floorEnd = Mathf.Min(2f * SmoothingRadius, yMax);
+            int floorBinCount = DebugBoundaryPressureFloorBinCount;
+            int coarseBinCount = Mathf.Max(1, debugBoundaryPressureBinCount);
+            int totalBins = floorBinCount + (yMax > floorEnd + 1e-6f ? coarseBinCount : 0);
+            float maxCorrection = MaxCorrectionDistance();
+            Matrix4x4 worldToLocal = bucket.WorldToLocal;
+            float innerRadius = bucket.innerRadius;
+            float bucketHeight = bucket.height;
+            float wallThickness = bucket.wallThickness;
+
+            var binCounts = new int[totalBins];
+            var densitySums = new double[totalBins];
+            var maxDensities = new float[totalBins];
+            var clampedCounts = new int[totalBins];
+            var neighborSums = new long[totalBins];
+            var escapeZone0Counts = new int[totalBins];
+            var containInsideFalseCounts = new int[totalBins];
+
+            for (int i = 0; i < count; i++)
+            {
+                uint flags = _boundaryPressureFlagsScratch[i];
+                Vector3 localPos = worldToLocal.MultiplyPoint3x4(_boundaryPressurePredictedScratch[i]);
+                Vector3 refLocal = worldToLocal.MultiplyPoint3x4(_boundaryPressureBlock0Scratch[i]);
+                float y = localPos.y;
+                int bin = YToBoundaryPressureBin(y, yMax, floorEnd, floorBinCount, coarseBinCount);
+
+                // Hole-zone escapes are latched in Classify at frame start; by post-PBF the
+                // predicted position is usually below the floor and outside the Y bins.
+                // Attribute escapes to the bin of their frame-start Y (hole / rim height).
+                if (V4ParticleFlags.GetZone(flags) == V4Zone.HoleZone0)
+                {
+                    int escapeBin = YToBoundaryPressureBin(refLocal.y, yMax, floorEnd, floorBinCount, coarseBinCount);
+                    if (escapeBin >= 0)
+                    {
+                        escapeZone0Counts[escapeBin]++;
+                    }
+                }
+
+                if (bin < 0)
+                {
+                    continue;
+                }
+
+                binCounts[bin]++;
+                float density = _boundaryPressureDensitiesScratch[i];
+                densitySums[bin] += density;
+                if (density > maxDensities[bin])
+                {
+                    maxDensities[bin] = density;
+                }
+
+                neighborSums[bin] += _boundaryPressureNeighborsScratch[i];
+
+                float deltaLen = _boundaryPressureDeltasScratch[i].magnitude;
+                if (deltaLen > maxCorrection + 1e-6f)
+                {
+                    clampedCounts[bin]++;
+                }
+
+                if (!V4BucketGeometry.ComputeContainInside(flags, localPos, refLocal, innerRadius, bucketHeight, wallThickness))
+                {
+                    containInsideFalseCounts[bin]++;
+                }
+            }
+
+            for (int bin = 0; bin < totalBins; bin++)
+            {
+                GetBoundaryPressureBinRange(bin, yMax, floorEnd, floorBinCount, coarseBinCount, out float lo, out float hi);
+                int n = binCounts[bin];
+                float avgDensity = n > 0 ? (float)(densitySums[bin] / n) : 0f;
+                float maxDensity = n > 0 ? maxDensities[bin] : 0f;
+                float avgNeighbors = n > 0 ? (float)neighborSums[bin] / n : 0f;
+                V4Log.Info(
+                    V4LogCategory.BoundaryPressure,
+                    $"frame={FrameIndex} yBin=[{lo:F6},{hi:F6}) count={n} avgDensity={avgDensity:F6} maxDensity={maxDensity:F6} clampedCount={clampedCounts[bin]} avgNeighbors={avgNeighbors:F3} escapeZone0Count={escapeZone0Counts[bin]} containInsideFalseCount={containInsideFalseCounts[bin]}");
+            }
+        }
+
+        private void LogContainInsideMismatchParticles()
+        {
+            if (!debugLogContainInsideMismatch || ActiveParticleCount <= 0 || bucket == null)
+            {
+                return;
+            }
+
+            EnsureBoundaryPressureScratch(ActiveParticleCount);
+
+            ReadPredicted(_boundaryPressurePredictedScratch);
+            _soa.ReadBlock0.GetData(_boundaryPressureBlock0Scratch, 0, 0, ActiveParticleCount);
+            _soa.ReadFlags.GetData(_boundaryPressureFlagsScratch, 0, 0, ActiveParticleCount);
+
+            Matrix4x4 worldToLocal = bucket.WorldToLocal;
+            float innerRadius = bucket.innerRadius;
+            float bucketHeight = bucket.height;
+            float wallThickness = bucket.wallThickness;
+            float deltaTime = Mathf.Max(Time.deltaTime, 1e-6f);
+            int logged = 0;
+
+            for (int i = 0; i < ActiveParticleCount && logged < MaxContainInsideMismatchLogsPerFrame; i++)
+            {
+                uint flags = _boundaryPressureFlagsScratch[i];
+                if (V4ParticleFlags.HasEscaped(flags))
+                {
+                    continue;
+                }
+
+                Vector3 worldPos = _boundaryPressurePredictedScratch[i];
+                Vector3 refWorld = _boundaryPressureBlock0Scratch[i];
+                Vector3 localPos = worldToLocal.MultiplyPoint3x4(worldPos);
+                Vector3 refLocal = worldToLocal.MultiplyPoint3x4(refWorld);
+                bool geometricInside = V4BucketGeometry.ShouldContainInside(localPos, innerRadius, bucketHeight, wallThickness);
+                bool containInside = V4BucketGeometry.ComputeContainInside(flags, localPos, refLocal, innerRadius, bucketHeight, wallThickness);
+                if (containInside == geometricInside)
+                {
+                    continue;
+                }
+
+                float r = Mathf.Sqrt(localPos.x * localPos.x + localPos.z * localPos.z);
+                Vector3 worldVel = (worldPos - refWorld) / deltaTime;
+                Vector3 localVel = worldToLocal.MultiplyVector(worldVel);
+                Vector3 contactVelWorld = bucket.LinearVelocity + Vector3.Cross(bucket.AngularVelocity, worldPos - bucket.transform.position);
+                Vector3 contactVelLocal = worldToLocal.MultiplyVector(contactVelWorld);
+                Vector3 relVel = localVel - contactVelLocal;
+
+                float safeR = Mathf.Max(r, 1e-6f);
+                Vector3 radialDir = new Vector3(localPos.x, 0f, localPos.z) / safeR;
+                float radialVelocity = Vector3.Dot(relVel, radialDir);
+                float verticalVelocity = relVel.y;
+                string collisionBranch = V4BucketGeometry.ClassifyResolveCollisionBranches(
+                    localPos, innerRadius, bucketHeight, wallThickness, containInside);
+
+                V4Log.Info(
+                    V4LogCategory.BoundaryPressure,
+                    $"frame={FrameIndex} idx={i} containMismatch r={r:F6} innerRadius={innerRadius:F6} y={localPos.y:F6} radialVelocity={radialVelocity:F6} verticalVelocity={verticalVelocity:F6} collisionBranch={collisionBranch} geometricInside={geometricInside} containInside={containInside} insideFlag={V4ParticleFlags.IsInside(flags)}");
+
+                logged++;
+            }
+        }
+
+        private static int YToBoundaryPressureBin(float y, float yMax, float floorEnd, int floorBinCount, int coarseBinCount)
+        {
+            if (y < 0f || y >= yMax)
+            {
+                return -1;
+            }
+
+            if (floorBinCount > 0 && y < floorEnd)
+            {
+                float floorBinWidth = floorEnd / floorBinCount;
+                return Mathf.Min(floorBinCount - 1, Mathf.FloorToInt(y / floorBinWidth));
+            }
+
+            if (coarseBinCount <= 0 || yMax <= floorEnd + 1e-6f)
+            {
+                return -1;
+            }
+
+            float coarseBinWidth = (yMax - floorEnd) / coarseBinCount;
+            int coarse = Mathf.FloorToInt((y - floorEnd) / coarseBinWidth);
+            coarse = Mathf.Min(coarseBinCount - 1, coarse);
+            return floorBinCount + coarse;
+        }
+
+        private static void GetBoundaryPressureBinRange(
+            int bin, float yMax, float floorEnd, int floorBinCount, int coarseBinCount, out float lo, out float hi)
+        {
+            if (bin < floorBinCount)
+            {
+                float floorBinWidth = floorEnd / floorBinCount;
+                lo = bin * floorBinWidth;
+                hi = (bin + 1) * floorBinWidth;
+                return;
+            }
+
+            int coarse = bin - floorBinCount;
+            float coarseBinWidth = (yMax - floorEnd) / coarseBinCount;
+            lo = floorEnd + coarse * coarseBinWidth;
+            hi = floorEnd + (coarse + 1) * coarseBinWidth;
+        }
+
+        private void EnsureWallEscapeScratch(int count)
+        {
+            if (_forensicsPrevPosScratch == null || _forensicsPrevPosScratch.Length < count)
+            {
+                _forensicsPrevPosScratch = new Vector4[count];
+                _forensicsPrevFlagsScratch = new uint[count];
+                _forensicsFinalizePosScratch = new Vector4[count];
+                _forensicsFinalizeFlagsScratch = new uint[count];
+                _forensicsCompactionPairsScratch = new ForensicsCompactionPair[count];
+            }
+        }
+
+        private void CaptureWallEscapeFinalizeSnapshot()
+        {
+            int count = ActiveParticleCount;
+            if (count <= 0)
+            {
+                _forensicsRemovedThisFrame = 0;
+                return;
+            }
+
+            EnsureWallEscapeScratch(count);
+            _soa.WriteBlock0.GetData(_forensicsFinalizePosScratch, 0, 0, count);
+            _soa.WriteFlags.GetData(_forensicsFinalizeFlagsScratch, 0, 0, count);
+            _compactionPairsBuffer.GetData(_forensicsCompactionPairsScratch, 0, 0, count);
+
+            int removed = 0;
+            for (int i = 0; i < count; i++)
+            {
+                if (_forensicsCompactionPairsScratch[i].SortKey == 0xFFFFFFFFu)
+                {
+                    removed++;
+                }
+            }
+
+            _forensicsRemovedThisFrame = removed;
+        }
+
+        private void LogWallEscapeForensics()
+        {
+            int count = ActiveParticleCount;
+            if (count <= 0 || bucket == null || _bakedHoles == null)
+            {
+                return;
+            }
+
+            EnsureWallEscapeScratch(Mathf.Max(count, _forensicsPrevActiveCount));
+
+            float innerRadius = bucket.innerRadius;
+            float bucketHeight = bucket.height;
+            float wallThickness = bucket.wallThickness;
+            Matrix4x4 worldToLocal = bucket.WorldToLocal;
+            var holes = _bakedHoles;
+
+            int detailLogs = 0;
+            int outsideLive = 0;
+            int beyondOuter = 0;
+            int overRim = 0;
+            int wallBandOutside = 0;
+            int newEscape = 0;
+            int falseLatch = 0;
+            int insideToOutside = 0;
+            int containMismatch = 0;
+
+            if (_forensicsPrevActiveCount > 0 && _forensicsFinalizePosScratch != null)
+            {
+                int preCount = _forensicsPrevActiveCount;
+                for (int i = 0; i < preCount && detailLogs < MaxWallEscapeDetailLogsPerFrame; i++)
+                {
+                    if (_forensicsCompactionPairsScratch == null || _forensicsCompactionPairsScratch[i].SortKey != 0xFFFFFFFFu)
+                    {
+                        continue;
+                    }
+
+                    Vector3 worldPos = _forensicsFinalizePosScratch[i];
+                    Vector3 localPos = worldToLocal.MultiplyPoint3x4(worldPos);
+                    uint flags = _forensicsFinalizeFlagsScratch[i];
+                    Vector3 prevWorld = i < _forensicsPrevPosScratch.Length ? _forensicsPrevPosScratch[i] : worldPos;
+                    Vector3 prevLocal = worldToLocal.MultiplyPoint3x4(prevWorld);
+                    V4WallEscapeExitClass exitClass = V4WallEscapeForensics.ClassifyLocal(
+                        localPos, flags, innerRadius, bucketHeight, wallThickness);
+                    V4WallEscapeExitClass prevClass = V4WallEscapeForensics.ClassifyLocal(
+                        prevLocal, _forensicsPrevFlagsScratch[i], innerRadius, bucketHeight, wallThickness);
+                    float r = Mathf.Sqrt(localPos.x * localPos.x + localPos.z * localPos.z);
+
+                    V4Log.Info(
+                        V4LogCategory.WallEscapeForensics,
+                        $"frame={FrameIndex} event=removed idx={i} exit={V4WallEscapeForensics.ExitClassLabel(exitClass)} " +
+                        $"prevExit={V4WallEscapeForensics.ExitClassLabel(prevClass)} r={r:F6} y={localPos.y:F6} " +
+                        $"escaped={V4ParticleFlags.HasEscaped(flags)} inside={V4ParticleFlags.IsInside(flags)}");
+                    detailLogs++;
+                }
+            }
+
+            Vector4[] curPos = new Vector4[count];
+            uint[] curFlags = new uint[count];
+            _soa.ReadBlock0.GetData(curPos, 0, 0, count);
+            _soa.ReadFlags.GetData(curFlags, 0, 0, count);
+
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 worldPos = curPos[i];
+                Vector3 localPos = worldToLocal.MultiplyPoint3x4(worldPos);
+                uint flags = curFlags[i];
+                V4WallEscapeExitClass exitClass = V4WallEscapeForensics.ClassifyLocal(
+                    localPos, flags, innerRadius, bucketHeight, wallThickness);
+
+                if (V4ParticleFlags.HasEscaped(flags))
+                {
+                    continue;
+                }
+
+                if (!V4ParticleFlags.IsInside(flags))
+                {
+                    outsideLive++;
+                    switch (exitClass)
+                    {
+                        case V4WallEscapeExitClass.BeyondOuterShell:
+                            beyondOuter++;
+                            break;
+                        case V4WallEscapeExitClass.OverOpenRim:
+                            overRim++;
+                            break;
+                        case V4WallEscapeExitClass.OutsideWallBand:
+                            wallBandOutside++;
+                            break;
+                    }
+                }
+
+                if (_forensicsPrevActiveCount == count && i < _forensicsPrevFlagsScratch.Length)
+                {
+                    uint prevFlags = _forensicsPrevFlagsScratch[i];
+                    Vector3 prevLocal = worldToLocal.MultiplyPoint3x4(_forensicsPrevPosScratch[i]);
+
+                    if (!V4ParticleFlags.HasEscaped(prevFlags) && V4ParticleFlags.HasEscaped(flags))
+                    {
+                        newEscape++;
+                        V4WallEscapeForensics.HoleProximity hole = V4WallEscapeForensics.NearestHole(prevLocal, holes);
+                        bool isFalseLatch = !hole.WithinD2;
+                        if (isFalseLatch)
+                        {
+                            falseLatch++;
+                        }
+
+                        if (detailLogs < MaxWallEscapeDetailLogsPerFrame)
+                        {
+                            V4Zone zone = V4ParticleFlags.GetZone(flags);
+                            V4Log.Info(
+                                V4LogCategory.WallEscapeForensics,
+                                $"frame={FrameIndex} event=newEscape idx={i} falseLatch={isFalseLatch} zone={zone} " +
+                                $"classifyR={Mathf.Sqrt(prevLocal.x * prevLocal.x + prevLocal.z * prevLocal.z):F6} " +
+                                $"classifyY={prevLocal.y:F6} hole={hole.NearestHole} holeDist={hole.Distance:F6} d0={hole.D0:F6} d2={hole.D2:F6}");
+                            detailLogs++;
+                        }
+                    }
+
+                    if (V4ParticleFlags.IsInside(prevFlags) && !V4ParticleFlags.IsInside(flags) && !V4ParticleFlags.HasEscaped(flags))
+                    {
+                        insideToOutside++;
+                        if (detailLogs < MaxWallEscapeDetailLogsPerFrame)
+                        {
+                            float r = Mathf.Sqrt(localPos.x * localPos.x + localPos.z * localPos.z);
+                            V4Log.Info(
+                                V4LogCategory.WallEscapeForensics,
+                                $"frame={FrameIndex} event=insideToOutside idx={i} exit={V4WallEscapeForensics.ExitClassLabel(exitClass)} " +
+                                $"r={r:F6} y={localPos.y:F6} outerR={innerRadius + wallThickness:F6}");
+                            detailLogs++;
+                        }
+                    }
+
+                    Vector3 refLocal = prevLocal;
+                    bool geometricInside = V4BucketGeometry.ShouldContainInside(localPos, innerRadius, bucketHeight, wallThickness);
+                    bool containInside = V4BucketGeometry.ComputeContainInside(flags, localPos, refLocal, innerRadius, bucketHeight, wallThickness);
+                    if (containInside != geometricInside)
+                    {
+                        containMismatch++;
+                    }
+                }
+            }
+
+            V4Log.Info(
+                V4LogCategory.WallEscapeForensics,
+                $"frame={FrameIndex} summary live={count} removed={_forensicsRemovedThisFrame} escapedTot={EscapedTotal} " +
+                $"outsideLive={outsideLive} beyondOuter={beyondOuter} overRim={overRim} wallBandOutside={wallBandOutside} " +
+                $"newEscape={newEscape} falseLatch={falseLatch} insideToOutside={insideToOutside} containMismatch={containMismatch} " +
+                $"bucketVel=({bucket.LinearVelocity.x:F3},{bucket.LinearVelocity.y:F3},{bucket.LinearVelocity.z:F3}) " +
+                $"bucketAng=({bucket.AngularVelocity.x:F1},{bucket.AngularVelocity.y:F1},{bucket.AngularVelocity.z:F1})");
+
+            _soa.ReadBlock0.GetData(_forensicsPrevPosScratch, 0, 0, count);
+            _soa.ReadFlags.GetData(_forensicsPrevFlagsScratch, 0, 0, count);
+            _forensicsPrevActiveCount = count;
+        }
+
+        private void EnsureBoundaryPressureScratch(int count)
+        {
+            if (_boundaryPressureDensitiesScratch == null || _boundaryPressureDensitiesScratch.Length < count)
+            {
+                _boundaryPressureDensitiesScratch = new float[count];
+                _boundaryPressurePredictedScratch = new Vector4[count];
+                _boundaryPressureDeltasScratch = new Vector4[count];
+                _boundaryPressureBlock0Scratch = new Vector4[count];
+                _boundaryPressureFlagsScratch = new uint[count];
+                _boundaryPressureNeighborsScratch = new uint[count];
+            }
         }
 
         private void InvokeDebugBeforeApplyDelta(int iter)

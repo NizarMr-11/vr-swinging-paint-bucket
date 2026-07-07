@@ -175,6 +175,16 @@ namespace HarmonicEngineV4.Core
 
             if (r >= outerRadius)
             {
+                // Outside and past the shell: PBF / bucket motion can push beyond
+                // outerRadius in one step while this path used to no-op. Clamp to the
+                // outer face and reflect outward radial motion in the moving wall frame.
+                float safeR = Mathf.Max(r, 1e-6f);
+                float scale = outerRadius / safeR;
+                localPos.x *= scale;
+                localPos.z *= scale;
+
+                Vector3 radialDir = new Vector3(localPos.x, 0f, localPos.z) / outerRadius;
+                ReflectAgainstNormalInMovingFrame(ref localVel, -radialDir, contactVelLocal, restitution, friction);
                 return;
             }
 
@@ -220,6 +230,52 @@ namespace HarmonicEngineV4.Core
             vel = relVel + contactVel;
         }
 
+        /// <summary>World-space contact velocity at a point on the bucket (wall/floor moving frame).</summary>
+        public static Vector3 ContactVelWorld(Vector3 worldPos, Vector3 linearVel, Vector3 angularVel, Vector3 worldOrigin)
+        {
+            return linearVel + Vector3.Cross(angularVel, worldPos - worldOrigin);
+        }
+
+        /// <summary>Bucket-local contact velocity at a world-space point.</summary>
+        public static Vector3 ContactVelLocal(Vector3 worldPos, Vector3 linearVel, Vector3 angularVel, Vector3 worldOrigin, Matrix4x4 worldToLocal)
+        {
+            return worldToLocal.MultiplyVector(ContactVelWorld(worldPos, linearVel, angularVel, worldOrigin));
+        }
+
+        /// <summary>
+        /// CPU mirror of V4ClampPositionToBucket (GPU PBF predict/apply-delta clamp).
+        /// </summary>
+        public static Vector3 ClampPositionToBucket(
+            Vector3 worldPos,
+            uint flags,
+            Vector3 refWorldPos,
+            float deltaTime,
+            float innerRadius,
+            float height,
+            float wallThickness,
+            Matrix4x4 worldToLocal,
+            Matrix4x4 localToWorld,
+            Vector3 linearVel,
+            Vector3 angularVel,
+            Vector3 worldOrigin)
+        {
+            if (V4ParticleFlags.HasEscaped(flags))
+            {
+                return worldPos;
+            }
+
+            Vector3 localPos = worldToLocal.MultiplyPoint3x4(worldPos);
+            Vector3 refLocal = worldToLocal.MultiplyPoint3x4(refWorldPos);
+            bool containInside = ComputeContainInside(flags, localPos, refLocal, innerRadius, height, wallThickness);
+            Vector3 approachVelWorld = (worldPos - refWorldPos) / Mathf.Max(deltaTime, 1e-6f);
+            Vector3 localVel = worldToLocal.MultiplyVector(approachVelWorld);
+            Vector3 localVelBefore = localVel;
+            Vector3 contactVelLocal = ContactVelLocal(worldPos, linearVel, angularVel, worldOrigin, worldToLocal);
+            ResolveCollision(ref localPos, ref localVel, innerRadius, height, wallThickness, 0f, 0f, containInside, contactVelLocal);
+            Vector3 velDeltaWorld = localToWorld.MultiplyVector(localVel - localVelBefore) * deltaTime;
+            return localToWorld.MultiplyPoint3x4(localPos) + velDeltaWorld;
+        }
+
         /// <summary>Removes penetrating velocity along the normal (with restitution) and applies slide friction tangentially.</summary>
         public static void ReflectAgainstNormal(ref Vector3 vel, Vector3 normal, float restitution, float friction)
         {
@@ -232,6 +288,79 @@ namespace HarmonicEngineV4.Core
             Vector3 normalComponent = normal * vn;
             Vector3 tangential = vel - normalComponent;
             vel = tangential * (1f - friction) - normalComponent * restitution;
+        }
+
+        /// <summary>
+        /// Read-only mirror of ResolveCollision branch predicates (logging / investigation).
+        /// Reports which face handlers would run without mutating position or velocity.
+        /// </summary>
+        public static string ClassifyResolveCollisionBranches(
+            Vector3 localPos,
+            float innerRadius,
+            float height,
+            float wallThickness,
+            bool containInside)
+        {
+            float outerRadius = innerRadius + wallThickness;
+            float r = Mathf.Sqrt(localPos.x * localPos.x + localPos.z * localPos.z);
+
+            if (localPos.y > height)
+            {
+                return "neither";
+            }
+
+            bool floor = false;
+            bool wall = false;
+
+            if (containInside)
+            {
+                if (localPos.y < 0f)
+                {
+                    floor = true;
+                }
+
+                if (r >= innerRadius - 1e-4f)
+                {
+                    wall = true;
+                }
+            }
+            else if (r <= innerRadius)
+            {
+                if (localPos.y < 0f && localPos.y > -wallThickness)
+                {
+                    floor = true;
+                }
+            }
+            else if (r < outerRadius)
+            {
+                if (localPos.y < 0f)
+                {
+                    floor = true;
+                }
+
+                wall = true;
+            }
+            else
+            {
+                wall = true;
+            }
+
+            if (floor && wall)
+            {
+                return "both";
+            }
+
+            if (floor)
+            {
+                return "floor-only";
+            }
+
+            if (wall)
+            {
+                return "wall-only";
+            }
+
+            return "neither";
         }
     }
 }
