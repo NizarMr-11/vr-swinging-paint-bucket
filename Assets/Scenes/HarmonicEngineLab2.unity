@@ -319,6 +319,11 @@ MonoBehaviour:
   moveSpeed: 1.2
   tiltSpeed: 60
   spinSpeed: 120
+  linearAcceleration: 6
+  maxLinearSpeed: 1.2
+  angularAcceleration: 360
+  maxAngularSpeed: 120
+  buildupHeaviness: 0.85
 --- !u!4 &822959949
 Transform:
   m_ObjectHideFlags: 0
@@ -814,7 +819,7 @@ MonoBehaviour:
   - {fileID: 856704855}
   - {fileID: 1018443671}
   - {fileID: 111909320}
-  globalDensity: 500000
+  globalDensity: 800000
   globalProfile: {fileID: 11400000, guid: 3a5b2c589cbcc604a894f7696d0d45f2, type: 2}
   restrictSpawnToBucketCavity: 1
   autoRun: 1

@@ -31,7 +31,7 @@ Run via Unity Test Runner or Unity MCP `run_tests` tool.
 |------|--------|
 | `V4BakeMathTests` | Spawn spacing, lattice, canvas grid |
 | `V4BucketBakeTests` | Hole rings, spacing validation |
-| `V4BucketGeometryTests` | Inside, shell, collision, ShouldContainInside |
+| `V4BucketGeometryTests` | Inside, shell, collision, ShouldContainInside, ComputeContainInside, face-contact band |
 | `V4ZoneMathTests` | Classification priority, force direction |
 | `V4ParticleFlagsTests` | Bit packing |
 | `V4CanvasSplatMathTests` | Cell weights, depth blend |
@@ -59,22 +59,51 @@ Fast — run on every commit without GPU.
 | `V4RadixSortTests` | Sort stability |
 | `V4RendererSmokeTests` | Renderer init smoke |
 | `V4RunRecorderTests` | JSONL recording |
+| `V4GhostWeightSweepTests` | `boundaryGhostWeight` sweep + sealed-column settled assertion |
+| `V4StackingDepthInstrumentationTests` | Per-layer density vs stack depth, iteration sweep |
 
-### Investigation suites (report-only, no behavior assertions)
+### Investigation & instrumentation suites (report-only)
 
-These write numeric reports to `Tests/PlayMode/Results/` and log to the Unity console:
+These replicate lab scenes or tall columns, log numeric diagnostics to the Unity console, and write `*.txt` reports under `Tests/PlayMode/Results/`. Most use `Assert.Pass(...)` only — they do **not** assert simulation correctness unless noted.
 
-| File | Purpose |
-|------|---------|
-| `V4Lab2EscapeStatisticsTests` | Lab2 rest escape paths, floor/wall forensics, leak channel geometry, canvas puddle settle probe |
-| `V4Lab2LeakProbeTests` | Identity-stable first wall crossings (settle disabled) |
-| `V4CollisionEnergyInvestigationTests` | Shake kinetic energy, moving-frame reflection regression |
-| `V4CohesionViscosityInvestigationTests` | Cohesion/XSPH formula probes, isolation tests |
-| `V4ApplyDeltaClampInvestigationTests` | ApplyDelta max-correction clamp sweeps |
-| `V4ScorrInvestigationTests` | s_corr final-iteration behavior |
-| `V4StackingLeakInvestigationTests` | Stacking depth / rim leak sweeps |
+| File | Test methods | Report output(s) | What it measures |
+|------|--------------|------------------|------------------|
+| **`V4Lab2EscapeStatisticsTests`** | | | Lab2 exact config (3 spawn zones, 2 holes, density 1e6, 2 PBF iters, bucket at rest) |
+| | `Investigate_Lab2RestEscapeStatistics` | `lab2_escape_statistics.txt` | Per-frame inside/outside/escaped/settled counts; Inside→not-Inside exit events by path (rim / wall / floor / hole); timing histogram |
+| | `Investigate_Lab2OutsideLiveAnatomy` | `lab2_outside_live_anatomy.txt` | Live particles by flag + physical band (cavity, wall band, sub-floor, over-rim, outside far); wall/floor flicker detail |
+| | `Investigate_Lab2FloorCrossingForensics` | `lab2_floor_crossing_forensics.txt` | Floor crossings: latched (hole) vs unlatched (illegitimate); dist-to-hole; final sub-floor population histogram |
+| | `Investigate_Lab2LeakChannelGeometry` | `lab2_leak_channel_geometry.txt` | Where unlatched sub-floor particles sit in r vs hole distance during spawn collapse (frames 40–120) |
+| | `Investigate_Lab2CanvasPuddleSettleProbe` | `lab2_canvas_puddle_settle_probe.txt` | Canvas-layer live particles: speed vs `settleEpsilon`, near-plane / on-rect settle blockers |
+| **`V4Lab2LeakProbeTests`** | | | Identity-stable forensics (settle disabled so compaction never shifts indices) |
+| | `Investigate_Lab2FirstCrossingForensics_NoRemovals` | `lab2_leak_probe_first_crossings.txt` | First per-particle wall/floor crossing: prev-frame flag, r, radial vel, hop distance |
+| **`V4CollisionEnergyInvestigationTests`** | | | Lateral shake KE and collision reflection |
+| | `Investigate_ShakeKineticEnergy_MovingFrameFix` | `collision_energy_shake_post_fix.txt` | KE trend, first rim crossing, settled count (moving-frame fix regression) |
+| | `Investigate_Frame3EarlyLeak` | `collision_frame3_early_leak.txt` | SampleKinematics frames 0–9; frame-3 rim crosser vel.y traces |
+| | `Investigate_ShakeKineticEnergy_DefaultAndZeroRestitution` | `collision_energy_shake.txt` | KE with default vs zero `surfaceRestitution` |
+| | `Investigate_ShakeMotion_IsSmoothSinusoidal` | `collision_shake_motion_profile.txt` | Bucket velocity smoothness vs analytic sin derivative |
+| **`V4CohesionViscosityInvestigationTests`** | | | FinalizeKernel cohesion / XSPH probes |
+| | `Investigate_FormulasAndRestTopLayer` | `cohesion_viscosity_rest_top_layer.txt` | Rest top-band vel.y; formula normalization at low neighbor count |
+| | `Investigate_Frame3RimCrosserFinalizeTerms` | `cohesion_viscosity_frame3_crossers.txt` | Per-frame density, neighbor count, cohesion/XSPH deltas for tracked rim crossers |
+| | `Investigate_ShakeIsolation_CohesionAndViscosity` | `cohesion_viscosity_shake_isolation.txt` | Cohesion=0 and viscosity=0 isolation vs baseline shake leak |
+| **`V4ApplyDeltaClampInvestigationTests`** | | | ApplyDelta max-correction clamp |
+| | `Investigate_ClampFrequency_RestAndShake` | `clamp_frequency_rest_shake.txt` | How often clamp fires; rim launches vs clamp scale |
+| | `Investigate_TrackedFloorParticles_AndRimLaunches` | `clamp_tracked_particles_rim.txt` | Floor-column particle deltas and rim exit correlation |
+| | `Investigate_MaxCorrectionSweep` | `clamp_maxcorrection_sweep.txt` | Sweep `_DebugMaxCorrectionScale` vs leak/settle |
+| **`V4ScorrInvestigationTests`** | | | Macklin s_corr artificial pressure |
+| | `Investigate_ScorrDistribution_EarlyFrames` | `scorr_distribution_early.txt` | s_corr magnitude distribution in first frames |
+| | `Investigate_KCorrSweep` | `scorr_kcorr_sweep.txt` | `pbfKCorr` sweep vs rim leak |
+| | `Investigate_ScorrCapAndIterationLevers` | `scorr_cap_iteration_levers.txt` | Debug ratio cap, per-iter apply, saturate pow |
+| **`V4StackingLeakInvestigationTests`** | | | Tall sealed column rim leak |
+| | `Investigate_LeakPath_Timeline` | `stacking_leak_timeline.txt` | When/where particles leave cavity over time |
+| | `Investigate_GhostScorr_Isolation` | `stacking_leak_isolation.txt` | ghostWeight / s_corr isolation |
+| **`V4StackingDepthInstrumentationTests`** | | | Stacking density vs depth (particle spacing / compression) |
+| | `Instrument_StackingDepth_AtDefaultIterations` | `stacking_depth_default_iters.txt` | Per-y-layer avg Poly6 density at default `pbfIterations` |
+| | `Instrument_TallColumn_IterationSweep` | `stacking_depth_iteration_sweep.txt` | Layer density vs PBF iteration count |
+| **`V4GhostWeightSweepTests`** | | | Boundary mirror ghost weight |
+| | `FinalIterScorr_SealedTallColumn_SettledStaysNearZero` | — | **Assertion:** settled count ~0 with final-iter-only s_corr |
+| | `Sweep_GhostWeight_ReportTable` | `ghost_weight_sweep.txt` | ghostWeight sweep table (settled, rim, max inside Y) |
 
-Report convention: `*.txt` under `Assets/HarmonicEngineV4/Tests/PlayMode/Results/` (gitignored in some setups; regenerate by re-running the test).
+Report convention: `Assets/HarmonicEngineV4/Tests/PlayMode/Results/*.txt` — regenerate by re-running the test. Files may be gitignored locally.
 
 ### V4TestRig usage
 
