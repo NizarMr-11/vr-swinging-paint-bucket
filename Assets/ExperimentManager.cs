@@ -23,7 +23,10 @@ public class ExperimentManager : MonoBehaviour
         public float initialAngle;
         public float currentAngularVelocity;
         public float currentAngularAcceleration;
-        public float gravity; 
+        public float gravity;
+
+        public float experimentDuration;
+        public int paintTrajectories;
     }
 
     [System.Serializable]
@@ -34,6 +37,10 @@ public class ExperimentManager : MonoBehaviour
 
     public List<ExperimentData> pastExperiments = new List<ExperimentData>();
     private string saveFilePath;
+    private float experimentStartTime;
+    private bool isTrackingTime = false;
+    private bool wasSpilling = false;
+    private int trajectoryCount = 0;
 
     [Header("System References")]
     public SimulationManager simManager;
@@ -60,6 +67,9 @@ public class ExperimentManager : MonoBehaviour
         }
         canvas = FindAnyObjectByType<CanvasController>();
 
+        if (simManager != null) UnityEngine.Debug.Log("✅ SimulationManager Found!");
+        else UnityEngine.Debug.LogError("❌ SimulationManager NOT Found!");
+
         if (bucket != null) UnityEngine.Debug.Log("✅ Bucket Found!");
         else UnityEngine.Debug.LogError("❌ Bucket NOT Found!");
         if (pendulum != null) UnityEngine.Debug.Log("✅ Pendulum Found!");
@@ -83,7 +93,42 @@ public class ExperimentManager : MonoBehaviour
             {
                 pastExperiments.Clear();
                 if (File.Exists(saveFilePath)) File.Delete(saveFilePath);
+                trajectoryCount = 0; // تصفير العداد عند المسح
                 UnityEngine.Debug.Log("<color=red>[System] History cleared!</color>");
+            }
+        }
+
+        if (simManager != null && bucket != null)
+        {
+            if (bucket.VolumeThisFrame > 0f && !isTrackingTime)
+            {
+                experimentStartTime = Time.time;
+                isTrackingTime = true;
+                trajectoryCount = 0; // تصفير المسارات لبداية تجربة نظيفة
+                UnityEngine.Debug.Log("<color=green>[Timer] Experiment timer started.</color>");
+            }
+
+            if (isTrackingTime)
+            {
+                if (bucket.VolumeThisFrame > 0f)
+                {
+                    if (!wasSpilling)
+                    {
+                        trajectoryCount++; 
+                        wasSpilling = true;
+                    }
+                }
+                else
+                {
+                    wasSpilling = false; 
+                }
+            }
+        }
+        else
+        {
+            if (simManager == null && Time.frameCount % 300 == 0)
+            {
+                UnityEngine.Debug.LogWarning("Warning: SimulationManager not linked. Time tracking disabled.");
             }
         }
     }
@@ -115,7 +160,10 @@ public class ExperimentManager : MonoBehaviour
             initialAngle = initialAngle,
             currentAngularVelocity = omega,
             currentAngularAcceleration = alpha,
-            gravity = pendulum.Gravity
+            gravity = pendulum.Gravity,
+
+            experimentDuration = isTrackingTime ? (Time.time - experimentStartTime) : 0f,
+            paintTrajectories = trajectoryCount
         };
 
         pastExperiments.Add(newExp);
@@ -136,7 +184,7 @@ public class ExperimentManager : MonoBehaviour
             UnityEngine.Debug.Log($"[ {exp.experimentName} ]");
             UnityEngine.Debug.Log($"  > Factors  : Gravity = {exp.gravity} m/s² | Rope = {exp.ropeLength}m | Nozzle = {exp.nozzleRadius}m | Viscosity = {exp.viscosity}");
             UnityEngine.Debug.Log($"  > Dynamics : Init Angle = {exp.initialAngle}° | ω (Velocity) = {exp.currentAngularVelocity:F3} rad/s | α (Accel) = {exp.currentAngularAcceleration:F3} rad/s²");
-            UnityEngine.Debug.Log($"  > Results  : Spilled = {exp.spilledPaint:F4} L  |  Painted Area = {exp.paintedArea:F2} m2");
+            UnityEngine.Debug.Log($"  > Results  : Duration = {exp.experimentDuration:F2} sec | Trajectories = {exp.paintTrajectories} | Spilled = {exp.spilledPaint:F4} L | Area = {exp.paintedArea:F2} m2");
             UnityEngine.Debug.Log("-----------------------------------------------------------------------------------------------------------");
         }
         UnityEngine.Debug.Log("===========================================================================================================");

@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.InputSystem;
+using System.IO;
+
 
 public class ExperimentUI : MonoBehaviour
 {
@@ -23,6 +25,8 @@ public class ExperimentUI : MonoBehaviour
 
     private int currentIndex = 0;
     private bool isPanelVisible = true;
+    private string saveFilePath;
+
 
     void Start()
     {
@@ -31,6 +35,8 @@ public class ExperimentUI : MonoBehaviour
 
         // إعداد الأزرار
         SetupButtons();
+
+        saveFilePath = Path.Combine(UnityEngine.Application.persistentDataPath, "ExperimentsData.json");
 
         if (experimentManager == null)
         {
@@ -123,8 +129,8 @@ public class ExperimentUI : MonoBehaviour
             Debug.LogError("ExperimentManager is null!");
             return;
         }
-
         experimentManager.pastExperiments.Clear();
+        if (File.Exists(saveFilePath)) File.Delete(saveFilePath);
         currentIndex = 0;
         UpdateUI();
         Debug.Log("All experiments cleared!");
@@ -197,7 +203,9 @@ public class ExperimentUI : MonoBehaviour
 
                             $"<b><color=#FFD700> Results </b><br>" +
                             $"  • Spilled Paint  : <color=#FF6B6B>{exp.spilledPaint:F4} L</color><br>" +
-                            $"  • Painted Area   : <color=#81C784>{exp.paintedArea:F2} m²</color>";
+                            $"  • Painted Area   : <color=#81C784>{exp.paintedArea:F2} m²</color><br>" +
+                            $"  • experimentDuration   : <color=#81C784>{exp.experimentDuration:F2} sec</color><br>" +
+                            $"  • paintTrajectories   : <color=#81C784>{exp.paintTrajectories:F2} </color>" ;
 
             experimentDetailsText.text = details;
         }
@@ -205,7 +213,6 @@ public class ExperimentUI : MonoBehaviour
 
     private void SetUIState(bool hasExperiments)
     {
-        // إظهار أو إخفاء أزرار التنقل حسب وجود تجارب
         if (previousButton != null)
             previousButton.interactable = hasExperiments && experimentManager.pastExperiments.Count > 1;
 
