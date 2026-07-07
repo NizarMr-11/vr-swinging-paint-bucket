@@ -21,11 +21,6 @@ namespace SwingingPaintBucket.Interface.UI
         private GameObject _controlsSection;
         private GameObject _tipsSection;
         
-        // عناوين الأقسام
-        private Text _aboutTitle;
-        private Text _controlsTitle;
-        private Text _tipsTitle;
-        
         // نصوص المحتوى
         private Text _aboutText;
         private Text _controlsText;
@@ -40,14 +35,20 @@ namespace SwingingPaintBucket.Interface.UI
         private enum TabType { About, Controls, Tips }
         private TabType _currentTab = TabType.About;
         
+        // ألوان Rich Text (Hex strings)
+        private const string COLOR_KEY = "#4CAF50";
+        private const string COLOR_ACCENT = "#FFD700";
+        private const string COLOR_HIGHLIGHT = "#4FC3F7";
+        private const string COLOR_SUCCESS = "#81C784";
+        private const string COLOR_WARNING = "#FFB74D";
+        private const string COLOR_PURPLE = "#CE93D8";
+        private const string COLOR_DANGER = "#FF6B6B";
+        
         // الألوان
         private readonly Color _activeTabColor = new Color(0.15f, 0.35f, 0.65f, 1f);
         private readonly Color _inactiveTabColor = new Color(0.15f, 0.15f, 0.25f, 1f);
         private readonly Color _titleColor = new Color(1f, 0.85f, 0.1f);
         private readonly Color _textColor = new Color(0.85f, 0.87f, 0.9f);
-        private readonly Color _highlightColor = new Color(0.3f, 0.75f, 1f);
-        private readonly Color _warningColor = new Color(1f, 0.6f, 0.2f);
-        private readonly Color _keyColor = new Color(0.3f, 0.85f, 0.5f);
         private readonly Color _separatorColor = new Color(1f, 0.8f, 0f, 0.15f);
         
         // عرض اللوحة
@@ -62,16 +63,22 @@ namespace SwingingPaintBucket.Interface.UI
             _mainContainer = new GameObject("InfoPanel", typeof(RectTransform));
             _mainContainer.transform.SetParent(parent, false);
             
+            // جعل اللوحة تأخذ المساحة الكاملة
+            var mainRt = _mainContainer.GetComponent<RectTransform>();
+            mainRt.anchorMin = Vector2.zero;
+            mainRt.anchorMax = Vector2.one;
+            mainRt.sizeDelta = Vector2.zero;
+            
             var mainLayout = _mainContainer.AddComponent<LayoutElement>();
             mainLayout.flexibleHeight = 1f;
             mainLayout.flexibleWidth = 1f;
             
             var mainVL = _mainContainer.AddComponent<VerticalLayoutGroup>();
-            mainVL.spacing = 0;
-            mainVL.padding = new RectOffset(0, 0, 0, 0);
+            mainVL.spacing = 2;
+            mainVL.padding = new RectOffset(8, 8, 4, 4);
             mainVL.childForceExpandWidth = true;
             mainVL.childControlHeight = true;
-            mainVL.childControlWidth = true;
+            mainVL.childForceExpandHeight = false;
             
             // ==================== شريط التبويبات ====================
             CreateTabBar();
@@ -82,20 +89,17 @@ namespace SwingingPaintBucket.Interface.UI
             // ==================== محتوى عن اللعبة ====================
             _aboutSection = CreateContentSection("📖 ABOUT THE SIMULATION");
             _aboutText = CreateContentText(_aboutSection.transform);
-            
             _aboutText.text = GetAboutText();
             
             // ==================== محتوى التحكم ====================
             _controlsSection = CreateContentSection("🎮 CONTROLS & USAGE");
             _controlsText = CreateContentText(_controlsSection.transform);
-            
             _controlsText.text = GetControlsText();
             _controlsSection.SetActive(false);
             
             // ==================== محتوى النصائح ====================
             _tipsSection = CreateContentSection("💡 TIPS & TRICKS");
             _tipsText = CreateContentText(_tipsSection.transform);
-            
             _tipsText.text = GetTipsText();
             _tipsSection.SetActive(false);
             
@@ -104,10 +108,15 @@ namespace SwingingPaintBucket.Interface.UI
             
             // ==================== معلومات سريعة ====================
             CreateQuickInfo();
+            
+            // تفعيل التبويب الأول
+            SwitchTab(TabType.About);
+            
+            Debug.Log("InfoPanel built successfully!");
         }
         
         /// <summary>
-        /// إنشاء شريط التبويبات (About | Controls | Tips)
+        /// إنشاء شريط التبويبات
         /// </summary>
         private void CreateTabBar()
         {
@@ -115,11 +124,11 @@ namespace SwingingPaintBucket.Interface.UI
             tabBar.transform.SetParent(_mainContainer.transform, false);
             
             var tabLayout = tabBar.AddComponent<LayoutElement>();
-            tabLayout.preferredHeight = 22;
+            tabLayout.preferredHeight = 30;
             tabLayout.flexibleWidth = 1f;
             
             var tabHL = tabBar.AddComponent<HorizontalLayoutGroup>();
-            tabHL.spacing = 2;
+            tabHL.spacing = 4;
             tabHL.padding = new RectOffset(4, 4, 2, 2);
             tabHL.childForceExpandWidth = true;
             tabHL.childForceExpandHeight = true;
@@ -172,7 +181,7 @@ namespace SwingingPaintBucket.Interface.UI
             var text = textGo.AddComponent<Text>();
             text.text = label;
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 10;
+            text.fontSize = 12;
             text.fontStyle = FontStyle.Bold;
             text.color = Color.white;
             text.alignment = TextAnchor.MiddleCenter;
@@ -192,23 +201,26 @@ namespace SwingingPaintBucket.Interface.UI
             var sectionLayout = section.AddComponent<LayoutElement>();
             sectionLayout.flexibleHeight = 1f;
             sectionLayout.flexibleWidth = 1f;
+            sectionLayout.minHeight = 200f; // ارتفاع أدنى
             
             var sectionVL = section.AddComponent<VerticalLayoutGroup>();
             sectionVL.spacing = 2;
-            sectionVL.padding = new RectOffset(6, 6, 4, 4);
+            sectionVL.padding = new RectOffset(4, 4, 2, 2);
             sectionVL.childForceExpandWidth = true;
             sectionVL.childControlHeight = true;
+            sectionVL.childForceExpandHeight = true;
             
             // عنوان القسم
             var titleGo = new GameObject("Title", typeof(RectTransform));
             titleGo.transform.SetParent(section.transform, false);
             var titleLayout = titleGo.AddComponent<LayoutElement>();
-            titleLayout.preferredHeight = 16;
+            titleLayout.preferredHeight = 22;
+            titleLayout.flexibleWidth = 1f;
             
             var titleText = titleGo.AddComponent<Text>();
             titleText.text = title;
             titleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            titleText.fontSize = 10;
+            titleText.fontSize = 12;
             titleText.fontStyle = FontStyle.Bold;
             titleText.color = _titleColor;
             titleText.alignment = TextAnchor.MiddleCenter;
@@ -229,6 +241,7 @@ namespace SwingingPaintBucket.Interface.UI
             var scrollLayout = scrollGo.AddComponent<LayoutElement>();
             scrollLayout.flexibleHeight = 1f;
             scrollLayout.flexibleWidth = 1f;
+            scrollLayout.minHeight = 150f;
             
             var scrollRect = scrollGo.AddComponent<ScrollRect>();
             
@@ -245,6 +258,7 @@ namespace SwingingPaintBucket.Interface.UI
             
             var vpImg = viewport.AddComponent<Image>();
             vpImg.color = new Color(0.05f, 0.05f, 0.1f, 0.3f);
+            vpImg.raycastTarget = false;
             
             // Content
             var content = new GameObject("Content", typeof(RectTransform));
@@ -260,15 +274,16 @@ namespace SwingingPaintBucket.Interface.UI
             
             var text = content.AddComponent<Text>();
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 9;
+            text.fontSize = 10;
             text.color = _textColor;
             text.alignment = TextAnchor.UpperLeft;
             text.supportRichText = true;
-            text.lineSpacing = 1.3f;
+            text.lineSpacing = 1.2f;
             text.raycastTarget = true;
             
+            // جعل النص يظهر بشكل واضح
             var shadow = content.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0, 0, 0, 0.4f);
+            shadow.effectColor = new Color(0, 0, 0, 0.5f);
             shadow.effectDistance = new Vector2(1, -1);
             
             // إعداد ScrollRect
@@ -277,9 +292,61 @@ namespace SwingingPaintBucket.Interface.UI
             scrollRect.horizontal = false;
             scrollRect.vertical = true;
             scrollRect.movementType = ScrollRect.MovementType.Clamped;
-            scrollRect.scrollSensitivity = 15f;
+            scrollRect.scrollSensitivity = 20f;
+            
+            // إضافة Scrollbar
+            CreateScrollbar(scrollGo.transform);
             
             return text;
+        }
+        
+        /// <summary>
+        /// إنشاء شريط تمرير
+        /// </summary>
+        private void CreateScrollbar(Transform parent)
+        {
+            var scrollbarGo = new GameObject("Scrollbar", typeof(RectTransform));
+            scrollbarGo.transform.SetParent(parent, false);
+            
+            var sbRt = scrollbarGo.GetComponent<RectTransform>();
+            sbRt.anchorMin = new Vector2(1, 0);
+            sbRt.anchorMax = new Vector2(1, 1);
+            sbRt.pivot = new Vector2(1, 0.5f);
+            sbRt.sizeDelta = new Vector2(12, 0);
+            
+            var scrollbar = scrollbarGo.AddComponent<Scrollbar>();
+            scrollbar.direction = Scrollbar.Direction.BottomToTop;
+            
+            // خلفية الـ Scrollbar
+            var bg = new GameObject("Background", typeof(RectTransform));
+            bg.transform.SetParent(scrollbarGo.transform, false);
+            var bgRt = bg.GetComponent<RectTransform>();
+            bgRt.anchorMin = Vector2.zero;
+            bgRt.anchorMax = Vector2.one;
+            bgRt.sizeDelta = Vector2.zero;
+            var bgImg = bg.AddComponent<Image>();
+            bgImg.color = new Color(0.1f, 0.1f, 0.15f, 0.8f);
+            
+            // Handle
+            var handle = new GameObject("Handle", typeof(RectTransform));
+            handle.transform.SetParent(scrollbarGo.transform, false);
+            var handleRt = handle.GetComponent<RectTransform>();
+            handleRt.anchorMin = new Vector2(0.1f, 0);
+            handleRt.anchorMax = new Vector2(0.9f, 0.3f);
+            handleRt.sizeDelta = Vector2.zero;
+            var handleImg = handle.AddComponent<Image>();
+            handleImg.color = new Color(0.3f, 0.5f, 0.7f, 0.9f);
+            
+            scrollbar.targetGraphic = handleImg;
+            scrollbar.handleRect = handleRt;
+            
+            // ربط الـ Scrollbar بالـ ScrollRect
+            var scrollRect = parent.GetComponent<ScrollRect>();
+            if (scrollRect != null)
+            {
+                scrollRect.verticalScrollbar = scrollbar;
+                scrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+            }
         }
         
         /// <summary>
@@ -315,13 +382,13 @@ namespace SwingingPaintBucket.Interface.UI
             quickInfo.transform.SetParent(_mainContainer.transform, false);
             
             var qiLayout = quickInfo.AddComponent<LayoutElement>();
-            qiLayout.preferredHeight = 14;
+            qiLayout.preferredHeight = 18;
             qiLayout.flexibleWidth = 1f;
             
             var qiText = quickInfo.AddComponent<Text>();
             qiText.text = "💡 <b>Pro tip:</b> Use sliders for real-time physics tweaks!";
             qiText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            qiText.fontSize = 8;
+            qiText.fontSize = 9;
             qiText.fontStyle = FontStyle.Italic;
             qiText.color = new Color(0.5f, 0.6f, 0.7f);
             qiText.alignment = TextAnchor.MiddleCenter;
@@ -335,11 +402,14 @@ namespace SwingingPaintBucket.Interface.UI
         {
             _currentTab = tab;
             
-            _aboutSection.SetActive(tab == TabType.About);
-            _controlsSection.SetActive(tab == TabType.Controls);
-            _tipsSection.SetActive(tab == TabType.Tips);
+            // إظهار/إخفاء الأقسام
+            if (_aboutSection != null) _aboutSection.SetActive(tab == TabType.About);
+            if (_controlsSection != null) _controlsSection.SetActive(tab == TabType.Controls);
+            if (_tipsSection != null) _tipsSection.SetActive(tab == TabType.Tips);
             
             UpdateTabVisuals();
+            
+            Debug.Log($"Switched to tab: {tab}");
         }
         
         /// <summary>
@@ -364,12 +434,12 @@ namespace SwingingPaintBucket.Interface.UI
         {
             StringBuilder sb = new StringBuilder();
             
-            sb.AppendLine("<b><color=#FFD700>🔬 The Swinging Paint Bucket</color></b>");
+            sb.AppendLine($"<b><color={COLOR_ACCENT}>🔬 The Swinging Paint Bucket</color></b>");
             sb.AppendLine("A precision physics simulation exploring the");
             sb.AppendLine("fascinating dynamics of a pendulum with a leak!");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#4FC3F7>🌌 Multi-Scale Physics Engine</color></b>");
+            sb.AppendLine($"<b><color={COLOR_HIGHLIGHT}>🌌 Multi-Scale Physics Engine</color></b>");
             sb.AppendLine("This simulation bridges the gap between");
             sb.AppendLine("<b>macroscopic</b> and <b>microscopic</b> physics:");
             sb.AppendLine();
@@ -384,14 +454,14 @@ namespace SwingingPaintBucket.Interface.UI
             sb.AppendLine("    absorption rates at material boundaries");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#81C784>🧪 From Atoms to Art</color></b>");
+            sb.AppendLine($"<b><color={COLOR_SUCCESS}>🧪 From Atoms to Art</color></b>");
             sb.AppendLine("Every droplet is calculated considering:");
             sb.AppendLine("  • Intermolecular forces (van der Waals)");
             sb.AppendLine("  • Thermal agitation (Brownian motion)");
             sb.AppendLine("  • Capillary action at nozzle edges");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#FFB74D>📐 The Physics Model</color></b>");
+            sb.AppendLine($"<b><color={COLOR_WARNING}>📐 The Physics Model</color></b>");
             sb.AppendLine("The pendulum follows the nonlinear equation:");
             sb.AppendLine("  θ'' + (g/L)sin(θ) + γ·θ' = F_ext(t)");
             sb.AppendLine();
@@ -400,7 +470,7 @@ namespace SwingingPaintBucket.Interface.UI
             sb.AppendLine("Where h_eff considers centrifugal effects!");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#CE93D8>🎯 Educational Value</color></b>");
+            sb.AppendLine($"<b><color={COLOR_PURPLE}>🎯 Educational Value</color></b>");
             sb.AppendLine("Perfect for exploring:");
             sb.AppendLine("  • Conservation of energy & momentum");
             sb.AppendLine("  • Damped harmonic oscillators");
@@ -418,19 +488,23 @@ namespace SwingingPaintBucket.Interface.UI
         {
             StringBuilder sb = new StringBuilder();
             
-            sb.AppendLine("<b><color=#FFD700>⌨️ KEYBOARD SHORTCUTS</color></b>");
+            sb.AppendLine($"<b><color={COLOR_ACCENT}>⌨️ KEYBOARD SHORTCUTS</color></b>");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#4FC3F7>🧪 Experiment Controls</color></b>");
-            sb.AppendLine($"  <color={ColorToHex(_keyColor)}>[R]</color>    Record current experiment");
-            sb.AppendLine($"  <color={ColorToHex(_keyColor)}>[C]</color>    Clear all recorded experiments");
+            sb.AppendLine($"<b><color={COLOR_HIGHLIGHT}>🧪 Experiment Controls</color></b>");
+            sb.AppendLine($"  <color={COLOR_KEY}>[R]</color>    Record current experiment");
+            sb.AppendLine($"  <color={COLOR_KEY}>[C]</color>    Clear all recorded experiments");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#81C784>🖥️ Interface Controls</color></b>");
-            sb.AppendLine($"  <color={ColorToHex(_keyColor)}>[H]</color>    Toggle this panel visibility");
+            sb.AppendLine($"<b><color={COLOR_SUCCESS}>🖥️ Interface Controls</color></b>");
+            sb.AppendLine($"  <color={COLOR_KEY}>[H]</color>    Toggle this panel visibility");
+            sb.AppendLine();
+            sb.AppendLine($"  <color={COLOR_KEY}>[Enter]</color>    Resumes the simulation");
+            sb.AppendLine($"  <color={COLOR_KEY}>[Space]</color>    Pauses the simulation");
+            sb.AppendLine($"  <color={COLOR_KEY}>[S]</color>    Saves a PNG picture of the paint draw");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#FFB74D>📋 EXPERIMENT PANEL BUTTONS</color></b>");
+            sb.AppendLine($"<b><color={COLOR_WARNING}>📋 EXPERIMENT PANEL BUTTONS</color></b>");
             sb.AppendLine("When experiment panel is visible:");
             sb.AppendLine();
             sb.AppendLine("  • <b>Record Button</b>");
@@ -447,7 +521,7 @@ namespace SwingingPaintBucket.Interface.UI
             sb.AppendLine("    Navigate to next experiment");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#CE93D8>📊 QUICK SETTINGS PANEL</color></b>");
+            sb.AppendLine($"<b><color={COLOR_PURPLE}>📊 QUICK SETTINGS PANEL</color></b>");
             sb.AppendLine("Located on the right side of screen:");
             sb.AppendLine();
             sb.AppendLine("  • <b>Sliders</b> - Adjust physics parameters");
@@ -463,7 +537,7 @@ namespace SwingingPaintBucket.Interface.UI
             sb.AppendLine("    Revert parameters to last applied values");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#FFD700>⚙ MENU BUTTON</color></b>");
+            sb.AppendLine($"<b><color={COLOR_ACCENT}>⚙ MENU BUTTON</color></b>");
             sb.AppendLine("Located at top-left corner:");
             sb.AppendLine();
             sb.AppendLine("  • Opens advanced settings configuration");
@@ -480,10 +554,10 @@ namespace SwingingPaintBucket.Interface.UI
         {
             StringBuilder sb = new StringBuilder();
             
-            sb.AppendLine("<b><color=#FFD700>🌟 PRO TIPS</color></b>");
+            sb.AppendLine($"<b><color={COLOR_ACCENT}>🌟 PRO TIPS</color></b>");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#4FC3F7>🎯 Getting Started</color></b>");
+            sb.AppendLine($"<b><color={COLOR_HIGHLIGHT}>🎯 Getting Started</color></b>");
             sb.AppendLine("  1. Start with default settings to understand");
             sb.AppendLine("     the basic pendulum behavior");
             sb.AppendLine("  2. Gradually adjust one parameter at a time");
@@ -491,7 +565,7 @@ namespace SwingingPaintBucket.Interface.UI
             sb.AppendLine("  4. Record interesting experiments for comparison");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#81C784>🔬 Experiment Ideas</color></b>");
+            sb.AppendLine($"<b><color={COLOR_SUCCESS}>🔬 Experiment Ideas</color></b>");
             sb.AppendLine("  • <b>Chaos Explorer:</b> Set angle > 150°");
             sb.AppendLine("    and observe non-linear behavior");
             sb.AppendLine("  • <b>Viscosity Test:</b> Compare water (0.001)");
@@ -504,13 +578,13 @@ namespace SwingingPaintBucket.Interface.UI
             sb.AppendLine("    nozzle = fine, detailed patterns");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#FFB74D>⚡ Performance Tips</color></b>");
+            sb.AppendLine($"<b><color={COLOR_WARNING}>⚡ Performance Tips</color></b>");
             sb.AppendLine("  • Reduce particle count if FPS drops");
             sb.AppendLine("  • Lower paint resolution for smoother sim");
             sb.AppendLine("  • Close other applications for CPU headroom");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#CE93D8>🎨 Artistic Suggestions</color></b>");
+            sb.AppendLine($"<b><color={COLOR_PURPLE}>🎨 Artistic Suggestions</color></b>");
             sb.AppendLine("  • Mix colors by overlapping swing patterns");
             sb.AppendLine("  • Create Lissajous-like figures with");
             sb.AppendLine("    specific angle/gravity combinations");
@@ -519,21 +593,13 @@ namespace SwingingPaintBucket.Interface.UI
             sb.AppendLine("    for unique paint-surface interactions");
             sb.AppendLine();
             
-            sb.AppendLine("<b><color=#FF6B6B>⚠️ Common Pitfalls</color></b>");
+            sb.AppendLine($"<b><color={COLOR_DANGER}>⚠️ Common Pitfalls</color></b>");
             sb.AppendLine("  • Too short rope = unstable simulation");
             sb.AppendLine("  • Too high mass + low gravity = slow swing");
             sb.AppendLine("  • Empty bucket still swings - check volume!");
             sb.AppendLine("  • Extreme wind can blow paint off canvas");
             
             return sb.ToString();
-        }
-        
-        /// <summary>
-        /// تحويل اللون إلى كود hex للاستخدام في Rich Text
-        /// </summary>
-        private string ColorToHex(Color color)
-        {
-            return $"#{ColorUtility.ToHtmlStringRGB(color)}";
         }
         
         /// <summary>

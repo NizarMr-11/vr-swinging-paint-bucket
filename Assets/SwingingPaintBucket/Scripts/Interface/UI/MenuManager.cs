@@ -600,6 +600,8 @@ private string GetAboutText()
 /// </summary>
 private string GetControlsText()
 {
+
+            
     return "<b><color=#FFD700>⌨️ KEYBOARD SHORTCUTS</color></b>\n\n" +
            
            "<b><color=#4FC3F7>🧪 Experiment Controls</color></b>\n" +
@@ -608,7 +610,9 @@ private string GetControlsText()
            
            "<b><color=#81C784>🖥️ Interface Controls</color></b>\n" +
            "  <color=#4CAF50>[H]</color>    Toggle panel visibility\n\n" +
-           
+           "  <color=#4CAF50>[Enter]</color>    Resumes the simulation\n"+
+           "  <color=#4CAF50>[Space]</color>    Pauses the simulation\n"+
+           "  <color=#4CAF50>[S]</color>    Saves a PNG picture of the paint draw\n\n"+
            "<b><color=#FFB74D>📋 EXPERIMENT PANEL BUTTONS</color></b>\n" +
            "When experiment panel is visible:\n\n" +
            
