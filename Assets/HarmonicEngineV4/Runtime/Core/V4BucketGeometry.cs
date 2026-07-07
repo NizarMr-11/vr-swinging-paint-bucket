@@ -83,7 +83,8 @@ namespace HarmonicEngineV4.Core
             float wallThickness,
             float restitution,
             float friction,
-            bool containInside)
+            bool containInside,
+            Vector3 contactVelLocal = default)
         {
             float outerRadius = innerRadius + wallThickness;
             float r = Mathf.Sqrt(localPos.x * localPos.x + localPos.z * localPos.z);
@@ -99,7 +100,7 @@ namespace HarmonicEngineV4.Core
                 if (localPos.y < 0f)
                 {
                     localPos.y = 0f;
-                    ReflectAgainstNormal(ref localVel, Vector3.up, restitution, friction);
+                    ReflectAgainstNormalInMovingFrame(ref localVel, Vector3.up, contactVelLocal, restitution, friction);
                 }
 
                 if (r > innerRadius)
@@ -110,7 +111,7 @@ namespace HarmonicEngineV4.Core
                     localPos.z *= scale;
 
                     Vector3 radialDir = new Vector3(localPos.x, 0f, localPos.z) / Mathf.Max(innerRadius, 1e-6f);
-                    ReflectAgainstNormal(ref localVel, -radialDir, restitution, friction);
+                    ReflectAgainstNormalInMovingFrame(ref localVel, -radialDir, contactVelLocal, restitution, friction);
                 }
 
                 return;
@@ -130,7 +131,7 @@ namespace HarmonicEngineV4.Core
                         bool fromAbove = localPos.y > -wallThickness * 0.5f;
                         localPos.y = fromAbove ? 0f : -wallThickness;
                         Vector3 normal = fromAbove ? Vector3.up : Vector3.down;
-                        ReflectAgainstNormal(ref localVel, normal, restitution, friction);
+                        ReflectAgainstNormalInMovingFrame(ref localVel, normal, contactVelLocal, restitution, friction);
                     }
 
                     return;
@@ -154,7 +155,7 @@ namespace HarmonicEngineV4.Core
                 if (localPos.y < 0f)
                 {
                     localPos.y = 0f;
-                    ReflectAgainstNormal(ref localVel, Vector3.up, restitution, friction);
+                    ReflectAgainstNormalInMovingFrame(ref localVel, Vector3.up, contactVelLocal, restitution, friction);
                 }
 
                 float toInner = r - innerRadius;
@@ -169,8 +170,21 @@ namespace HarmonicEngineV4.Core
 
                 Vector3 radialDir = new Vector3(localPos.x, 0f, localPos.z) / Mathf.Max(targetR, 1e-6f);
                 Vector3 wallNormal = resolveToInner ? -radialDir : radialDir;
-                ReflectAgainstNormal(ref localVel, wallNormal, restitution, friction);
+                ReflectAgainstNormalInMovingFrame(ref localVel, wallNormal, contactVelLocal, restitution, friction);
             }
+        }
+
+        /// <summary>Reflect in the wall/floor's moving frame at the contact point.</summary>
+        public static void ReflectAgainstNormalInMovingFrame(
+            ref Vector3 vel,
+            Vector3 normal,
+            Vector3 contactVel,
+            float restitution,
+            float friction)
+        {
+            Vector3 relVel = vel - contactVel;
+            ReflectAgainstNormal(ref relVel, normal, restitution, friction);
+            vel = relVel + contactVel;
         }
 
         /// <summary>Removes penetrating velocity along the normal (with restitution) and applies slide friction tangentially.</summary>

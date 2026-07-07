@@ -1,0 +1,6 @@
+V4 s_corr investigation — kCorr sweep (ghost ON, iter=8, 320 frames)
+kCorr=0.1: settled=0 live=13461 escaped=0 bottomRhoRatio=1.1069
+kCorr=0.03: settled=0 live=13461 escaped=0 bottomRhoRatio=1.1060
+kCorr=0.01: settled=0 live=13461 escaped=0 bottomRhoRatio=1.0966
+kCorr=0.003: settled=0 live=13461 escaped=0 bottomRhoRatio=1.0876
+kCorr=0.001: settled=0 live=13461 escaped=0 bottomRhoRatio=1.0948

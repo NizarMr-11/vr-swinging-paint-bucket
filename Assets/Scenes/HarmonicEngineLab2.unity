@@ -195,7 +195,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 95ad25e491bd64c4a800c19928885937, type: 3}
   m_Name: 
   m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Simulation.V4SpawnZone
-  radius: 0.2
+  radius: 0.15
   color: {r: 0, g: 0, b: 0, a: 1}
   profile: {fileID: 0}
 --- !u!4 &811744848
@@ -207,7 +207,7 @@ Transform:
   m_GameObject: {fileID: 811744846}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.1, y: 0.742, z: 0}
+  m_LocalPosition: {x: 0.094, y: 0.911, z: -0.018}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -679,6 +679,7 @@ MonoBehaviour:
   downwardScale: 1
   emaSmoothing: 0.1
   pbfEpsilon: 50
+  boundaryGhostWeight: 0
   maxDeltaTime: 0.02
   gravity: {x: 0, y: -9.81, z: 0}
   maxSplatEvents: 1024

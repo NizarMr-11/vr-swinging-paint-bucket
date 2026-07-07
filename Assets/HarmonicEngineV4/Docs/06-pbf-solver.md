@@ -72,6 +72,10 @@ scorr = -kCorr × (W(r,h) / W(δQ·h, h))^nCorr
 
 Profile fields: `pbfKCorr`, `pbfNCorr`, `pbfDeltaQScale` (reference distance = scale × h).
 
+**s_corr is applied only on the final PBF iteration** per frame (avoids compounding repulsive corrections across Jacobi passes).
+
+**Boundary ghosts** are scaled by `V4PipelineRoot.boundaryGhostWeight` (shipped default **0** — disabled; infrastructure remains for tuning).
+
 ### ApplyDeltaKernel
 
 ```

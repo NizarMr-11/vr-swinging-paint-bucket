@@ -12,6 +12,7 @@
 #pragma kernel SolveDeltaKernel
 #pragma kernel ApplyDeltaKernel
 #pragma kernel FinalizeKernel
+#pragma kernel FinalizeTermsProbeKernel
 #pragma kernel GatherKernel
 
 #include "Include/V4Common.hlsl"
@@ -90,6 +91,9 @@ StructuredBuffer<V4Hole> _Holes;
 
 float4x4 _BucketWorldToLocal;
 float4x4 _BucketLocalToWorld;
+float3 _BucketLinearVelocity;
+float3 _BucketAngularVelocity;
+float3 _BucketWorldOrigin;
 float _BucketInnerRadius;
 float _BucketHeight;
 float _BucketWallThickness;
@@ -106,6 +110,20 @@ float2 _CanvasMinCorner;       // world XZ of the canvas min corner
 float2 _CanvasSize;            // world meters (width, depth)
 float _SettleDistance;         // how close above the plane counts as "on canvas"
 uint _MaxSplatEvents;
+uint _DebugDisableBoundaryGhosts; // test instrumentation: skip mirror ghosts when non-zero
+float _BoundaryGhostWeight;        // scales mirror density + gradient consistently
+float _DebugScorrRatioMax;         // test instrumentation: clamp wRatio before pow (0 = off)
+uint _DebugScorrApplyMode;         // test instrumentation: 1=divide scorr by iter count
+uint _DebugScorrSaturatePow;       // test instrumentation: saturate the pow() result
+float _DebugMaxCorrectionScale;    // test instrumentation: 0=default 0.2h, >0=scale*h, <0=uncapped
+uint _PbfIterationIndex;
+uint _PbfIterationCount;
+
+// Test instrumentation: FinalizeTermsProbeKernel writes one row per tracked particle.
+static const uint kV4DebugFinalizeProbeSlots = 8u;
+uint _DebugTrackCount;
+uint _DebugTrackIndices[kV4DebugFinalizeProbeSlots];
+RWStructuredBuffer<float4> _DebugFinalizeProbe;
 
 // ---------------------------------------------------------------------------
 
@@ -128,7 +146,7 @@ void V4AddBoundaryGhostDensity(float3 worldPos, float3 localPos, inout float den
         float3 mirrorLocal = float3(localPos.x, -localPos.y, localPos.z);
         float3 mirrorWorld = V4ToWorld(mirrorLocal);
         float rMirror = distance(worldPos, mirrorWorld);
-        density += V4Poly6(rMirror, h);
+        density += _BoundaryGhostWeight * V4Poly6(rMirror, h);
     }
 
     float radXZ = length(localPos.xz);
@@ -139,7 +157,7 @@ void V4AddBoundaryGhostDensity(float3 worldPos, float3 localPos, inout float den
         float3 mirrorLocal = float3(dirXZ.x * mirrorRad, localPos.y, dirXZ.y * mirrorRad);
         float3 mirrorWorld = V4ToWorld(mirrorLocal);
         float rMirror = distance(worldPos, mirrorWorld);
-        density += V4Poly6(rMirror, h);
+        density += _BoundaryGhostWeight * V4Poly6(rMirror, h);
     }
 }
 
@@ -151,7 +169,7 @@ void V4AddBoundaryGhostGradSum(float3 worldPos, float3 localPos, inout float gra
         float3 mirrorWorld = V4ToWorld(mirrorLocal);
         float rMirror = distance(worldPos, mirrorWorld);
         float3 gradMirror = V4SpikyGradient(worldPos - mirrorWorld, rMirror, h) / restDensity;
-        gradSum += dot(gradMirror, gradMirror);
+        gradSum += _BoundaryGhostWeight * dot(gradMirror, gradMirror);
     }
 
     float radXZ = length(localPos.xz);
@@ -163,7 +181,7 @@ void V4AddBoundaryGhostGradSum(float3 worldPos, float3 localPos, inout float gra
         float3 mirrorWorld = V4ToWorld(mirrorLocal);
         float rMirror = distance(worldPos, mirrorWorld);
         float3 gradMirror = V4SpikyGradient(worldPos - mirrorWorld, rMirror, h) / restDensity;
-        gradSum += dot(gradMirror, gradMirror);
+        gradSum += _BoundaryGhostWeight * dot(gradMirror, gradMirror);
     }
 }
 
@@ -181,7 +199,7 @@ float3 V4ClampPositionToBucket(float3 worldPos, uint flags)
     bool containInside = V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
     float3 localVel = float3(0, 0, 0);
     V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, 0.0, 0.0,
-        containInside);
+        containInside, float3(0, 0, 0));
     return V4ToWorld(localPos);
 }
 
@@ -217,7 +235,8 @@ void DensityKernel(uint3 id : SV_DispatchThreadID)
     float h = _SmoothingRadius;
     uint flags = _Flags[i];
     float3 localPos = V4ToLocal(pi);
-    bool addBoundaryGhosts = !V4HasEscaped(flags)
+    bool addBoundaryGhosts = (_DebugDisableBoundaryGhosts == 0u)
+        && !V4HasEscaped(flags)
         && V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
 
     float density = V4Poly6(0.0, h); // self contribution
@@ -268,7 +287,8 @@ void LambdaKernel(uint3 id : SV_DispatchThreadID)
     float h = _SmoothingRadius;
     uint flags = _Flags[i];
     float3 localPos = V4ToLocal(pi);
-    bool addBoundaryGhosts = !V4HasEscaped(flags)
+    bool addBoundaryGhosts = (_DebugDisableBoundaryGhosts == 0u)
+        && !V4HasEscaped(flags)
         && V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
     float restDensity = max(_Profiles[V4GetProfile(flags)].restDensity, 1e-4);
 
@@ -341,7 +361,30 @@ void SolveDeltaKernel(uint3 id : SV_DispatchThreadID)
         }
 
         float wCorrNum = V4Poly6(r, h);
-        float scorr = -profile.pbfKCorr * pow(wCorrNum / max(wCorrDenom, 1e-6), profile.pbfNCorr);
+        float scorr = 0.0;
+        // Macklin & Mueller s_corr: apply only on the final PBF iteration to avoid
+        // compounding repulsive corrections across Jacobi passes (rim leak at high iter).
+        if ((_PbfIterationIndex + 1u) >= _PbfIterationCount)
+        {
+            float wRatio = max(wCorrNum / max(wCorrDenom, 1e-6), 0.0);
+            if (_DebugScorrRatioMax > 0.0)
+            {
+                wRatio = min(wRatio, _DebugScorrRatioMax);
+            }
+
+            float scorrPow = pow(wRatio, profile.pbfNCorr);
+            if (_DebugScorrSaturatePow != 0u)
+            {
+                scorrPow = saturate(scorrPow);
+            }
+
+            scorr = -profile.pbfKCorr * scorrPow;
+            if (_DebugScorrApplyMode == 1u)
+            {
+                scorr /= max((float)_PbfIterationCount, 1.0);
+            }
+        }
+
         delta += (lambdaI + _Lambdas[j] + scorr) * V4SpikyGradient(diff, r, h);
     V4_FOREACH_NEIGHBOR_END
 
@@ -365,6 +408,15 @@ void ApplyDeltaKernel(uint3 id : SV_DispatchThreadID)
     // over the rim. Excess compression now relaxes over several frames instead.
     float3 delta = _Deltas[i].xyz;
     float maxCorrection = 0.2 * _SmoothingRadius;
+    if (_DebugMaxCorrectionScale < 0.0)
+    {
+        maxCorrection = 1e10;
+    }
+    else if (_DebugMaxCorrectionScale > 0.0)
+    {
+        maxCorrection = _DebugMaxCorrectionScale * _SmoothingRadius;
+    }
+
     float deltaLen = length(delta);
     if (deltaLen > maxCorrection)
     {
@@ -444,9 +496,11 @@ void FinalizeKernel(uint3 id : SV_DispatchThreadID)
     {
         float3 localPos = V4ToLocal(pos);
         float3 localVel = mul((float3x3)_BucketWorldToLocal, vel);
+        float3 contactVelWorld = _BucketLinearVelocity + cross(_BucketAngularVelocity, pos - _BucketWorldOrigin);
+        float3 contactVelLocal = mul((float3x3)_BucketWorldToLocal, contactVelWorld);
         bool containInside = V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
         V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness,
-            profile.surfaceRestitution, profile.surfaceFriction, containInside);
+            profile.surfaceRestitution, profile.surfaceFriction, containInside, contactVelLocal);
         pos = V4ToWorld(localPos);
         vel = mul((float3x3)_BucketLocalToWorld, localVel);
     }
@@ -531,6 +585,78 @@ void FinalizeKernel(uint3 id : SV_DispatchThreadID)
     {
         InterlockedAdd(_Counters[COUNTER_WRITE_COUNT], 1u);
     }
+}
+
+// Test-only probe: mirrors FinalizeKernel XSPH/cohesion neighbor loop without mutating state.
+// Writes 3 float4 rows per tracked slot: meta(density,neighborCount,0,0),
+// cohesionDelta, xsphDelta.
+[numthreads(64, 1, 1)]
+void FinalizeTermsProbeKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    int slot = -1;
+    for (uint t = 0u; t < _DebugTrackCount; t++)
+    {
+        if (_DebugTrackIndices[t] == i)
+        {
+            slot = (int)t;
+            break;
+        }
+    }
+
+    if (slot < 0)
+    {
+        return;
+    }
+
+    uint flags = _Flags[i];
+    V4GpuProfile profile = _Profiles[V4GetProfile(flags)];
+
+    float4 oldP = _Block0[i];
+    float3 predicted = _PredictedRead[i].xyz;
+    float3 vel = _DeltaTime > 1e-6 ? (predicted - oldP.xyz) / _DeltaTime : float3(0, 0, 0);
+
+    float h = _SmoothingRadius;
+    float3 xsph = float3(0, 0, 0);
+    float3 cohesion = float3(0, 0, 0);
+    uint neighborCount = 0u;
+
+    V4_FOREACH_NEIGHBOR_BEGIN(predicted, j)
+        if (j == i || j >= _ActiveParticleCount)
+        {
+            continue;
+        }
+
+        float3 diff = predicted - _PredictedRead[j].xyz;
+        float r = length(diff);
+        if (r > h)
+        {
+            continue;
+        }
+
+        neighborCount++;
+        float w = V4Poly6(r, h);
+        float3 vj = _DeltaTime > 1e-6 ? (_PredictedRead[j].xyz - _Block0[j].xyz) / _DeltaTime : float3(0, 0, 0);
+        xsph += (vj - vel) * w;
+        if (r > 1e-6)
+        {
+            cohesion -= (diff / r) * w;
+        }
+    V4_FOREACH_NEIGHBOR_END
+
+    float selfW = max(V4Poly6(0.0, h), 1e-6);
+    float3 cohesionDelta = profile.cohesion * (cohesion / selfW) * _DeltaTime;
+    float3 xsphDelta = profile.viscosity * (xsph / selfW);
+
+    uint baseRow = (uint)slot * 3u;
+    _DebugFinalizeProbe[baseRow + 0u] = float4(_Densities[i], (float)neighborCount, 0.0, 0.0);
+    _DebugFinalizeProbe[baseRow + 1u] = float4(cohesionDelta, 0.0);
+    _DebugFinalizeProbe[baseRow + 2u] = float4(xsphDelta, 0.0);
 }
 
 // After the external radix sort of _CompactionPairs, survivors occupy the prefix

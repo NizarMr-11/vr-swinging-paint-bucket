@@ -89,6 +89,20 @@ void V4ReflectAgainstNormal(inout float3 vel, float3 normal, float restitution, 
     vel = tangential * (1.0 - friction) - normalComponent * restitution;
 }
 
+// Reflect in the wall/floor's moving frame: subtract contact point velocity before
+// reflection, then add it back so a co-moving particle sees a stationary boundary.
+void V4ReflectAgainstNormalInMovingFrame(
+    inout float3 vel,
+    float3 normal,
+    float3 contactVel,
+    float restitution,
+    float friction)
+{
+    float3 relVel = vel - contactVel;
+    V4ReflectAgainstNormal(relVel, normal, restitution, friction);
+    vel = relVel + contactVel;
+}
+
 // containInside must be true for particles flagged Inside: they are clamped back into
 // the cavity no matter how deep they penetrated (a moving bucket can sweep its shell
 // through a particle in one step; nearest-face resolution would eject it through the
@@ -103,7 +117,8 @@ void V4BucketResolveCollision(
     float wallThickness,
     float restitution,
     float friction,
-    bool containInside)
+    bool containInside,
+    float3 contactVelLocal)
 {
     float outerRadius = innerRadius + wallThickness;
     float r = sqrt(localPos.x * localPos.x + localPos.z * localPos.z);
@@ -118,7 +133,7 @@ void V4BucketResolveCollision(
         if (localPos.y < 0.0)
         {
             localPos.y = 0.0;
-            V4ReflectAgainstNormal(localVel, float3(0, 1, 0), restitution, friction);
+            V4ReflectAgainstNormalInMovingFrame(localVel, float3(0, 1, 0), contactVelLocal, restitution, friction);
         }
 
         if (r > innerRadius)
@@ -129,7 +144,7 @@ void V4BucketResolveCollision(
             localPos.z *= scale;
 
             float3 radialDir = float3(localPos.x, 0.0, localPos.z) / max(innerRadius, 1e-6);
-            V4ReflectAgainstNormal(localVel, -radialDir, restitution, friction);
+            V4ReflectAgainstNormalInMovingFrame(localVel, -radialDir, contactVelLocal, restitution, friction);
         }
 
         return;
@@ -146,7 +161,7 @@ void V4BucketResolveCollision(
                 bool fromAbove = localPos.y > -wallThickness * 0.5;
                 localPos.y = fromAbove ? 0.0 : -wallThickness;
                 float3 normal = fromAbove ? float3(0, 1, 0) : float3(0, -1, 0);
-                V4ReflectAgainstNormal(localVel, normal, restitution, friction);
+                V4ReflectAgainstNormalInMovingFrame(localVel, normal, contactVelLocal, restitution, friction);
             }
 
             return;
@@ -167,7 +182,7 @@ void V4BucketResolveCollision(
     if (localPos.y < 0.0)
     {
         localPos.y = 0.0;
-        V4ReflectAgainstNormal(localVel, float3(0, 1, 0), restitution, friction);
+        V4ReflectAgainstNormalInMovingFrame(localVel, float3(0, 1, 0), contactVelLocal, restitution, friction);
     }
 
     float toInner = r - innerRadius;
@@ -182,7 +197,7 @@ void V4BucketResolveCollision(
 
     float3 radialDir = float3(localPos.x, 0.0, localPos.z) / max(targetR, 1e-6);
     float3 wallNormal = resolveToInner ? -radialDir : radialDir;
-    V4ReflectAgainstNormal(localVel, wallNormal, restitution, friction);
+    V4ReflectAgainstNormalInMovingFrame(localVel, wallNormal, contactVelLocal, restitution, friction);
 }
 
 // --- Zones (mirror of V4ZoneMath.cs) -----------------------------------------

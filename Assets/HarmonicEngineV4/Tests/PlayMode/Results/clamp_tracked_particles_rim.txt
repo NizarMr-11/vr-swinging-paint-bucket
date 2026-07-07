@@ -1,0 +1,14 @@
+V4 ApplyDelta clamp — tracked floor particles (rest, 120 frames)
+tracked indices: 
+--- rim launch events (first above-rim crossing) ---
+count=10
+frame=6 idx=1489 velY=0.549 priorVelY=0.306 priorLocalY=0.4573 priorClampIters=0
+frame=6 idx=1952 velY=0.534 priorVelY=0.342 priorLocalY=0.4576 priorClampIters=0
+frame=7 idx=648 velY=0.281 priorVelY=0.446 priorLocalY=0.4617 priorClampIters=0
+frame=7 idx=1471 velY=0.493 priorVelY=0.367 priorLocalY=0.4639 priorClampIters=0
+frame=7 idx=9952 velY=0.539 priorVelY=0.317 priorLocalY=0.4574 priorClampIters=0
+frame=7 idx=11948 velY=0.441 priorVelY=0.370 priorLocalY=0.4612 priorClampIters=0
+frame=7 idx=11968 velY=0.278 priorVelY=0.369 priorLocalY=0.4614 priorClampIters=0
+frame=9 idx=102 velY=0.054 priorVelY=0.227 priorLocalY=0.4654 priorClampIters=0
+frame=9 idx=9946 velY=0.374 priorVelY=0.605 priorLocalY=0.4642 priorClampIters=0
+frame=9 idx=13122 velY=0.174 priorVelY=0.339 priorLocalY=0.4644 priorClampIters=0

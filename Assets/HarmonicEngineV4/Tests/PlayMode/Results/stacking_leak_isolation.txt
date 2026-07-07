@@ -1,0 +1,10 @@
+V4 stacking leak investigation — ghost/s_corr isolation (tall, iter=8, 320 frames)
+a) ghost+s_corr: ghost=ON scorr=ON spawned=13461 live=13461 escaped=0 settled=0 bottomRhoRatio=1.1069 corner(n=747) rho/rho0=1.1135 floorOnly(n=1586) rho/rho0=1.0930
+b) ghost only: ghost=ON scorr=OFF spawned=13461 live=13461 escaped=0 settled=0 bottomRhoRatio=1.1082 corner(n=757) rho/rho0=1.1093 floorOnly(n=1515) rho/rho0=1.0881
+c) s_corr only: ghost=OFF scorr=ON spawned=13461 live=13461 escaped=0 settled=0 bottomRhoRatio=1.1069 corner(n=747) rho/rho0=1.1135 floorOnly(n=1586) rho/rho0=1.0930
+--- bottom rho/rho0 comparison ---
+both ON:  1.1069
+ghost ON, s_corr OFF: 1.1082
+ghost OFF, s_corr ON: 1.1069
+--- corner vs floor-only density (both ON) ---
+corner rho/rho0=1.1135 (n=747) vs floor-only=1.0930 (n=1586) ratio=1.02x

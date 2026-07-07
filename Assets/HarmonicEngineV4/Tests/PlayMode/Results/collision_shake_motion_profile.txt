@@ -1,0 +1,6 @@
+V4 shake motion profile (test harness, not V4BucketMotionController)
+x(t) = 0.25 * sin(4 * t)
+peak |bucketVelX| measured=1.000 theoretical=1.000
+velocity sign reversals in 300 frames: 6 (~1.9 per cycle)
+V4BucketMotionController: keyboard-driven, integrates position += input*speed*dt each frame (continuous, not teleport steps)
+Test shake: smooth sinusoidal position — no abrupt per-frame velocity reversals

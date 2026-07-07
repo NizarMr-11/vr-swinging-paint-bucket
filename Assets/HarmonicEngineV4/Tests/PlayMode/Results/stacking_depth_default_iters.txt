@@ -1,0 +1,48 @@
+V4 stacking depth instrumentation — fixed pbfIterations=2
+=== SHALLOW (~4 layers) (pbfIterations=2) ===
+targetLayers=4 measuredLayers=7 particles=3204 bucketH=0.1416 restDensity=121173.00 layerBand=0.02027
+bottomLayer rho/rho0=1.0070  topLayer rho/rho0=0.2254
+layer  yCenter   count   avgRho   rho/rho0
+   0   0.0046   1344  122017.60   1.0070
+   1   0.0295    676  113469.10   0.9364
+   2   0.0498    517  91278.71   0.7533
+   3   0.0699    331  64874.19   0.5354
+   4   0.0898    214  44995.75   0.3713
+   5   0.1082    107  31902.01   0.2633
+   6   0.1292     15  27306.63   0.2254
+=== MEDIUM (~10 layers) (pbfIterations=2) ===
+targetLayers=10 measuredLayers=12 particles=7044 bucketH=0.2633 restDensity=121173.00 layerBand=0.02027
+bottomLayer rho/rho0=1.3234  topLayer rho/rho0=0.2661
+layer  yCenter   count   avgRho   rho/rho0
+   0   0.0052   1884  160357.20   1.3234
+   1   0.0313    838  160456.70   1.3242
+   2   0.0507    907  147470.40   1.2170
+   3   0.0708    871  134945.90   1.1137
+   4   0.0909    781  126970.40   1.0478
+   5   0.1113    683  111986.70   0.9242
+   6   0.1313    479  86784.38   0.7162
+   7   0.1511    303  60603.03   0.5001
+   8   0.1715    208  41747.33   0.3445
+   9   0.1894     82  31769.52   0.2622
+  10   0.2068      7  26484.68   0.2186
+  11   0.2276      1  32240.95   0.2661
+=== TALL (~20 layers) (pbfIterations=2) ===
+targetLayers=20 measuredLayers=13 particles=13354 bucketH=0.4660 restDensity=121173.00 layerBand=0.02027
+bottomLayer rho/rho0=1.5010  topLayer rho/rho0=0.2023
+layer  yCenter   count   avgRho   rho/rho0
+   0   0.0049   2101  181876.40   1.5010
+   1   0.0312    940  175459.80   1.4480
+   2   0.0503    984  160661.40   1.3259
+   3   0.0708    922  149401.70   1.2330
+   4   0.0913    873  139183.20   1.1486
+   5   0.1115    833  129648.80   1.0699
+   6   0.1316    717  119055.40   0.9825
+   7   0.1515    566  98704.98   0.8146
+   8   0.1712    372  73324.99   0.6051
+   9   0.1923    249  48294.11   0.3986
+  10   0.2122    116  34106.96   0.2815
+  11   0.2315     30  28410.51   0.2345
+  12   0.2501      3  24517.78   0.2023
+--- depth comparison ---
+bottom rho/rho0: shallow=1.0070 medium=1.3234 tall=1.5010
+floor convergence gap from 1.0: shallow=-0.0070 medium=-0.3234 tall=-0.5010

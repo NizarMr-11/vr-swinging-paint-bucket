@@ -36,6 +36,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
             public List<(Vector3 localPos, float radius, Color color)> SpawnZones =
                 new List<(Vector3, float, Color)> { (new Vector3(0f, 0.25f, 0f), 0.12f, Color.red) };
             public Action<V4LiquidProfile> ConfigureProfile;
+            public Action<V4PipelineRoot> ConfigureRoot;
         }
 
         public static V4TestRig Create(Config config = null)
@@ -74,6 +75,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
             root.globalDensity = config.GlobalDensity;
             root.globalProfile = profile;
             root.restrictSpawnToBucketCavity = config.RestrictSpawnToBucketCavity;
+            config.ConfigureRoot?.Invoke(root);
 
             foreach ((Vector3 localPos, float radius, Color color) zone in config.SpawnZones)
             {
@@ -139,6 +141,17 @@ namespace HarmonicEngineV4.Tests.PlayMode
             if (data.Length > 0)
             {
                 Root.Soa.ReadColors.GetData(data, 0, 0, data.Length);
+            }
+
+            return data;
+        }
+
+        public float[] ReadDensities()
+        {
+            var data = new float[Root.ActiveParticleCount];
+            if (data.Length > 0)
+            {
+                Root.ReadDensities(data);
             }
 
             return data;

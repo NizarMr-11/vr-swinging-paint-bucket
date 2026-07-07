@@ -1,0 +1,20 @@
+V4 frame-3 early leak investigation
+SampleKinematics: finite difference (pos - _prevPos)/dt; _prevPos starts default zero, _hasPrev false on first call
+frame  time  posX  bucketLinVel  analyticVelX  linVelError  angVelMag
+    0  0.0167  0.016654  (0.0000,0.0000,0.0000)  0.997779  -0.997779  0.000000
+    1  0.0333  0.033235  (0.9948,0.0000,0.0000)  0.991124  0.003696  0.000000
+    2  0.0500  0.049667  (0.9860,0.0000,0.0000)  0.980067  0.005894  0.000000
+    3  0.0667  0.065879  (0.9727,0.0000,0.0000)  0.964655  0.008066  0.000000
+    4  0.0833  0.081799  (0.9552,0.0000,0.0000)  0.944957  0.010203  0.000000
+    5  0.1000  0.097355  (0.9334,0.0000,0.0000)  0.921061  0.012293  0.000000
+    6  0.1167  0.112478  (0.9074,0.0000,0.0000)  0.893073  0.014330  0.000000
+    7  0.1333  0.127102  (0.8774,0.0000,0.0000)  0.861117  0.016303  0.000000
+    8  0.1500  0.141161  (0.8435,0.0000,0.0000)  0.825336  0.018203  0.000000
+    9  0.1667  0.154593  (0.8059,0.0000,0.0000)  0.785887  0.020023  0.000000
+
+rim crossers at frame 3: count=2
+  particle[1472] vel.y f0..f3: 0.2998 0.3146 0.3698 0.5956
+  particle[1488] vel.y f0..f3: 0.2998 0.3142 0.3711 0.5878
+
+carry uses SampleKinematics LinearVelocity/AngularVelocity from the same Step call (before forces dispatch)
+frame-0 carry sees LinearVelocity=0 while bucket already at x=0.016654

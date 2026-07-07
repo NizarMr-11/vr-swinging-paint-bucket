@@ -1,0 +1,20 @@
+V4 collision energy — lateral shake 300 frames (moving-frame reflection fix)
+shake: x = 0.25 * sin(4 * t), dt=0.01666667
+KE = sum 0.5*|vel|^2 over Inside-flagged live particles
+=== moving-frame collision fix (surfaceRestitution=0.1) ===
+firstMidVelYSpike=-1 firstRimLaunch=3 firstSettle=40
+frame  KE_inside  insideN  midVelY  aboveRim  settled  bucketVelX
+    0       398.9    13314   -0.139         0        0      0.000
+   30      1227.8    12217    0.000         0        0     -0.446
+   60      3608.6    12263    0.002         0        4     -0.628
+   90      6361.2    11986    0.004         0       12      0.969
+  120       408.2    12169    0.007         0       13     -0.178
+  150      5439.5    12153    0.004         0       14     -0.820
+  180      4907.4    12041    0.005         0       14      0.861
+  210       575.2    12428    0.010         0       14      0.104
+  240      6740.9    12057    0.005         0       14     -0.947
+  270      3037.6    12082    0.008         0       15      0.685
+  299      2144.4    12314    0.008         0       15      0.438
+KE: start=398.9 end=2144.4 peak=7460.5@f9 mean=3835.9 ratio_end/start=5.38x
+final: settled=15 aboveRim=0
+firstRimLaunch=f3 firstSettle=f40

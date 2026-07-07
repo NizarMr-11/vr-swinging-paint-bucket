@@ -58,6 +58,7 @@ High density (1M+) → tiny particles, huge counts. Lab may use 200k–1M.
 | `downwardScale` | 1 | Top-band push multiplier |
 | `emaSmoothing` | 0.1 | Hole loss EMA smoothing |
 | `pbfEpsilon` | 50 | PBF CFM relaxation |
+| `boundaryGhostWeight` | 0 | Mirror boundary density/gradient scale (0 = off; shipped default) |
 | `maxDeltaTime` | 1/50 | Cap dt for stability |
 | `gravity` | (0,-9.81,0) | World gravity |
 | `maxSplatEvents` | 1024 | Max canvas splats per frame |

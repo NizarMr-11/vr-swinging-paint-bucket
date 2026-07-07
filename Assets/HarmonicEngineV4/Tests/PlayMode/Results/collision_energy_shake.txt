@@ -1,0 +1,39 @@
+V4 collision energy investigation — lateral shake 300 frames
+shake: x = 0.25 * sin(4 * t), dt=0.01666667
+KE = sum 0.5*|vel|^2 over Inside-flagged live particles
+active profile default surfaceRestitution=0.1 (V4Liquid_Default)
+=== default restitution (surfaceRestitution=0.1) ===
+firstMidVelYSpike=-1 firstRimLaunch=3 firstSettle=40
+frame  KE_inside  insideN  midVelY  aboveRim  settled  bucketVelX
+    0       398.9    13314   -0.139         0        0      0.000
+   30      1195.4    12188    0.007         0        0     -0.446
+   60      3634.9    12221    0.002         0        6     -0.628
+   90      6298.9    11988    0.001         0       14      0.969
+  120       404.3    12160    0.010         0       16     -0.178
+  150      5380.5    12130    0.001         0       16     -0.820
+  180      4818.8    12020    0.008         0       19      0.861
+  210       593.2    12416    0.001         0       19      0.104
+  240      6678.0    12039    0.002         0       22     -0.947
+  270      2942.4    12075    0.012         0       24      0.685
+  299      2151.9    12272    0.007         0       24      0.438
+KE: start=398.9 end=2151.9 peak=7457.9@f9 mean=3786.8 ratio_end/start=5.39x
+=== zero restitution (surfaceRestitution=0) ===
+firstMidVelYSpike=-1 firstRimLaunch=3 firstSettle=40
+frame  KE_inside  insideN  midVelY  aboveRim  settled  bucketVelX
+    0       398.9    13314   -0.139         0        0      0.000
+   30      1201.3    12198    0.007         0        0     -0.446
+   60      3582.1    12212    0.001         0        6     -0.628
+   90      6251.8    11965    0.004         0       15      0.969
+  120       409.7    12169    0.006         0       17     -0.178
+  150      5382.8    12125   -0.002         0       17     -0.820
+  180      4800.6    12018    0.009         0       18      0.861
+  210       574.6    12409    0.004         0       18      0.104
+  240      6688.7    12041    0.003         0       23     -0.947
+  270      2955.1    12064    0.008         0       25      0.685
+  299      2125.8    12270    0.005         0       25      0.438
+KE: start=398.9 end=2125.8 peak=7456.5@f9 mean=3785.8 ratio_end/start=5.33x
+--- cross-reference ---
+default: midVelY spike f-1 rim f3 settle f40
+zeroRe:  midVelY spike f-1 rim f3 settle f40
+default final: settled=24 aboveRim=0
+zeroRe final:  settled=25 aboveRim=0

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using HarmonicEngineV4.Bake;
 using HarmonicEngineV4.Core;
@@ -38,6 +39,9 @@ namespace HarmonicEngineV4.Simulation
         [Min(0f)] public float downwardScale = 1f;
         [Range(0f, 1f)] public float emaSmoothing = 0.1f;
         public float pbfEpsilon = 50f;
+        [Range(0f, 1f)]
+        [Tooltip("Scales mirror boundary density and gradient in PBF (floor/wall ghosts).")]
+        public float boundaryGhostWeight = 0f;
         [Min(0.001f)] public float maxDeltaTime = 1f / 50f;
         public Vector3 gravity = new Vector3(0f, -9.81f, 0f);
         [Min(16)] public int maxSplatEvents = 1024;
@@ -75,6 +79,8 @@ namespace HarmonicEngineV4.Simulation
         private readonly List<V4LiquidProfile> _profileTable = new List<V4LiquidProfile>();
         private readonly uint[] _countersReadback = new uint[V4Counters.SlotCount];
         private readonly int[] _ejectedScratch = new int[V4ParticleFlags.MaxHoles];
+        private Vector4[] _debugApplyDeltaScratchDeltas;
+        private Vector4[] _debugApplyDeltaScratchPredicted;
 
         public bool Initialized { get; private set; }
         public int Capacity { get; private set; }
@@ -91,8 +97,102 @@ namespace HarmonicEngineV4.Simulation
         public bool BakeSucceeded { get; private set; }
         public long FrameIndex { get; private set; }
 
+        /// <summary>Test instrumentation: when true, PBF skips boundary mirror ghost density/gradient.</summary>
+        public bool DebugDisableBoundaryGhosts { get; set; }
+
+        /// <summary>Test instrumentation: clamp wCorrNum/wCorrDenom ratio before pow (0 = off).</summary>
+        public float DebugScorrRatioMax { get; set; }
+
+        /// <summary>Test instrumentation: 0=normal, 1=divide scorr by pbfIterations, 2=final PBF iter only.</summary>
+        public int DebugScorrApplyMode { get; set; }
+
+        /// <summary>Test instrumentation: saturate pow(wRatio, nCorr) before applying kCorr.</summary>
+        public bool DebugScorrSaturatePow { get; set; }
+
+        /// <summary>Test instrumentation: ApplyDelta maxCorrection scale. 0=default 0.2h, &gt;0=scale*h, &lt;0=uncapped.</summary>
+        public float DebugMaxCorrectionScale { get; set; }
+
+        /// <summary>Test instrumentation: invoked after SolveDelta with raw deltas and predicted positions.</summary>
+        public Action<int, Vector4[], Vector4[]> DebugBeforeApplyDelta { get; set; }
+
+        /// <summary>Test instrumentation: particle indices to probe in FinalizeTermsProbeKernel (max 8).</summary>
+        public int[] DebugTrackParticleIndices { get; set; }
+
+        /// <summary>Test instrumentation: invoked after FinalizeTermsProbeKernel each frame.</summary>
+        public Action<V4FinalizeTermsProbe[]> DebugAfterFinalizeTermsProbe { get; set; }
+
+        public struct V4FinalizeTermsProbe
+        {
+            public int ParticleIndex;
+            public float Density;
+            public int NeighborCount;
+            public Vector3 CohesionDelta;
+            public Vector3 XsphDelta;
+        }
+
+        private const int MaxDebugFinalizeTrackSlots = 8;
+        private ComputeBuffer _debugFinalizeProbeBuffer;
+        private readonly int[] _debugTrackIndexScratch = new int[MaxDebugFinalizeTrackSlots];
+        private readonly Vector4[] _debugFinalizeProbeScratch = new Vector4[MaxDebugFinalizeTrackSlots * 3];
+
+        /// <summary>Max per-iteration position correction distance (matches ApplyDeltaKernel).</summary>
+        public float MaxCorrectionDistance()
+        {
+            if (DebugMaxCorrectionScale < 0f)
+            {
+                return float.MaxValue;
+            }
+
+            float scale = DebugMaxCorrectionScale > 0f ? DebugMaxCorrectionScale : 0.2f;
+            return scale * SmoothingRadius;
+        }
+
+        public void ReadDeltas(Vector4[] destination)
+        {
+            if (_deltasBuffer == null || destination == null || destination.Length == 0 || ActiveParticleCount <= 0)
+            {
+                return;
+            }
+
+            _deltasBuffer.GetData(destination, 0, 0, Mathf.Min(destination.Length, ActiveParticleCount));
+        }
+
+        public void ReadPredicted(Vector4[] destination)
+        {
+            if (_predictedBuffer == null || destination == null || destination.Length == 0 || ActiveParticleCount <= 0)
+            {
+                return;
+            }
+
+            _predictedBuffer.GetData(destination, 0, 0, Mathf.Min(destination.Length, ActiveParticleCount));
+        }
+
         public V4ParticleSoa Soa => _soa;
         public ComputeBuffer CanvasGridBuffer => _canvasGridBuffer;
+
+        /// <summary>Test instrumentation: read Poly6 densities from the last PBF density pass.</summary>
+        public void ReadDensities(float[] destination)
+        {
+            if (_densitiesBuffer == null || destination == null || destination.Length == 0 || ActiveParticleCount <= 0)
+            {
+                return;
+            }
+
+            _densitiesBuffer.GetData(destination, 0, 0, Mathf.Min(destination.Length, ActiveParticleCount));
+        }
+
+        /// <summary>GPU rest density target (lattice-calibrated) for profile index 0.</summary>
+        public float GpuRestDensity(int profileIndex = 0)
+        {
+            float latticeRho0 = ComputeLatticeRestDensity(ParticleRadius * 2f, SmoothingRadius);
+            if (_profileTable.Count == 0)
+            {
+                return latticeRho0;
+            }
+
+            profileIndex = Mathf.Clamp(profileIndex, 0, _profileTable.Count - 1);
+            return latticeRho0 * (_profileTable[profileIndex].restDensity / 1000f);
+        }
         public ComputeBuffer CountersBuffer => _countersBuffer;
         public RenderTexture CanvasTexture { get; private set; }
         public V4PassManifest ActiveManifest => _executor?.Manifest;
@@ -369,6 +469,11 @@ namespace HarmonicEngineV4.Simulation
             _blendedColorsBuffer = _registry.Create("_BlendedColors", Capacity, sizeof(float) * 4, V4BufferLifetime.PerFrame);
             _compactionPairsBuffer = _registry.Create("_CompactionPairs", Capacity, sizeof(uint) * 2, V4BufferLifetime.PerFrame);
             _splatEventsBuffer = _registry.Create("_SplatEvents", Mathf.Max(16, maxSplatEvents), 32, V4BufferLifetime.PerFrame);
+            _debugFinalizeProbeBuffer = _registry.Create(
+                "_DebugFinalizeProbe",
+                MaxDebugFinalizeTrackSlots * 3,
+                sizeof(float) * 4,
+                V4BufferLifetime.PerFrame);
             _canvasGridBuffer = _registry.Create("_CanvasGrid", CanvasGridSize.x * CanvasGridSize.y, sizeof(float) * 4, V4BufferLifetime.Persistent);
 
             _sortKeysBuffer = new ComputeBuffer(Capacity, sizeof(uint));
@@ -535,7 +640,7 @@ namespace HarmonicEngineV4.Simulation
                     shader = _pbfShader,
                     kernelName = "DensityKernel",
                     readWriteBuffers = new[] { "_Predicted", "_Densities", "_BlendedColors" },
-                    readOnlyBuffers = new[] { "_PackedColorsRead", V4SpatialHashGrid.CellStartEndName, V4SpatialHashGrid.GridKeyValueName }
+                    readOnlyBuffers = new[] { "_Flags", "_PackedColorsRead", V4SpatialHashGrid.CellStartEndName, V4SpatialHashGrid.GridKeyValueName }
                 },
                 new V4PassDef
                 {
@@ -560,6 +665,18 @@ namespace HarmonicEngineV4.Simulation
                     kernelName = "ApplyDeltaKernel",
                     readWriteBuffers = new[] { "_Predicted", "_Deltas", "_BlendedColors", "_PackedColors" },
                     readOnlyBuffers = new[] { "_Flags", "_Profiles" }
+                },
+                new V4PassDef
+                {
+                    passId = "FinalizeTermsProbe",
+                    shader = _pbfShader,
+                    kernelName = "FinalizeTermsProbeKernel",
+                    readWriteBuffers = new[] { "_DebugFinalizeProbe" },
+                    readOnlyBuffers = new[]
+                    {
+                        "_Block0", "_PredictedRead", "_Densities", "_Flags", "_Profiles",
+                        V4SpatialHashGrid.CellStartEndName, V4SpatialHashGrid.GridKeyValueName
+                    }
                 },
                 new V4PassDef
                 {
@@ -635,12 +752,16 @@ namespace HarmonicEngineV4.Simulation
 
             for (int iter = 0; iter < pbfIterations; iter++)
             {
+                _pbfShader.SetInt("_PbfIterationIndex", iter);
+                _pbfShader.SetInt("_PbfIterationCount", pbfIterations);
                 _executor.DispatchThreads("Density", ActiveParticleCount);
                 _executor.DispatchThreads("Lambda", ActiveParticleCount);
                 _executor.DispatchThreads("SolveDelta", ActiveParticleCount);
+                InvokeDebugBeforeApplyDelta(iter);
                 _executor.DispatchThreads("ApplyDelta", ActiveParticleCount);
             }
 
+            InvokeFinalizeTermsProbe();
             _executor.DispatchThreads("Finalize", ActiveParticleCount);
 
             using (V4Log.BeginPass("CompactionSort"))
@@ -679,6 +800,9 @@ namespace HarmonicEngineV4.Simulation
             _forcesShader.SetVector("_BucketLinearVelocity", bucket.LinearVelocity);
             _forcesShader.SetVector("_BucketAngularVelocity", bucket.AngularVelocity);
             _forcesShader.SetVector("_BucketWorldOrigin", bucket.transform.position);
+            _pbfShader.SetVector("_BucketLinearVelocity", bucket.LinearVelocity);
+            _pbfShader.SetVector("_BucketAngularVelocity", bucket.AngularVelocity);
+            _pbfShader.SetVector("_BucketWorldOrigin", bucket.transform.position);
             _forcesShader.SetVector("_Gravity", gravity);
             _forcesShader.SetFloat("_DeltaTime", deltaTime);
             _forcesShader.SetFloat("_CarryRate", carryRate);
@@ -695,8 +819,83 @@ namespace HarmonicEngineV4.Simulation
             _pbfShader.SetVector("_CanvasSize", new Vector2(canvas.width, canvas.depth));
             _pbfShader.SetFloat("_SettleDistance", ParticleRadius * 2f);
             _pbfShader.SetInt("_MaxSplatEvents", maxSplatEvents);
+            _pbfShader.SetFloat("_BoundaryGhostWeight", boundaryGhostWeight);
+            _pbfShader.SetInt("_DebugDisableBoundaryGhosts", DebugDisableBoundaryGhosts ? 1 : 0);
+            _pbfShader.SetFloat("_DebugScorrRatioMax", DebugScorrRatioMax);
+            _pbfShader.SetInt("_DebugScorrApplyMode", DebugScorrApplyMode);
+            _pbfShader.SetInt("_DebugScorrSaturatePow", DebugScorrSaturatePow ? 1 : 0);
+            _pbfShader.SetFloat("_DebugMaxCorrectionScale", DebugMaxCorrectionScale);
+            SetDebugTrackUniforms();
 
             SetCanvasUniforms();
+        }
+
+        private void SetDebugTrackUniforms()
+        {
+            int count = 0;
+            if (DebugTrackParticleIndices != null)
+            {
+                count = Mathf.Min(DebugTrackParticleIndices.Length, MaxDebugFinalizeTrackSlots);
+                for (int i = 0; i < MaxDebugFinalizeTrackSlots; i++)
+                {
+                    _debugTrackIndexScratch[i] = i < count ? DebugTrackParticleIndices[i] : 0;
+                }
+            }
+
+            _pbfShader.SetInt("_DebugTrackCount", count);
+            _pbfShader.SetInts("_DebugTrackIndices", _debugTrackIndexScratch);
+        }
+
+        private void InvokeFinalizeTermsProbe()
+        {
+            if (DebugAfterFinalizeTermsProbe == null
+                || DebugTrackParticleIndices == null
+                || DebugTrackParticleIndices.Length == 0
+                || ActiveParticleCount <= 0)
+            {
+                return;
+            }
+
+            _executor.DispatchThreads("FinalizeTermsProbe", ActiveParticleCount);
+
+            int slotCount = Mathf.Min(DebugTrackParticleIndices.Length, MaxDebugFinalizeTrackSlots);
+            _debugFinalizeProbeBuffer.GetData(_debugFinalizeProbeScratch, 0, 0, slotCount * 3);
+
+            var probes = new V4FinalizeTermsProbe[slotCount];
+            for (int slot = 0; slot < slotCount; slot++)
+            {
+                Vector4 meta = _debugFinalizeProbeScratch[slot * 3];
+                Vector4 cohesion = _debugFinalizeProbeScratch[slot * 3 + 1];
+                Vector4 xsph = _debugFinalizeProbeScratch[slot * 3 + 2];
+                probes[slot] = new V4FinalizeTermsProbe
+                {
+                    ParticleIndex = DebugTrackParticleIndices[slot],
+                    Density = meta.x,
+                    NeighborCount = (int)meta.y,
+                    CohesionDelta = new Vector3(cohesion.x, cohesion.y, cohesion.z),
+                    XsphDelta = new Vector3(xsph.x, xsph.y, xsph.z)
+                };
+            }
+
+            DebugAfterFinalizeTermsProbe(probes);
+        }
+
+        private void InvokeDebugBeforeApplyDelta(int iter)
+        {
+            if (DebugBeforeApplyDelta == null || ActiveParticleCount <= 0)
+            {
+                return;
+            }
+
+            if (_debugApplyDeltaScratchDeltas == null || _debugApplyDeltaScratchDeltas.Length < ActiveParticleCount)
+            {
+                _debugApplyDeltaScratchDeltas = new Vector4[ActiveParticleCount];
+                _debugApplyDeltaScratchPredicted = new Vector4[ActiveParticleCount];
+            }
+
+            ReadDeltas(_debugApplyDeltaScratchDeltas);
+            ReadPredicted(_debugApplyDeltaScratchPredicted);
+            DebugBeforeApplyDelta(iter, _debugApplyDeltaScratchDeltas, _debugApplyDeltaScratchPredicted);
         }
 
         private void SetCanvasUniforms()
