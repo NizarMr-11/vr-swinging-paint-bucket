@@ -54,6 +54,27 @@ namespace HarmonicEngineV4.Rendering
 
         public void SetPipeline(V4PipelineRoot root) => pipeline = root;
 
+        public void ApplyOptions(V4ScreenSpaceFluidOptions options)
+        {
+            bool resolutionChanged = halfResolutionFluid != options.halfResolutionFluid;
+            splatRadiusMultiplier = options.splatRadiusMultiplier;
+            thicknessWeight = options.thicknessWeight;
+            fluidColor = options.fluidColor;
+            useParticleColor = options.useParticleColor;
+            blurFalloff = options.blurFalloff;
+            blurRadius = options.blurRadius;
+            normalScale = options.normalScale;
+            specularPower = options.specularPower;
+            specularIntensity = options.specularIntensity;
+            thicknessAbsorption = options.thicknessAbsorption;
+            halfResolutionFluid = options.halfResolutionFluid;
+
+            if (resolutionChanged)
+            {
+                ReleaseTargets();
+            }
+        }
+
         private void Awake()
         {
             _camera = GetComponent<Camera>();

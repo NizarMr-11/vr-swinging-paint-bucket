@@ -64,6 +64,7 @@ Complete file index for `Assets/HarmonicEngineV4/`. Use with [README](README.md)
 |------|------|
 | `V4DebugPointRenderer.cs` | Particle debug quads |
 | `V4ScreenSpaceFluidRenderer.cs` | SSFR CommandBuffer |
+| `V4RenderingSettings.cs` | Central fluid display toggles + SSFR tuning on pipeline |
 | `V4CanvasPaintRenderer.cs` | Canvas texture quad |
 | `V4BucketMeshRenderer.cs` | Cosmetic bucket mesh |
 | `V4FlyCamera.cs` | Lab fly camera |

@@ -6,7 +6,7 @@ Visual output is **decoupled** from simulation. Render components read GPU buffe
 
 ## Debug point renderer
 
-**Component:** `V4DebugPointRenderer`  
+**Component:** `V4DebugPointRenderer` (on camera; toggled from `V4RenderingSettings`)  
 **Shader:** `V4DebugPoints.shader`
 
 - Binds `Soa.ReadBlock0`, `ReadColors`, `ActiveParticleCount`
@@ -18,9 +18,29 @@ Attach to any GameObject; assign `pipeline` reference or auto-find.
 
 ---
 
+## Central rendering settings
+
+**Component:** `V4RenderingSettings` (on the same GameObject as `V4PipelineRoot`)
+
+Single inspector for fluid display:
+
+| Field | Purpose |
+|-------|---------|
+| `targetCamera` | Camera that draws particles (defaults to `Camera.main`) |
+| `showScreenSpaceFluid` | Enable SSFR on the camera |
+| `showDebugPoints` | Enable debug quads on the camera |
+| `debugPointSize` | Debug quad size (0 = particle radius) |
+| `screenSpaceFluid` | SSFR tuning block (splat radius, blur, specular, half-res, etc.) |
+
+Settings push to `V4ScreenSpaceFluidRenderer` / `V4DebugPointRenderer` on the camera each frame. Components are auto-added when a mode is enabled and missing.
+
+**Lab2:** `V4 Pipeline` → `V4 Rendering Settings` (SSFR on, debug points off by default).
+
+---
+
 ## Screen-space fluid renderer (SSFR)
 
-**Component:** `V4ScreenSpaceFluidRenderer`  
+**Component:** `V4ScreenSpaceFluidRenderer` (on camera; driven by `V4RenderingSettings`)  
 **Shader:** `V4SSFluidRender.shader` (3 passes)
 
 Pipeline (CommandBuffer, `CameraEvent.BeforeImageEffects`):

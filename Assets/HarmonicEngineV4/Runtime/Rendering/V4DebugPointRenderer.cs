@@ -14,6 +14,16 @@ namespace HarmonicEngineV4.Rendering
         [Tooltip("Half-size of each point quad in world meters. 0 = use particle radius.")]
         [Min(0f)] public float pointSize = 0f;
 
+        public void ApplyOptions(V4PipelineRoot pipelineRoot, float size)
+        {
+            if (pipelineRoot != null)
+            {
+                pipeline = pipelineRoot;
+            }
+
+            pointSize = size;
+        }
+
         private Material _material;
 
         private void Start()

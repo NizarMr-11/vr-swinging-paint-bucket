@@ -9,7 +9,8 @@ How to wire scenes, create liquid profiles, and tune simulation behavior.
 Minimum required hierarchy:
 
 ```
-V4PipelineRoot
+V4PipelineRoot  (or "V4 Pipeline" in Lab2)
+├── V4RenderingSettings   ← fluid display toggles + SSFR tuning (recommended)
 ├── bucket  → V4Bucket
 ├── canvas  → V4Canvas
 └── spawnZones (children or explicit list)
@@ -20,8 +21,8 @@ Optional:
 
 - `V4BucketMeshRenderer` on bucket
 - `V4BucketMotionController` on bucket
-- `V4CanvasPaintRenderer` on canvas
-- `V4DebugPointRenderer` / `V4ScreenSpaceFluidRenderer` on camera
+- `V4CanvasPaintRenderer` on canvas or pipeline object
+- `V4DebugPointRenderer` / `V4ScreenSpaceFluidRenderer` on camera (usually driven by `V4RenderingSettings`)
 - `V4RunRecording` for JSONL logs
 
 **Lab scene reference:** `Assets/Scenes/HarmonicEngineLab2.unity`

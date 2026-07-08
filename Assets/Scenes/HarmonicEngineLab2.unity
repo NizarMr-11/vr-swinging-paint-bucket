@@ -408,7 +408,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 850489000}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe110591c35d5cd4fb38f4d806a612ee, type: 3}
   m_Name: 
@@ -752,6 +752,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1272400441}
   - component: {fileID: 1272400440}
+  - component: {fileID: 1272400442}
   - component: {fileID: 1272400439}
   - component: {fileID: 1272400438}
   m_Layer: 0
@@ -798,7 +799,9 @@ MonoBehaviour:
     recordCanvasSettle: 1
     recordBufferBinding: 0
     recordRecording: 1
+    recordBoundaryPressure: 0
     recordWallEscapeForensics: 1
+    recordPerformance: 1
 --- !u!114 &1272400440
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -820,7 +823,7 @@ MonoBehaviour:
   - {fileID: 856704855}
   - {fileID: 1018443671}
   - {fileID: 111909320}
-  globalDensity: 800000
+  globalDensity: 900000
   globalProfile: {fileID: 11400000, guid: 3a5b2c589cbcc604a894f7696d0d45f2, type: 2}
   restrictSpawnToBucketCavity: 1
   autoRun: 1
@@ -837,7 +840,7 @@ MonoBehaviour:
   debugBoundaryPressureBinCount: 5
   debugLogContainInsideMismatch: 0
   debugLogWallEscapeForensics: 0
-  debugLogPerformance: 0
+  debugLogPerformance: 1
   debugLogPerformanceGpuSync: 0
 --- !u!4 &1272400441
 Transform:
@@ -854,6 +857,34 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1272400442
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1272400437}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e7c4a8912b5f4d24a9e3c1d8f6b2a0e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Rendering.V4RenderingSettings
+  targetCamera: {fileID: 850489004}
+  showScreenSpaceFluid: 1
+  showDebugPoints: 0
+  debugPointSize: 0
+  screenSpaceFluid:
+    splatRadiusMultiplier: 2.2
+    thicknessWeight: 0.15
+    fluidColor: {r: 0.1, g: 0.4, b: 0.8, a: 1}
+    useParticleColor: 1
+    blurFalloff: 0.05
+    blurRadius: 3
+    normalScale: 100
+    specularPower: 250
+    specularIntensity: 1.5
+    thicknessAbsorption: 40
+    halfResolutionFluid: 1
 --- !u!1 &1646445023
 GameObject:
   m_ObjectHideFlags: 0
