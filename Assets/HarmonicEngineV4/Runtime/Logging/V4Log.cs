@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using UnityEngine.Profiling;
 
 namespace HarmonicEngineV4.Logging
 {
@@ -23,7 +24,8 @@ namespace HarmonicEngineV4.Logging
         BufferBinding,
         Recording,
         BoundaryPressure,
-        WallEscapeForensics
+        WallEscapeForensics,
+        Performance
     }
 
     public interface IV4LogSink
@@ -115,6 +117,15 @@ namespace HarmonicEngineV4.Logging
             return new PassScope(passName, category);
         }
 
+        /// <summary>
+        /// High-level frame phase scope (PrePbf, PbfLoop, debug paths). Recorded to the
+        /// performance collector when enabled.
+        /// </summary>
+        public static PerfPhaseScope BeginPerfPhase(string phaseName)
+        {
+            return new PerfPhaseScope(phaseName);
+        }
+
         public readonly struct PassScopeData
         {
             public readonly string PassName;
@@ -142,6 +153,10 @@ namespace HarmonicEngineV4.Logging
                 _passName = passName;
                 _category = category;
                 _stopwatch = Stopwatch.StartNew();
+                if (V4FramePerformanceCollector.ProfilerMarkersEnabled)
+                {
+                    Profiler.BeginSample(_passName);
+                }
             }
 
             public void RecordBufferBytes(long bytes)
@@ -158,7 +173,58 @@ namespace HarmonicEngineV4.Logging
 
                 _disposed = true;
                 _stopwatch.Stop();
-                Verbose(_category, $"pass={_passName} durationMs={_stopwatch.Elapsed.TotalMilliseconds:F3} bufferBytes={_bufferBytes}");
+                double durationMs = _stopwatch.Elapsed.TotalMilliseconds;
+                if (V4FramePerformanceCollector.ProfilerMarkersEnabled)
+                {
+                    Profiler.EndSample();
+                }
+
+                Verbose(_category, $"pass={_passName} durationMs={durationMs:F3} bufferBytes={_bufferBytes}");
+                V4FramePerformanceCollector.RecordCpuScope(_passName, durationMs);
+            }
+        }
+
+        public sealed class PerfPhaseScope : IDisposable
+        {
+            private readonly string _phaseName;
+            private readonly Stopwatch _stopwatch;
+            private bool _disposed;
+
+            internal PerfPhaseScope(string phaseName)
+            {
+                _phaseName = $"Phase_{phaseName}";
+                _stopwatch = V4FramePerformanceCollector.Enabled ? Stopwatch.StartNew() : null;
+                if (V4FramePerformanceCollector.ProfilerMarkersEnabled)
+                {
+                    Profiler.BeginSample(_phaseName);
+                }
+            }
+
+            public void Dispose()
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+                if (_stopwatch == null)
+                {
+                    if (V4FramePerformanceCollector.ProfilerMarkersEnabled)
+                    {
+                        Profiler.EndSample();
+                    }
+
+                    return;
+                }
+
+                _stopwatch.Stop();
+                if (V4FramePerformanceCollector.ProfilerMarkersEnabled)
+                {
+                    Profiler.EndSample();
+                }
+
+                V4FramePerformanceCollector.RecordCpuScope(_phaseName, _stopwatch.Elapsed.TotalMilliseconds, contributesToTotal: true);
             }
         }
     }

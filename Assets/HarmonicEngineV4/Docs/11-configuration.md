@@ -69,13 +69,25 @@ Optional per-frame logs under `Logs/Engine2/run_*/channels/` when `V4ChannelFile
 
 | Field | Default | Log channel / file | What it records |
 |-------|---------|-------------------|-----------------|
-| `debugLogBoundaryPressure` | true | `BoundaryPressure` → `boundary_pressure.log` | Per-y-bin boundary ghost / clamp stats in the top band (`[0, topBandHeight]`) |
+| `debugLogBoundaryPressure` | false | `BoundaryPressure` → `boundary_pressure.log` | Per-y-bin boundary ghost / clamp stats in the top band (`[0, topBandHeight]`). **Expensive:** extra GPU kernel + 6 full-buffer readbacks per frame. |
 | `debugLogContainInsideMismatch` | false | `General` (inline) | Count of live particles where `ComputeContainInside` disagrees with current footprint (`cif`); does **not** count over-rim or beyond-outer populations |
-| `debugLogWallEscapeForensics` | false | `WallEscapeForensics` → `wall_escape_forensics.log` | Outside-live anatomy: `beyondOuter`, `overRim`, `wallBandOutside`, new escapes, false latch count |
+| `debugLogWallEscapeForensics` | false | `WallEscapeForensics` → `wall_escape_forensics.log` | Outside-live anatomy: `beyondOuter`, `overRim`, `wallBandOutside`, new escapes, false latch count. **Expensive:** multiple full-buffer readbacks per frame. |
+| `debugLogPerformance` | false | `Performance` → `performance.log` | Per-frame CPU phase totals, `topCpu` pass ranking, Unity `FrameTimingManager` GPU frame ms. Emits rolling average every 60 frames. |
+| `debugLogPerformanceGpuSync` | false | (included in `performance.log` `topGpuSync`) | Fence-sync after each GPU dispatch for per-pass GPU ms. **Stalls the pipeline** — enable only for short profiling captures. |
 
-Lab2 ships with `debugLogBoundaryPressure` and `debugLogWallEscapeForensics` enabled for leak investigation. Turn off boundary pressure when you only need forensics — the file is large.
+Leak-investigation flags default **off** in Lab2. Leave them off during normal playtest unless actively debugging escapes.
+
+**FPS note:** If frame rate dropped after collision fixes, check whether `debugLogBoundaryPressure` / `debugLogWallEscapeForensics` are still enabled — they dominate cost far more than the beyond-outer collision math.
 
 **Metric caveat:** `cif` / boundary-pressure bins measure containment-footprint mismatch, not every visual “escape”. Use `wall_escape_forensics.log` or `V4WallEscapeFirmHoldInvestigationTests` to separate over-rim (open top), beyond-outer shell drift, and legitimate hole latch escapes.
+
+### Channel recording (`V4ChannelLogSettings` on `V4RunRecording`)
+
+| Field | Default | Channel |
+|-------|---------|---------|
+| `recordPerformance` | true | `performance.log` |
+| `recordBoundaryPressure` | false | `boundary_pressure.log` |
+| `recordPassExecution` | false | `pass_execution.log` (Verbose per-dispatch CPU submit ms) |
 
 ---
 

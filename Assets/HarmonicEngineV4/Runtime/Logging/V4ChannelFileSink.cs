@@ -48,6 +48,7 @@ namespace HarmonicEngineV4.Logging
                 case V4LogCategory.Recording: return "recording.log";
                 case V4LogCategory.BoundaryPressure: return "boundary_pressure.log";
                 case V4LogCategory.WallEscapeForensics: return "wall_escape_forensics.log";
+                case V4LogCategory.Performance: return "performance.log";
                 default: return $"{category.ToString().ToLowerInvariant()}.log";
             }
         }

@@ -192,6 +192,7 @@ Key invariant suites:
 - **`V4WallEscapeFirmHoldInvestigationTests`** — sustained directional bucket
   hold (Lab2 config): asserts `beyondOuter` stays near zero after the
   beyond-outer shell clamp; reports `overRim` / `falseLatch` / `cif` separately.
+- **`V4FramePerformanceCollectorTests`** (EditMode) — perf scope ranking and channel settings for `performance.log`.
 
 Run them from Test Runner → PlayMode / EditMode with the `HarmonicEngineV4`
 assembly filter. All V4 PlayMode tests require compute shader support.

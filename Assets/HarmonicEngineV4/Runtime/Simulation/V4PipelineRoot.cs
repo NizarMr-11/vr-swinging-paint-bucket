@@ -48,12 +48,16 @@ namespace HarmonicEngineV4.Simulation
 
         [Header("Debug instrumentation")]
         [Tooltip("Log per-tracked-particle boundary-pressure probes and Y-bin aggregates each frame.")]
-        public bool debugLogBoundaryPressure = true;
+        public bool debugLogBoundaryPressure = false;
         [Min(1)] public int debugBoundaryPressureBinCount = 5;
         [Tooltip("Log particles where ComputeContainInside disagrees with geometric footprint (max 8/frame).")]
         public bool debugLogContainInsideMismatch = false;
         [Tooltip("Log false escape latches, rim vs wall exits, beyond-outer-shell removals, and frame aggregates.")]
         public bool debugLogWallEscapeForensics = false;
+        [Tooltip("Emit per-frame CPU/GPU performance summary to performance.log.")]
+        public bool debugLogPerformance = false;
+        [Tooltip("When performance logging is on: fence-sync after each GPU dispatch for per-pass GPU ms (stalls pipeline).")]
+        public bool debugLogPerformanceGpuSync = false;
 
         private const int DebugBoundaryPressureFloorBinCount = 4;
         private const int MaxContainInsideMismatchLogsPerFrame = 8;
@@ -807,55 +811,151 @@ namespace HarmonicEngineV4.Simulation
                 return;
             }
 
+            ConfigurePerformanceCollectorForFrame();
+
             bucket.SampleKinematics(deltaTime);
             SetFrameUniforms(deltaTime);
 
-            _executor.Dispatch("ClearFrameCounters", 1);
-            _executor.DispatchThreads("Classify", ActiveParticleCount);
-            _executor.DispatchThreads("ExternalForces", ActiveParticleCount);
-            _executor.DispatchThreads("Predict", ActiveParticleCount);
-
-            _grid.Build(_predictedBuffer, ActiveParticleCount, SmoothingRadius);
-
-            for (int iter = 0; iter < pbfIterations; iter++)
+            using (V4Log.BeginPerfPhase("PrePbf"))
             {
-                _pbfShader.SetInt("_PbfIterationIndex", iter);
-                _pbfShader.SetInt("_PbfIterationCount", pbfIterations);
-                _executor.DispatchThreads("Density", ActiveParticleCount);
-                _executor.DispatchThreads("Lambda", ActiveParticleCount);
-                _executor.DispatchThreads("SolveDelta", ActiveParticleCount);
-                InvokeDebugBeforeApplyDelta(iter);
-                _executor.DispatchThreads("ApplyDelta", ActiveParticleCount);
+                _executor.Dispatch("ClearFrameCounters", 1);
+                _executor.DispatchThreads("Classify", ActiveParticleCount);
+                _executor.DispatchThreads("ExternalForces", ActiveParticleCount);
+                _executor.DispatchThreads("Predict", ActiveParticleCount);
             }
 
-            InvokeFinalizeTermsProbe();
+            using (V4Log.BeginPerfPhase("SpatialHash"))
+            {
+                _grid.Build(_predictedBuffer, ActiveParticleCount, SmoothingRadius);
+            }
+
+            using (V4Log.BeginPerfPhase("PbfLoop"))
+            {
+                for (int iter = 0; iter < pbfIterations; iter++)
+                {
+                    _pbfShader.SetInt("_PbfIterationIndex", iter);
+                    _pbfShader.SetInt("_PbfIterationCount", pbfIterations);
+                    _executor.DispatchThreads("Density", ActiveParticleCount);
+                    _executor.DispatchThreads("Lambda", ActiveParticleCount);
+                    _executor.DispatchThreads("SolveDelta", ActiveParticleCount);
+                    InvokeDebugBeforeApplyDelta(iter);
+                    _executor.DispatchThreads("ApplyDelta", ActiveParticleCount);
+                }
+            }
+
+            using (V4Log.BeginPerfPhase("DebugBoundaryPressure"))
+            {
+                InvokeFinalizeTermsProbe();
+            }
+
             _executor.DispatchThreads("Finalize", ActiveParticleCount);
 
             if (debugLogWallEscapeForensics)
             {
-                CaptureWallEscapeFinalizeSnapshot();
+                using (V4Log.BeginPerfPhase("DebugWallEscape"))
+                {
+                    CaptureWallEscapeFinalizeSnapshot();
+                }
             }
 
-            using (V4Log.BeginPass("CompactionSort"))
+            using (V4Log.BeginPerfPhase("PostFinalize"))
             {
-                _compactionSort.SortPairBuffers(
-                    _sortKeysBuffer, _sortValuesBuffer, _sortTempKeysBuffer, _sortTempValuesBuffer,
-                    ActiveParticleCount, _compactionPairsBuffer);
+                using (V4Log.BeginPass("CompactionSort"))
+                {
+                    _compactionSort.SortPairBuffers(
+                        _sortKeysBuffer, _sortValuesBuffer, _sortTempKeysBuffer, _sortTempValuesBuffer,
+                        ActiveParticleCount, _compactionPairsBuffer);
+                }
+
+                _executor.DispatchThreads("Gather", ActiveParticleCount);
+                _executor.Dispatch("SplatApply", 1);
+                BlitCanvasToTexture();
             }
 
-            _executor.DispatchThreads("Gather", ActiveParticleCount);
-            _executor.Dispatch("SplatApply", 1);
-            BlitCanvasToTexture();
-
-            ReadBackCounters();
+            using (V4Log.BeginPerfPhase("ReadbackCounters"))
+            {
+                ReadBackCounters();
+            }
 
             if (debugLogWallEscapeForensics)
             {
-                LogWallEscapeForensics();
+                using (V4Log.BeginPerfPhase("DebugWallEscape"))
+                {
+                    LogWallEscapeForensics();
+                }
             }
+
+            FinalizePerformanceCollectorForFrame();
 
             FrameIndex++;
             FrameCompleted?.Invoke(FrameIndex, ActiveParticleCount, EscapedTotal, SettledTotal);
+        }
+
+        private void ConfigurePerformanceCollectorForFrame()
+        {
+            V4FramePerformanceCollector.Enabled = debugLogPerformance;
+            V4FramePerformanceCollector.GpuSyncEnabled = debugLogPerformance && debugLogPerformanceGpuSync;
+            V4FramePerformanceCollector.ProfilerMarkersEnabled = debugLogPerformance;
+            if (!debugLogPerformance)
+            {
+                return;
+            }
+
+            V4FramePerformanceCollector.BeginFrame(FrameIndex, ActiveParticleCount);
+            V4FramePerformanceCollector.SetDebugFlags(BuildActiveDebugFlagsSummary());
+        }
+
+        private void FinalizePerformanceCollectorForFrame()
+        {
+            if (!debugLogPerformance)
+            {
+                return;
+            }
+
+            CaptureFrameTimings();
+            V4FramePerformanceCollector.EndFrame();
+        }
+
+        private void CaptureFrameTimings()
+        {
+            FrameTimingManager.CaptureFrameTimings();
+            FrameTiming[] timings = new FrameTiming[1];
+            uint sampleCount = FrameTimingManager.GetLatestTimings(1, timings);
+            if (sampleCount == 0)
+            {
+                return;
+            }
+
+            V4FramePerformanceCollector.SetFrameTimings(
+                timings[0].gpuFrameTime,
+                timings[0].cpuFrameTime,
+                timings[0].cpuMainThreadFrameTime);
+        }
+
+        private string BuildActiveDebugFlagsSummary()
+        {
+            var flags = new List<string>(4);
+            if (debugLogBoundaryPressure)
+            {
+                flags.Add("boundaryPressure");
+            }
+
+            if (debugLogContainInsideMismatch)
+            {
+                flags.Add("containMismatch");
+            }
+
+            if (debugLogWallEscapeForensics)
+            {
+                flags.Add("wallEscape");
+            }
+
+            if (debugLogPerformanceGpuSync)
+            {
+                flags.Add("gpuSync");
+            }
+
+            return flags.Count == 0 ? "none" : string.Join(",", flags);
         }
 
         private void SetFrameUniforms(float deltaTime)
@@ -1474,8 +1574,10 @@ namespace HarmonicEngineV4.Simulation
                 int kernel = _canvasShader.FindKernel("CanvasToTextureKernel");
                 _canvasShader.SetBuffer(kernel, "_CanvasGrid", _canvasGridBuffer);
                 _canvasShader.SetTexture(kernel, "_CanvasTexture", CanvasTexture);
-                _canvasShader.Dispatch(
+                V4GpuSyncDispatch.Dispatch(
+                    _canvasShader,
                     kernel,
+                    "CanvasToTexture",
                     Mathf.CeilToInt(CanvasGridSize.x / 8f),
                     Mathf.CeilToInt(CanvasGridSize.y / 8f),
                     1);

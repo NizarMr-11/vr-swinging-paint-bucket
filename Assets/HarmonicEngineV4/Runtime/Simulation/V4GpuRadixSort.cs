@@ -1,3 +1,4 @@
+using HarmonicEngineV4.Logging;
 using UnityEngine;
 
 namespace HarmonicEngineV4.Simulation
@@ -100,7 +101,7 @@ namespace HarmonicEngineV4.Simulation
                 _shader.SetBuffer(_kernelExtract, GridKeyValueBufferId, packGridKeyValueBuffer);
                 _shader.SetBuffer(_kernelExtract, SortKeysId, readKeys);
                 _shader.SetBuffer(_kernelExtract, SortValuesId, readValues);
-                _shader.Dispatch(_kernelExtract, threadGroups, 1, 1);
+                V4GpuSyncDispatch.Dispatch(_shader, _kernelExtract, "RadixSort_Extract", threadGroups, 1, 1);
             }
 
             for (int pass = 0; pass < PassCount; pass++)
@@ -109,25 +110,25 @@ namespace HarmonicEngineV4.Simulation
                 _shader.SetInt(BitShiftId, bitShift);
 
                 _shader.SetBuffer(_kernelClear, GlobalHistogramId, _globalHistogram);
-                _shader.Dispatch(_kernelClear, 1, 1, 1);
+                V4GpuSyncDispatch.Dispatch(_shader, _kernelClear, $"RadixSort_Clear{pass}", 1, 1, 1);
 
                 _shader.SetBuffer(_kernelHistogram, SortKeysId, readKeys);
                 _shader.SetBuffer(_kernelHistogram, GlobalHistogramId, _globalHistogram);
                 _shader.SetBuffer(_kernelHistogram, GroupHistogramId, _groupHistogram);
-                _shader.Dispatch(_kernelHistogram, threadGroups, 1, 1);
+                V4GpuSyncDispatch.Dispatch(_shader, _kernelHistogram, $"RadixSort_Histogram{pass}", threadGroups, 1, 1);
 
                 _shader.SetBuffer(_kernelScan, GlobalHistogramId, _globalHistogram);
                 _shader.SetBuffer(_kernelScan, GlobalPrefixId, _globalPrefix);
                 _shader.SetBuffer(_kernelScan, GroupHistogramId, _groupHistogram);
                 _shader.SetBuffer(_kernelScan, GroupOffsetsId, _groupOffsets);
-                _shader.Dispatch(_kernelScan, 1, 1, 1);
+                V4GpuSyncDispatch.Dispatch(_shader, _kernelScan, $"RadixSort_Scan{pass}", 1, 1, 1);
 
                 _shader.SetBuffer(_kernelScatter, SortKeysId, readKeys);
                 _shader.SetBuffer(_kernelScatter, SortValuesId, readValues);
                 _shader.SetBuffer(_kernelScatter, TempKeysId, writeKeys);
                 _shader.SetBuffer(_kernelScatter, TempValuesId, writeValues);
                 _shader.SetBuffer(_kernelScatter, GroupOffsetsId, _groupOffsets);
-                _shader.Dispatch(_kernelScatter, threadGroups, 1, 1);
+                V4GpuSyncDispatch.Dispatch(_shader, _kernelScatter, $"RadixSort_Scatter{pass}", threadGroups, 1, 1);
 
                 (readKeys, writeKeys) = (writeKeys, readKeys);
                 (readValues, writeValues) = (writeValues, readValues);
@@ -138,7 +139,7 @@ namespace HarmonicEngineV4.Simulation
                 _shader.SetBuffer(_kernelPack, GridKeyValueBufferId, packGridKeyValueBuffer);
                 _shader.SetBuffer(_kernelPack, SortKeysId, readKeys);
                 _shader.SetBuffer(_kernelPack, SortValuesId, readValues);
-                _shader.Dispatch(_kernelPack, threadGroups, 1, 1);
+                V4GpuSyncDispatch.Dispatch(_shader, _kernelPack, "RadixSort_Pack", threadGroups, 1, 1);
             }
         }
     }

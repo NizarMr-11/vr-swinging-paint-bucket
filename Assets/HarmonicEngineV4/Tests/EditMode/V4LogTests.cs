@@ -87,6 +87,23 @@ namespace HarmonicEngineV4.Tests.EditMode
         }
 
         [Test]
+        public void PerfPhaseScope_EmitsPerformanceSummary()
+        {
+            V4FramePerformanceCollector.Enabled = true;
+            V4FramePerformanceCollector.BeginFrame(1, 100);
+            using (V4Log.BeginPerfPhase("PrePbf"))
+            {
+            }
+
+            V4FramePerformanceCollector.EndFrame();
+
+            Assert.IsTrue(_sink.Lines.Exists(line =>
+                line.category == V4LogCategory.Performance &&
+                line.message.Contains("Phase_PrePbf")));
+            V4FramePerformanceCollector.Enabled = false;
+        }
+
+        [Test]
         public void PassScope_DisposeTwice_LogsOnce()
         {
             V4Log.PassScope scope = V4Log.BeginPass("Once");

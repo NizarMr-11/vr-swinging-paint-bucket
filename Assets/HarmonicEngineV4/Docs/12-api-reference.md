@@ -53,6 +53,8 @@ See [Configuration](11-configuration.md).
 | `debugLogBoundaryPressure` | Per-frame `boundary_pressure.log` (top-band bins) |
 | `debugLogContainInsideMismatch` | Log `cif` containment-footprint mismatch count |
 | `debugLogWallEscapeForensics` | Per-frame `wall_escape_forensics.log` exit-class counts |
+| `debugLogPerformance` | Per-frame `performance.log` CPU/GPU summary |
+| `debugLogPerformanceGpuSync` | Per-pass fence-sync GPU ms in `performance.log` (profiling only) |
 | `ReadDensities(float[])` | GPU density readback |
 | `ReadPredicted(Vector4[])` | GPU predicted-position readback |
 | `MaxCorrectionDistance()` | Current ApplyDelta clamp distance (meters) |
@@ -138,9 +140,16 @@ V4Log.Info(V4LogCategory.General, "message");
 using (V4Log.BeginPass("MyPass")) { ... }
 ```
 
-Categories: `General`, `Bake`, `Spawn`, `PassExecution`, `ZoneClassification`, `CanvasSettle`, `BufferBinding`, `Recording`, `BoundaryPressure`, `WallEscapeForensics`.
+Categories: `General`, `Bake`, `Spawn`, `PassExecution`, `ZoneClassification`, `CanvasSettle`, `BufferBinding`, `Recording`, `BoundaryPressure`, `WallEscapeForensics`, `Performance`.
 
-File sink mapping (`V4ChannelFileSink`): `boundary_pressure.log`, `wall_escape_forensics.log`, plus per-category defaults for other channels.
+File sink mapping (`V4ChannelFileSink`): `performance.log`, `boundary_pressure.log`, `wall_escape_forensics.log`, plus per-category defaults for other channels.
+
+Performance scopes:
+
+```csharp
+using (V4Log.BeginPerfPhase("PrePbf")) { ... }  // phase totals → performance.log
+using (V4Log.BeginPass("MyPass")) { ... }       // per-pass ranking in topCpu
+```
 
 ---
 

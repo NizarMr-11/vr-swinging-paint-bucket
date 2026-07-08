@@ -30,6 +30,8 @@ namespace HarmonicEngineV4.Tests.EditMode
             Assert.AreEqual("bake.log", V4ChannelFileSink.FileNameFor(V4LogCategory.Bake));
             Assert.AreEqual("canvas_settle.log", V4ChannelFileSink.FileNameFor(V4LogCategory.CanvasSettle));
             Assert.AreEqual("pass_execution.log", V4ChannelFileSink.FileNameFor(V4LogCategory.PassExecution));
+            Assert.AreEqual("performance.log", V4ChannelFileSink.FileNameFor(V4LogCategory.Performance));
+            Assert.AreEqual("boundary_pressure.log", V4ChannelFileSink.FileNameFor(V4LogCategory.BoundaryPressure));
         }
 
         [Test]
@@ -56,6 +58,27 @@ namespace HarmonicEngineV4.Tests.EditMode
             Assert.IsFalse(bakeText.Contains("dropped-info"));
             Assert.IsTrue(bakeText.Contains("kept-warning"));
             Assert.IsFalse(File.Exists(Path.Combine(_tempDir, "channels", V4ChannelFileSink.FileNameFor(V4LogCategory.PassExecution))));
+        }
+
+        [Test]
+        public void Write_RespectsPerformanceAndBoundaryPressureToggles()
+        {
+            var settings = new V4ChannelLogSettings
+            {
+                recordPerformance = true,
+                recordBoundaryPressure = false,
+                minimumLevel = V4LogLevel.Info
+            };
+
+            using (var sink = new V4ChannelFileSink(_tempDir, settings))
+            {
+                sink.Write(V4LogLevel.Info, V4LogCategory.Performance, "perf-line");
+                sink.Write(V4LogLevel.Info, V4LogCategory.BoundaryPressure, "boundary-line");
+                sink.Flush();
+            }
+
+            Assert.IsTrue(File.Exists(Path.Combine(_tempDir, "channels", "performance.log")));
+            Assert.IsFalse(File.Exists(Path.Combine(_tempDir, "channels", "boundary_pressure.log")));
         }
     }
 }

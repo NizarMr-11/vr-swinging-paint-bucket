@@ -81,9 +81,14 @@ For run recordings, attach `V4RunRecording` to record JSONL frame samples.
 For leak investigation, enable on `V4PipelineRoot`:
 
 - `debugLogWallEscapeForensics` → `Logs/Engine2/run_*/channels/wall_escape_forensics.log`
-- `debugLogBoundaryPressure` → `boundary_pressure.log` (large; optional)
+- `debugLogBoundaryPressure` → `boundary_pressure.log` (large; leave off unless debugging)
 
-See [Configuration](11-configuration.md) for metric caveats (`cif` vs over-rim / beyond-outer).
+For performance diagnosis:
+
+- `debugLogPerformance` → `performance.log` (per-frame `topCpu`, `gpuFrameMs`, phase totals)
+- `debugLogPerformanceGpuSync` → adds `topGpuSync` per-pass GPU ms (brief profiling only; stalls GPU)
+
+See [Configuration](11-configuration.md) for metric caveats (`cif` vs over-rim / beyond-outer) and FPS notes.
 
 ---
 
@@ -95,6 +100,7 @@ See [Configuration](11-configuration.md) for metric caveats (`cif` vs over-rim /
 | Particles explode | Lower density; increase `pbfIterations`; check spawn overlap |
 | Walls don't hold | Shader recompile; see [Bucket & zones](05-bucket-and-zones.md); run `V4ContainmentTests` + `Investigate_FirmDirectionalHold_WallEscapeForensics` |
 | Fluid flies over rim | Open top by design — not a wall leak; check `overRim` in forensics log |
+| Low FPS after collision work | Turn off `debugLogBoundaryPressure` and `debugLogWallEscapeForensics`; enable `debugLogPerformance` to see `topCpu` |
 | Black paint wrong color | Use debug points or SSFR with `_UseParticleColor` |
 | Pipeline disabled on play | Console bake errors; bucket/canvas null refs |
 | Null refs after script reload | Pipeline auto-reinits; stop/start play mode |

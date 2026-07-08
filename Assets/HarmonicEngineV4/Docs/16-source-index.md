@@ -75,6 +75,8 @@ Complete file index for `Assets/HarmonicEngineV4/`. Use with [README](README.md)
 | File | Role |
 |------|------|
 | `V4Log.cs` | Logging facade + categories |
+| `V4FramePerformanceCollector.cs` | Per-frame CPU/GPU perf accumulator |
+| `V4GpuSyncDispatch.cs` | Optional fence-sync compute dispatch wrapper |
 | `V4ConsoleLogSink.cs` | Unity console sink |
 | `V4ChannelFileSink.cs` | Per-category file sink |
 | `V4ChannelLogSettings.cs` | Category config |
@@ -120,7 +122,7 @@ Complete file index for `Assets/HarmonicEngineV4/`. Use with [README](README.md)
 
 ## Tests / EditMode
 
-`V4BakeMathTests`, `V4BucketBakeTests`, `V4BucketGeometryTests`, `V4ZoneMathTests`, `V4ParticleFlagsTests`, `V4CanvasSplatMathTests`, `V4EmaLossModelTests`, `V4BufferRegistryTests`, `V4ManifestValidationTests`, `V4DeviceCapsTests`, `V4LogTests`, `V4ChannelFileSinkTests`, `V4RunLogPathsTests`
+`V4BakeMathTests`, `V4BucketBakeTests`, `V4BucketGeometryTests`, `V4ZoneMathTests`, `V4ParticleFlagsTests`, `V4CanvasSplatMathTests`, `V4EmaLossModelTests`, `V4BufferRegistryTests`, `V4ManifestValidationTests`, `V4DeviceCapsTests`, `V4LogTests`, `V4FramePerformanceCollectorTests`, `V4ChannelFileSinkTests`, `V4RunLogPathsTests`
 
 ---
 

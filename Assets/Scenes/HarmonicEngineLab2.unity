@@ -833,10 +833,12 @@ MonoBehaviour:
   maxDeltaTime: 0.02
   gravity: {x: 0, y: -9.81, z: 0}
   maxSplatEvents: 1024
-  debugLogBoundaryPressure: 1
+  debugLogBoundaryPressure: 0
   debugBoundaryPressureBinCount: 5
-  debugLogContainInsideMismatch: 1
-  debugLogWallEscapeForensics: 1
+  debugLogContainInsideMismatch: 0
+  debugLogWallEscapeForensics: 0
+  debugLogPerformance: 0
+  debugLogPerformanceGpuSync: 0
 --- !u!4 &1272400441
 Transform:
   m_ObjectHideFlags: 0

@@ -21,7 +21,9 @@ namespace HarmonicEngineV4.Logging
         public bool recordCanvasSettle = true;
         public bool recordBufferBinding = false;
         public bool recordRecording = true;
+        public bool recordBoundaryPressure = false;
         public bool recordWallEscapeForensics = true;
+        public bool recordPerformance = true;
 
         public bool IsCategoryRecorded(V4LogCategory category)
         {
@@ -35,7 +37,9 @@ namespace HarmonicEngineV4.Logging
                 case V4LogCategory.CanvasSettle: return recordCanvasSettle;
                 case V4LogCategory.BufferBinding: return recordBufferBinding;
                 case V4LogCategory.Recording: return recordRecording;
+                case V4LogCategory.BoundaryPressure: return recordBoundaryPressure;
                 case V4LogCategory.WallEscapeForensics: return recordWallEscapeForensics;
+                case V4LogCategory.Performance: return recordPerformance;
                 default: return true;
             }
         }

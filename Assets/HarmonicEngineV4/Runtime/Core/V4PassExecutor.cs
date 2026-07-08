@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using HarmonicEngineV4.Logging;
 using UnityEngine;
 
@@ -73,7 +74,7 @@ namespace HarmonicEngineV4.Core
             {
                 long bytes = BindBuffers(pass);
                 scope.RecordBufferBytes(bytes);
-                pass.Def.shader.Dispatch(pass.KernelIndex, groupsX, groupsY, groupsZ);
+                DispatchWithOptionalGpuSync(pass, passId, groupsX, groupsY, groupsZ);
             }
         }
 
@@ -88,6 +89,26 @@ namespace HarmonicEngineV4.Core
             ResolvedPass pass = GetPass(passId);
             int groups = Mathf.CeilToInt(totalThreads / (float)pass.GroupSizeX);
             Dispatch(passId, groups);
+        }
+
+        private static void DispatchWithOptionalGpuSync(
+            ResolvedPass pass,
+            string passId,
+            int groupsX,
+            int groupsY,
+            int groupsZ)
+        {
+            bool gpuSync = V4FramePerformanceCollector.Enabled && V4FramePerformanceCollector.GpuSyncEnabled;
+            Stopwatch gpuSyncWatch = gpuSync ? Stopwatch.StartNew() : null;
+
+            pass.Def.shader.Dispatch(pass.KernelIndex, groupsX, groupsY, groupsZ);
+
+            if (gpuSync)
+            {
+                V4GpuSyncDispatch.WaitForGpu();
+                gpuSyncWatch.Stop();
+                V4FramePerformanceCollector.RecordGpuSyncScope(passId, gpuSyncWatch.Elapsed.TotalMilliseconds);
+            }
         }
 
         private long BindBuffers(ResolvedPass pass)
