@@ -390,12 +390,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Rendering.V4ScreenSpaceFluidRenderer
   pipeline: {fileID: 1272400440}
-  splatRadiusMultiplier: 2.2
+  splatRadiusMultiplier: 3
   thicknessWeight: 0.15
   fluidColor: {r: 0.1, g: 0.4, b: 0.8, a: 1}
   useParticleColor: 1
-  blurFalloff: 0.05
-  blurRadius: 3
+  velocityStretchScale: 1
+  velocityStretchMax: 3
+  blurFalloff: 0.1
+  blurRadius: 1.2
+  blurIterations: 5
   normalScale: 100
   specularPower: 250
   specularIntensity: 1.5
@@ -415,6 +418,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Rendering.V4DebugPointRenderer
   pipeline: {fileID: 1272400440}
   pointSize: 0
+  showFlagTint: 0
 --- !u!81 &850489003
 AudioListener:
   m_ObjectHideFlags: 0
@@ -753,6 +757,7 @@ GameObject:
   - component: {fileID: 1272400441}
   - component: {fileID: 1272400440}
   - component: {fileID: 1272400442}
+  - component: {fileID: 1272400443}
   - component: {fileID: 1272400439}
   - component: {fileID: 1272400438}
   m_Layer: 0
@@ -825,7 +830,7 @@ MonoBehaviour:
   - {fileID: 111909320}
   globalDensity: 900000
   globalProfile: {fileID: 11400000, guid: 3a5b2c589cbcc604a894f7696d0d45f2, type: 2}
-  restrictSpawnToBucketCavity: 1
+  restrictSpawnToBucketCavity: 0
   autoRun: 1
   pbfIterations: 4
   carryRate: 10
@@ -874,17 +879,39 @@ MonoBehaviour:
   showDebugPoints: 0
   debugPointSize: 0
   screenSpaceFluid:
-    splatRadiusMultiplier: 2.2
+    splatRadiusMultiplier: 3
     thicknessWeight: 0.15
     fluidColor: {r: 0.1, g: 0.4, b: 0.8, a: 1}
     useParticleColor: 1
-    blurFalloff: 0.05
-    blurRadius: 3
+    blurFalloff: 0.1
+    blurRadius: 1.2
+    blurIterations: 5
     normalScale: 100
     specularPower: 250
     specularIntensity: 1.5
     thicknessAbsorption: 40
     halfResolutionFluid: 1
+--- !u!114 &1272400443
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1272400437}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f2a8b1c3d4e54789a0b1c2d3e4f56789, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Networking.V4NetworkSettings
+  enableNetworking: 0
+  role: 0
+  sessionId: 3238069761
+  transportKind: 0
+  udpPort: 17777
+  hostAddress: 127.0.0.1
+  loopbackPeer: {fileID: 0}
+  publishOnFrameCompleted: 1
+  clientSimulatesLocally: 0
 --- !u!1 &1646445023
 GameObject:
   m_ObjectHideFlags: 0

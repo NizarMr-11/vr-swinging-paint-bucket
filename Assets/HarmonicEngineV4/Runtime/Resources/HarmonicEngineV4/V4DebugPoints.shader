@@ -1,6 +1,10 @@
 // Debug particle point renderer (plan Phase 6): camera-facing quads per particle,
 // colored purely by particle paint color so every liquid (including black) reads as
 // its authored color. Fast bring-up visual, not the final fluid render.
+//
+// TEMP DIAGNOSTIC — optional flag tint (_ShowFlagTint) for pool Inside/Outside flicker
+// investigation. Remove after diagnosis.
+//   Inside + TopBand → yellow | Inside + other zone → green | Outside → red
 Shader "HarmonicEngineV4/DebugPoints"
 {
     Properties
@@ -20,11 +24,14 @@ Shader "HarmonicEngineV4/DebugPoints"
             #pragma fragment frag
             #pragma target 4.5
             #include "UnityCG.cginc"
+            #include "Include/V4Common.hlsl"
 
             StructuredBuffer<float4> _Block0;
             StructuredBuffer<uint> _PackedColors;
+            StructuredBuffer<uint> _Flags;
             float _PointSize;
             uint _ActiveParticleCount;
+            float _ShowFlagTint;
 
             struct v2f
             {
@@ -39,6 +46,27 @@ Shader "HarmonicEngineV4/DebugPoints"
                 float2(-1, -1), float2(1, 1), float2(-1, 1)
             };
 
+            float3 UnpackPaintColor(uint packed)
+            {
+                return float3(packed & 0xFFu, (packed >> 8) & 0xFFu, (packed >> 16) & 0xFFu) / 255.0;
+            }
+
+            // TEMP DIAGNOSTIC — classification tint for flicker investigation.
+            float3 FlagDiagnosticColor(uint flags)
+            {
+                if (!V4IsInside(flags))
+                {
+                    return float3(1.0, 0.0, 0.0);
+                }
+
+                if (V4GetZone(flags) == V4_ZONE_TOPBAND)
+                {
+                    return float3(1.0, 1.0, 0.0);
+                }
+
+                return float3(0.0, 1.0, 0.0);
+            }
+
             v2f vert(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
             {
                 v2f o;
@@ -52,8 +80,9 @@ Shader "HarmonicEngineV4/DebugPoints"
 
                 float4 block0 = _Block0[instanceId];
 
-                uint packed = _PackedColors[instanceId];
-                float3 color = float3(packed & 0xFF, (packed >> 8) & 0xFF, (packed >> 16) & 0xFF) / 255.0;
+                float3 paintColor = UnpackPaintColor(_PackedColors[instanceId]);
+                float3 flagColor = FlagDiagnosticColor(_Flags[instanceId]);
+                float3 color = lerp(paintColor, flagColor, saturate(_ShowFlagTint));
 
                 float2 corner = kCorners[vertexId] * _PointSize;
                 float3 camRight = UNITY_MATRIX_V[0].xyz;

@@ -2,7 +2,8 @@
     "name": "HarmonicEngineV4.Runtime",
     "rootNamespace": "HarmonicEngineV4",
     "references": [
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.Mathematics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

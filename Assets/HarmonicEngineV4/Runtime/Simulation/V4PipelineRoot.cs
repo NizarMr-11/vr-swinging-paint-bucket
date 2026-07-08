@@ -232,6 +232,57 @@ namespace HarmonicEngineV4.Simulation
             _densitiesBuffer.GetData(destination, 0, 0, Mathf.Min(destination.Length, ActiveParticleCount));
         }
 
+        /// <summary>Networking: read the current read-side particle SOA into CPU arrays.</summary>
+        public void ReadParticleSnapshot(Vector4[] block0, Vector4[] block1, uint[] colors, uint[] flags, int count)
+        {
+            if (_soa == null || count <= 0)
+            {
+                return;
+            }
+
+            int n = Mathf.Min(count, ActiveParticleCount);
+            if (block0 != null && block0.Length >= n)
+            {
+                _soa.ReadBlock0.GetData(block0, 0, 0, n);
+            }
+
+            if (block1 != null && block1.Length >= n)
+            {
+                _soa.ReadBlock1.GetData(block1, 0, 0, n);
+            }
+
+            if (colors != null && colors.Length >= n)
+            {
+                _soa.ReadColors.GetData(colors, 0, 0, n);
+            }
+
+            if (flags != null && flags.Length >= n)
+            {
+                _soa.ReadFlags.GetData(flags, 0, 0, n);
+            }
+        }
+
+        /// <summary>Networking: replace live particles from an authoritative CPU snapshot.</summary>
+        public void ApplyNetworkParticleSnapshot(Vector4[] block0, Vector4[] block1, uint[] colors, uint[] flags, int count)
+        {
+            if (_soa == null)
+            {
+                return;
+            }
+
+            if (count < 0 || count > Capacity)
+            {
+                throw new ArgumentException($"count {count} out of range (capacity {Capacity})");
+            }
+
+            _soa.Upload(block0, block1, colors, flags, count);
+            ActiveParticleCount = count;
+            _soa.RegisterBuffers(_registry);
+        }
+
+        /// <summary>Networking: align sim frame counter with remote authority.</summary>
+        public void SetNetworkFrameIndex(uint frameIndex) => FrameIndex = frameIndex;
+
         /// <summary>GPU rest density target (lattice-calibrated) for profile index 0.</summary>
         public float GpuRestDensity(int profileIndex = 0)
         {

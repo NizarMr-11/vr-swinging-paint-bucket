@@ -14,6 +14,17 @@ namespace HarmonicEngineV4.Rendering
         [Tooltip("Half-size of each point quad in world meters. 0 = use particle radius.")]
         [Min(0f)] public float pointSize = 0f;
 
+        // TEMP DIAGNOSTIC — remove after pool Inside/Outside flicker investigation.
+        [Tooltip("Tint particles by classification flags (green=inside, yellow=top band, red=outside).")]
+        [SerializeField] private bool showFlagTint = false;
+
+        private static readonly int Block0Id = Shader.PropertyToID("_Block0");
+        private static readonly int PackedColorsId = Shader.PropertyToID("_PackedColors");
+        private static readonly int FlagsId = Shader.PropertyToID("_Flags");
+        private static readonly int PointSizeId = Shader.PropertyToID("_PointSize");
+        private static readonly int ActiveParticleCountId = Shader.PropertyToID("_ActiveParticleCount");
+        private static readonly int ShowFlagTintId = Shader.PropertyToID("_ShowFlagTint");
+
         public void ApplyOptions(V4PipelineRoot pipelineRoot, float size)
         {
             if (pipelineRoot != null)
@@ -51,10 +62,12 @@ namespace HarmonicEngineV4.Rendering
                 return;
             }
 
-            _material.SetBuffer("_Block0", pipeline.Soa.ReadBlock0);
-            _material.SetBuffer("_PackedColors", pipeline.Soa.ReadColors);
-            _material.SetFloat("_PointSize", pointSize > 0f ? pointSize : pipeline.ParticleRadius);
-            _material.SetInt("_ActiveParticleCount", pipeline.ActiveParticleCount);
+            _material.SetBuffer(Block0Id, pipeline.Soa.ReadBlock0);
+            _material.SetBuffer(PackedColorsId, pipeline.Soa.ReadColors);
+            _material.SetBuffer(FlagsId, pipeline.Soa.ReadFlags);
+            _material.SetFloat(PointSizeId, pointSize > 0f ? pointSize : pipeline.ParticleRadius);
+            _material.SetInt(ActiveParticleCountId, pipeline.ActiveParticleCount);
+            _material.SetFloat(ShowFlagTintId, showFlagTint ? 1f : 0f);
             _material.SetPass(0);
             Graphics.DrawProceduralNow(MeshTopology.Triangles, 6, pipeline.ActiveParticleCount);
         }

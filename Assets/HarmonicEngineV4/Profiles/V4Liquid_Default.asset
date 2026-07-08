@@ -16,14 +16,14 @@ MonoBehaviour:
   restDensity: 1000
   viscosity: 0.25
   cohesion: 0.5
+  pbfKCorr: 0
+  pbfNCorr: 4
+  pbfDeltaQScale: 0.2
   colorDiffusionRate: 0.05
   settleEpsilon: 0.05
   canvasMaxDepth: 4
   impactAbsorbSpeed: 0.8
   impactSplashScale: 0.35
-  pbfKCorr: 0.1
-  pbfNCorr: 4
-  pbfDeltaQScale: 0.2
   surfaceFriction: 0.2
   surfaceRestitution: 0.1
   zoneStrengthByLevel:

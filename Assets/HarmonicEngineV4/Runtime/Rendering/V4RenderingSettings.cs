@@ -6,12 +6,13 @@ namespace HarmonicEngineV4.Rendering
     [System.Serializable]
     public struct V4ScreenSpaceFluidOptions
     {
-        [Range(0.5f, 3f)] public float splatRadiusMultiplier;
+        [Range(0.5f, 5f)] public float splatRadiusMultiplier;
         [Range(0.001f, 0.5f)] public float thicknessWeight;
         public Color fluidColor;
         public bool useParticleColor;
         [Min(0.001f)] public float blurFalloff;
         [Min(0.5f)] public float blurRadius;
+        [Min(1)] public int blurIterations;
         public float normalScale;
         [Min(1f)] public float specularPower;
         [Range(0f, 2f)] public float specularIntensity;
@@ -26,6 +27,7 @@ namespace HarmonicEngineV4.Rendering
             useParticleColor = true,
             blurFalloff = 0.05f,
             blurRadius = 3f,
+            blurIterations = 4,
             normalScale = 100f,
             specularPower = 250f,
             specularIntensity = 1.5f,

@@ -4,6 +4,7 @@
     "references": [
         "HarmonicEngineV4.Runtime",
         "HarmonicEngineV4.Editor",
+        "Unity.Mathematics",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
