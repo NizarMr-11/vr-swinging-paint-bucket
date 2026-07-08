@@ -46,6 +46,36 @@ namespace SwingingPaintBucket.Canvas
         [Tooltip("The physical volume/impact size of a paint particle hitting the canvas.")]
         public float ParticleImpactSize = 1.0f;
 
+        [Header("Slope Paint Sliding")]
+        [Tooltip("When enabled, paint is smeared downhill when the canvas is tilted.")]
+        public bool EnableSlopeSliding = true;
+
+        [Tooltip("Global strength multiplier for downhill paint sliding on tilted canvases.")]
+        [Range(0f, 5f)] public float SlopeSlideStrength = 1.0f;
+
+        [Tooltip("Minimum absolute tilt angle before downhill sliding is drawn.")]
+        [Range(0f, 20f)] public float MinimumTiltForSliding = 2.0f;
+
+        [Tooltip("Maximum number of extra smear samples drawn for one hit.")]
+        [Range(1, 32)] public int MaxSlopeSlideSteps = 14;
+
+        [Header("Slope Sliding Direction Correction")]
+        [Tooltip("Enable only if the generated slide trail moves uphill instead of downhill because of mesh UV orientation.")]
+        public bool InvertSlopeSlideDirection = false;
+
+        [Tooltip("Flip the horizontal texture component of the slide direction. Useful when a custom mesh has mirrored U coordinates.")]
+        public bool InvertSlopeSlideU = false;
+
+        [Tooltip("Flip the vertical texture component of the slide direction. Useful for Cube top faces whose V direction is opposite local Z.")]
+        public bool InvertSlopeSlideV = false;
+
+        [Header("Slope Sliding Debug")]
+        [SerializeField] private float lastSlopeSlidePixelsDebug;
+        [SerializeField] private Vector2 lastSlopeDirectionDebug;
+
+        public float LastSlopeSlidePixelsDebug => lastSlopeSlidePixelsDebug;
+        public Vector2 LastSlopeDirectionDebug => lastSlopeDirectionDebug;
+
         [Header("Paint Layer Rendering")]
         [Tooltip("Use this when the canvas object is a transparent paint overlay above a textured canvas base.")]
         public bool UseTransparentBackground = false;
@@ -92,6 +122,9 @@ namespace SwingingPaintBucket.Canvas
             CanvasHeightMeters = Mathf.Max(0.1f, CanvasHeightMeters);
             MaterialSpreadMultiplier = Mathf.Max(0.01f, MaterialSpreadMultiplier);
             ParticleImpactSize = Mathf.Max(0.01f, ParticleImpactSize);
+            SlopeSlideStrength = Mathf.Max(0f, SlopeSlideStrength);
+            MinimumTiltForSliding = Mathf.Clamp(MinimumTiltForSliding, 0f, 20f);
+            MaxSlopeSlideSteps = Mathf.Clamp(MaxSlopeSlideSteps, 1, 32);
             TextureWidth = Mathf.Max(128, TextureWidth);
             TextureHeight = Mathf.Max(128, TextureHeight);
             OpaqueBackgroundColor.a = 1f;
@@ -300,6 +333,8 @@ namespace SwingingPaintBucket.Canvas
                 DrawConnectedStroke(_lastHitPixel.Value, currentHitPixel, baseRadius, color, splash);
             }
 
+            DrawSlopeSlideTrail(currentHitPixel, baseRadius, color, safeViscosity, splash);
+
             _lastHitPixel = currentHitPixel;
             _canvasTexture.SetPixels(_pixels);
             _canvasTexture.Apply(false);
@@ -355,6 +390,128 @@ namespace SwingingPaintBucket.Canvas
 
             float paintedRatio = (float)paintedPixels / _pixels.Length;
             return paintedRatio * CanvasWidthMeters * CanvasHeightMeters;
+        }
+
+        private void DrawSlopeSlideTrail(Vector2 hitPixel, int baseRadius, Color color, float viscosity, float splashMultiplier)
+        {
+            lastSlopeSlidePixelsDebug = 0f;
+            lastSlopeDirectionDebug = Vector2.zero;
+
+            if (!EnableSlopeSliding)
+                return;
+
+            float absoluteTilt = Mathf.Abs(CanvasTiltDegrees);
+            if (absoluteTilt < MinimumTiltForSliding)
+                return;
+
+            if (!TryGetDownhillTextureDirection(out Vector2 downhillDirection, out float slopeFactor))
+                return;
+
+            float surfaceSlip = GetSurfaceSlipMultiplier(SurfaceType);
+            float viscosityFactor = Mathf.Clamp(1f / Mathf.Max(0.1f, viscosity), 0.25f, 3.0f);
+            float slidePixels = baseRadius * 4.0f * slopeFactor * surfaceSlip * viscosityFactor * SlopeSlideStrength;
+
+            if (slidePixels < 1f)
+                return;
+
+            int steps = Mathf.Clamp(Mathf.CeilToInt(slidePixels / Mathf.Max(1f, baseRadius * 0.45f)), 1, MaxSlopeSlideSteps);
+
+            lastSlopeSlidePixelsDebug = slidePixels;
+            lastSlopeDirectionDebug = downhillDirection;
+
+            for (int i = 1; i <= steps; i++)
+            {
+                float t = (float)i / steps;
+                Vector2 smearPosition = hitPixel + downhillDirection * slidePixels * t;
+
+                int smearRadius = Mathf.Max(1, Mathf.RoundToInt(baseRadius * Mathf.Lerp(0.85f, 0.25f, t)));
+                Color smearColor = color;
+                smearColor.a *= Mathf.Lerp(0.42f, 0.08f, t);
+
+                int x = Mathf.RoundToInt(smearPosition.x);
+                int y = Mathf.RoundToInt(smearPosition.y);
+                DrawSplat(x, y, smearRadius, smearColor);
+
+                // Low-absorption surfaces create small secondary streaks around the downhill path.
+                float microSplashProbability = Mathf.Clamp01(0.08f * splashMultiplier * GetSurfaceSlipMultiplier(SurfaceType));
+                if (Random.value < microSplashProbability)
+                {
+                    Vector2 tangent = new Vector2(-downhillDirection.y, downhillDirection.x);
+                    float sideOffset = Random.Range(-baseRadius * 0.7f, baseRadius * 0.7f);
+                    Vector2 sidePosition = smearPosition + tangent * sideOffset;
+
+                    Color sideColor = smearColor;
+                    sideColor.a *= 0.6f;
+                    DrawSplat(
+                        Mathf.RoundToInt(sidePosition.x),
+                        Mathf.RoundToInt(sidePosition.y),
+                        Mathf.Max(1, smearRadius / 2),
+                        sideColor
+                    );
+                }
+            }
+        }
+
+        private bool TryGetDownhillTextureDirection(out Vector2 textureDirection, out float slopeFactor)
+        {
+            textureDirection = Vector2.zero;
+            slopeFactor = 0f;
+
+            Vector3 normal = GetWorldSurfaceNormal();
+
+            // Project gravity onto the canvas plane. This is the downhill direction on the surface.
+            Vector3 downhillWorld = Vector3.ProjectOnPlane(Vector3.down, normal);
+
+            float downhillMagnitude = downhillWorld.magnitude;
+            if (downhillMagnitude < 0.0001f)
+                return false;
+
+            downhillWorld /= downhillMagnitude;
+            slopeFactor = Mathf.Clamp01(downhillMagnitude);
+
+            Vector3 downhillLocal = transform.InverseTransformDirection(downhillWorld);
+            CanvasSurfaceAxis resolvedAxis = ResolveSurfaceAxis();
+
+            if (resolvedAxis == CanvasSurfaceAxis.XY_Quad)
+                textureDirection = new Vector2(downhillLocal.x, downhillLocal.y);
+            else
+                textureDirection = new Vector2(downhillLocal.x, downhillLocal.z);
+
+            if (InvertSlopeSlideU)
+                textureDirection.x = -textureDirection.x;
+
+            if (InvertSlopeSlideV)
+                textureDirection.y = -textureDirection.y;
+
+            if (InvertSlopeSlideDirection)
+                textureDirection = -textureDirection;
+
+            if (textureDirection.sqrMagnitude < 0.0001f)
+                return false;
+
+            textureDirection.Normalize();
+            return true;
+        }
+
+        private static float GetSurfaceSlipMultiplier(CanvasSurfaceType surfaceType)
+        {
+            switch (surfaceType)
+            {
+                case CanvasSurfaceType.Paper:
+                    return 0.25f;
+
+                case CanvasSurfaceType.Fabric:
+                    return 0.35f;
+
+                case CanvasSurfaceType.Wood:
+                    return 0.55f;
+
+                case CanvasSurfaceType.Metal:
+                    return 1.15f;
+
+                default:
+                    return 0.35f;
+            }
         }
 
         private void DrawConnectedStroke(Vector2 previous, Vector2 current, int baseRadius, Color color, float splashMultiplier)

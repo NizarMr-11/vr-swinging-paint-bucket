@@ -28,8 +28,11 @@ namespace SwingingPaintBucket.Interface.UI
             if (canvasOverlayBinder == null)
                 canvasOverlayBinder = FindAnyObjectByType<CanvasOverlayBinder>();
 
+            if (canvasOverlayBinder != null)
+                currentSurface = canvasOverlayBinder.SurfaceType;
+
             BuildUI();
-            SelectSurface(CanvasSurfaceType.Fabric);
+            UpdateButtonVisuals();
         }
 
         private void BuildUI()
