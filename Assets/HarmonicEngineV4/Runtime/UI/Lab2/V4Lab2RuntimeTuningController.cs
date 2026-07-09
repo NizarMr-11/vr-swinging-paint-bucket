@@ -36,7 +36,6 @@ namespace HarmonicEngineV4.UI.Lab2
             GameObject panel,
             Slider carry,
             Slider damping,
-            Slider slosh,
             Slider torricelliHead,
             Slider pbf,
             Slider ghost,
@@ -54,7 +53,6 @@ namespace HarmonicEngineV4.UI.Lab2
             panelRoot = panel;
             carryRateSlider = carry;
             dampingSlider = damping;
-            sloshSlider = slosh;
             torricelliSlider = torricelliHead;
             pbfSlider = pbf;
             ghostSlider = ghost;
@@ -63,8 +61,25 @@ namespace HarmonicEngineV4.UI.Lab2
             resetPendulumButton = resetPendulum;
             openSetupButton = openSetup;
             closeButton = close;
+            HideSloshControlIfPresent();
             WireEvents();
             SyncFromScene();
+        }
+
+        private void HideSloshControlIfPresent()
+        {
+            if (sloshSlider == null)
+            {
+                return;
+            }
+
+            Transform row = sloshSlider.transform.parent;
+            sloshSlider.gameObject.SetActive(false);
+            Transform label = row != null ? row.Find("Label_Slosh feedback") : null;
+            if (label != null)
+            {
+                label.gameObject.SetActive(false);
+            }
         }
 
         private void Awake()

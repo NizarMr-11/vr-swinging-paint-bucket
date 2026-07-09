@@ -22,9 +22,12 @@ namespace HarmonicEngineV4.Simulation
         private static readonly int CpuBucketAngularVelocityId = Shader.PropertyToID("_CpuBucketAngularVelocity");
         private static readonly int CpuBucketAngularAccelerationId = Shader.PropertyToID("_CpuBucketAngularAcceleration");
         private static readonly int CpuBucketWorldOriginId = Shader.PropertyToID("_CpuBucketWorldOrigin");
+        private static readonly int BucketHangEarLocalYId = Shader.PropertyToID("_BucketHangEarLocalY");
 
         [Tooltip("When true, copies GPU pose to Transform after each step (debug/hierarchy).")]
         public bool syncTransformToCpu;
+
+        private V4BucketHangEar _hangEar;
 
         private ComputeShader _bucketPhysicsShader;
         private ComputeShader _massReduceShader;
@@ -43,6 +46,27 @@ namespace HarmonicEngineV4.Simulation
         public bool IsInitialized => _initialized;
 
         public V4GpuBucketState LatestState { get; private set; }
+
+        private void Awake()
+        {
+            _hangEar = GetComponent<V4BucketHangEar>();
+        }
+
+        private float ResolveHangEarLocalY(V4SphericalPendulumController pendulum)
+        {
+            if (pendulum != null)
+            {
+                return pendulum.HangEarAttachLocalY;
+            }
+
+            if (_hangEar != null)
+            {
+                return _hangEar.AttachLocalY;
+            }
+
+            V4Bucket bucket = GetComponent<V4Bucket>();
+            return bucket != null ? bucket.height : 0f;
+        }
 
         public void Initialize(V4BufferRegistry registry)
         {
@@ -79,6 +103,7 @@ namespace HarmonicEngineV4.Simulation
                 return;
             }
 
+            float attachY = ResolveHangEarLocalY(pendulum);
             V4GpuBucketState state = V4GpuBucketState.FromPendulumParams(
                 pendulum.GetPivotWorld(),
                 pendulum.ropeLength,
@@ -90,9 +115,14 @@ namespace HarmonicEngineV4.Simulation
                 pendulum.sloshFeedbackScale,
                 pendulum.fluidMassSmoothing,
                 pendulum.twistAngleDegrees,
-                applySlosh: true);
+                applySlosh: true,
+                attachY);
 
-            V4GpuBucketState.ApplySceneTransformPose(ref state, pendulum.transform, pendulum.GetPivotWorld());
+            V4GpuBucketState.ApplySceneTransformPose(
+                ref state,
+                pendulum.transform,
+                pendulum.GetPivotWorld(),
+                attachY);
 
             _bucketStateBuffer.SetData(new[] { state });
             LatestState = state;
@@ -117,7 +147,12 @@ namespace HarmonicEngineV4.Simulation
 
             Vector3 pivot = pendulum.GetPivotWorld();
             Vector3 bucketWorld = pendulum.transform.position;
-            Vector3 delta = bucketWorld - pivot;
+            float attachY = ResolveHangEarLocalY(pendulum);
+            Vector3 hangPoint = V4SphericalPendulumMath.HangPointFromFloor(
+                bucketWorld,
+                pendulum.transform.rotation,
+                attachY);
+            Vector3 delta = hangPoint - pivot;
             Vector3 unitDir = delta.sqrMagnitude > 1e-8f ? delta.normalized : Vector3.down;
             Vector3 tangential = V4SphericalPendulumMath.ProjectOntoTangentPlane(
                 pendulum.initialTangentialVelocity,
@@ -136,14 +171,15 @@ namespace HarmonicEngineV4.Simulation
                 pendulum.sloshFeedbackScale,
                 pendulum.fluidMassSmoothing,
                 pendulum.twistAngleDegrees,
-                applySlosh: true);
+                applySlosh: true,
+                attachY);
 
             _bucketStateBuffer.SetData(new[] { state });
             LatestState = state;
             pendulum.SyncStateFromGpu(state);
         }
 
-        public void SyncPoseFromTransform(Transform bucketTransform, Vector3 pivotWorld)
+        public void SyncPoseFromTransform(Transform bucketTransform, Vector3 pivotWorld, float hangEarLocalY)
         {
             if (!_initialized || bucketTransform == null)
             {
@@ -152,7 +188,7 @@ namespace HarmonicEngineV4.Simulation
 
             _bucketStateBuffer.GetData(_cpuScratch);
             V4GpuBucketState state = _cpuScratch[0];
-            V4GpuBucketState.ApplySceneTransformPose(ref state, bucketTransform, pivotWorld);
+            V4GpuBucketState.ApplySceneTransformPose(ref state, bucketTransform, pivotWorld, hangEarLocalY);
             _cpuScratch[0] = state;
             _bucketStateBuffer.SetData(_cpuScratch);
             LatestState = state;
@@ -201,7 +237,7 @@ namespace HarmonicEngineV4.Simulation
             _bucketPhysicsShader.Dispatch(_applyMassReduceKernel, 1, 1, 1);
         }
 
-        public void DispatchIntegrate(float deltaTime)
+        public void DispatchIntegrate(float deltaTime, float hangEarLocalY)
         {
             if (!_initialized)
             {
@@ -210,6 +246,7 @@ namespace HarmonicEngineV4.Simulation
 
             _bucketPhysicsShader.SetBuffer(_integrateKernel, BucketStateId, _bucketStateBuffer);
             _bucketPhysicsShader.SetFloat(DeltaTimeId, deltaTime);
+            _bucketPhysicsShader.SetFloat(BucketHangEarLocalYId, hangEarLocalY);
             _bucketPhysicsShader.Dispatch(_integrateKernel, 1, 1, 1);
         }
 

@@ -11,6 +11,9 @@ namespace HarmonicEngineV4.Logging
     {
         public V4PipelineRoot pipeline;
         [Min(1)] public int sampleEveryNFrames = 10;
+        public bool recordingEnabled = true;
+        [Tooltip("Empty uses the project Logs/Engine2 folder.")]
+        public string directoryOverride;
         public V4ChannelLogSettings channelSettings = new V4ChannelLogSettings();
 
         private V4RunRecorder _recorder;
@@ -36,11 +39,33 @@ namespace HarmonicEngineV4.Logging
             }
         }
 
+        public void ApplySessionSettings(bool enabled, string baseDirectory, V4ChannelLogSettings settings)
+        {
+            recordingEnabled = enabled;
+            directoryOverride = string.IsNullOrWhiteSpace(baseDirectory) ? null : baseDirectory.Trim();
+            channelSettings = settings ?? new V4ChannelLogSettings();
+        }
+
+        public void ResetRecorder()
+        {
+            _recorder?.Dispose();
+            _recorder = null;
+        }
+
         private void TryCreate()
         {
+            if (!recordingEnabled || _recorder != null)
+            {
+                return;
+            }
+
             if (pipeline != null && pipeline.Initialized)
             {
-                _recorder = new V4RunRecorder(pipeline, sampleEveryNFrames, channelSettings: channelSettings);
+                _recorder = new V4RunRecorder(
+                    pipeline,
+                    sampleEveryNFrames,
+                    directoryOverride: directoryOverride,
+                    channelSettings: channelSettings);
             }
         }
 

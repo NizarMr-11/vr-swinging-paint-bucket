@@ -21,6 +21,7 @@ namespace HarmonicEngineV4.Rendering
         public Color bucketColor = new Color(0.75f, 0.78f, 0.82f, 1f);
 
         private V4Bucket _bucket;
+        private V4BucketHangEar _hangEar;
         private V4PipelineRoot _pipeline;
         private GameObject _meshGo;
         private Mesh _mesh;
@@ -36,6 +37,11 @@ namespace HarmonicEngineV4.Rendering
         private void Start()
         {
             _bucket = GetComponent<V4Bucket>();
+            _hangEar = GetComponent<V4BucketHangEar>();
+            if (_hangEar == null)
+            {
+                _hangEar = gameObject.AddComponent<V4BucketHangEar>();
+            }
             _pipeline = GetComponentInParent<V4PipelineRoot>();
             if (_pipeline == null)
             {
@@ -140,6 +146,11 @@ namespace HarmonicEngineV4.Rendering
             // Floor (inside, faces up) and bottom (outside, faces down) with hole cutouts.
             BuildDisc(0f, r, Vector3.up);
             BuildDisc(-t, r + t, Vector3.down);
+
+            if (_hangEar != null)
+            {
+                BuildHangEarArch(r, h);
+            }
 
             // Double-sided: append every triangle with reversed winding so the bucket
             // is visible from inside and outside (the Standard shader is back-culled).
@@ -295,6 +306,72 @@ namespace HarmonicEngineV4.Rendering
             }
 
             return false;
+        }
+
+        private void BuildHangEarArch(float rimRadius, float rimHeight)
+        {
+            float halfWidth = _hangEar.earHalfWidth;
+            float rise = _hangEar.earRise;
+            int segments = Mathf.Max(4, _hangEar.archSegments);
+            float tube = _hangEar.tubeRadius;
+            Quaternion yaw = Quaternion.Euler(0f, _hangEar.yawDegrees, 0f);
+
+            Vector3 footLeft = yaw * new Vector3(rimRadius, rimHeight, -halfWidth);
+            Vector3 footRight = yaw * new Vector3(rimRadius, rimHeight, halfWidth);
+            Vector3 apex = yaw * new Vector3(rimRadius, rimHeight + rise, 0f);
+
+            Vector3 prev = footLeft;
+            for (int i = 1; i <= segments; i++)
+            {
+                float t = i / (float)segments;
+                float z = Mathf.Lerp(-halfWidth, halfWidth, t);
+                float y = rimHeight + 4f * rise * t * (1f - t);
+                Vector3 point = yaw * new Vector3(rimRadius, y, z);
+                BuildEarTubeSegment(prev, point, tube);
+                prev = point;
+            }
+
+            BuildEarTubeSegment(prev, footRight, tube);
+            BuildEarTubeSegment(apex, apex + yaw * Vector3.right * tube * 0.5f, tube * 0.6f);
+        }
+
+        private void BuildEarTubeSegment(Vector3 from, Vector3 to, float radius)
+        {
+            Vector3 axis = to - from;
+            float length = axis.magnitude;
+            if (length < 1e-5f)
+            {
+                return;
+            }
+
+            Vector3 forward = axis / length;
+            Vector3 side = Mathf.Abs(Vector3.Dot(forward, Vector3.up)) > 0.95f
+                ? Vector3.right
+                : Vector3.Cross(Vector3.up, forward).normalized;
+            Vector3 up = Vector3.Cross(forward, side).normalized;
+            const int ringSegments = 8;
+            const int lengthSegments = 4;
+
+            for (int ring = 0; ring < lengthSegments; ring++)
+            {
+                float t0 = ring / (float)lengthSegments;
+                float t1 = (ring + 1) / (float)lengthSegments;
+                Vector3 center0 = from + forward * (length * t0);
+                Vector3 center1 = from + forward * (length * t1);
+
+                for (int s = 0; s < ringSegments; s++)
+                {
+                    float a0 = s * Mathf.PI * 2f / ringSegments;
+                    float a1 = (s + 1) * Mathf.PI * 2f / ringSegments;
+                    Vector3 n0 = (side * Mathf.Cos(a0) + up * Mathf.Sin(a0)).normalized;
+                    Vector3 n1 = (side * Mathf.Cos(a1) + up * Mathf.Sin(a1)).normalized;
+                    Vector3 p00 = center0 + n0 * radius;
+                    Vector3 p10 = center0 + n1 * radius;
+                    Vector3 p01 = center1 + n0 * radius;
+                    Vector3 p11 = center1 + n1 * radius;
+                    AddQuad(p00, p10, p01, p11, n0, n1, n0, n1, flip: false);
+                }
+            }
         }
 
         private void AddQuad(

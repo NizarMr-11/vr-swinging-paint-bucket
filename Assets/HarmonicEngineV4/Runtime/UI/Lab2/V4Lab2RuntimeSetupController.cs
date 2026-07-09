@@ -1,6 +1,8 @@
+using HarmonicEngineV4.Logging;
 using HarmonicEngineV4.Profiles;
 using HarmonicEngineV4.Rendering;
 using HarmonicEngineV4.Simulation;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 #if ENABLE_INPUT_SYSTEM
@@ -17,7 +19,7 @@ namespace HarmonicEngineV4.UI.Lab2
     }
 
     /// <summary>Lab2 startup choice, setup wizard, and play HUD orchestration.</summary>
-    [DefaultExecutionOrder(-250)]
+    [DefaultExecutionOrder(-1000)]
     public sealed class V4Lab2RuntimeSetupController : MonoBehaviour
     {
         [Header("Scene refs")]
@@ -61,9 +63,12 @@ namespace HarmonicEngineV4.UI.Lab2
         [Header("Wizard - holes & sim")]
         [SerializeField] private Slider hole0RadiusSlider;
         [SerializeField] private Slider hole1RadiusSlider;
+        [SerializeField] private Toggle hole1EnabledToggle;
+        [SerializeField] private Text holeDiagramInfoText;
         [SerializeField] private Slider torricelliHeadSlider;
         [SerializeField] private Dropdown liquidProfileDropdown;
         [SerializeField] private Slider densitySlider;
+        [SerializeField] private Text particleCountText;
         [SerializeField] private Slider carryRateSlider;
         [SerializeField] private Slider pbfSlider;
         [SerializeField] private Slider ghostSlider;
@@ -75,6 +80,15 @@ namespace HarmonicEngineV4.UI.Lab2
         [SerializeField] private Slider zone0StrengthSlider;
         [SerializeField] private Slider colorDiffusionSlider;
         [SerializeField] private Slider settleEpsilonSlider;
+
+        [Header("Wizard - logging")]
+        [SerializeField] private Toggle loggingEnabledToggle;
+        [SerializeField] private InputField logDirectoryInput;
+        [SerializeField] private Button browseLogFolderButton;
+        [SerializeField] private Button useDefaultLogFolderButton;
+        [SerializeField] private Text logFolderHintText;
+        [SerializeField] private Toggle[] loggingChannelToggles = new Toggle[V4Lab2LoggingChannels.All.Length];
+
         [SerializeField] private Text validationText;
         [SerializeField] private Button applyAndStartButton;
         [SerializeField] private Button resetDefaultsButton;
@@ -86,8 +100,12 @@ namespace HarmonicEngineV4.UI.Lab2
         [SerializeField] private Button tuningToggleButton;
         [SerializeField] private V4Lab2StatsHudController statsHud;
         [SerializeField] private V4Lab2RuntimeTuningController tuning;
+        [SerializeField] private V4Lab2UiPolish uiPolish;
+        [SerializeField] private V4Lab2WizardTabController wizardTabs;
+        [SerializeField] private V4Lab2HoleDiagramController holeDiagram;
 
         private readonly V4Lab2SessionConfig _config = new V4Lab2SessionConfig();
+        private readonly List<V4Lab2LayerColorPicker> _layerColorPickers = new List<V4Lab2LayerColorPicker>();
         private V4Lab2UiState _state = V4Lab2UiState.Startup;
         private bool _uiBuilt;
 
@@ -109,7 +127,120 @@ namespace HarmonicEngineV4.UI.Lab2
             }
 
             V4Lab2SetupApplicator.CaptureFromScene(BuildSceneRefs(), _config);
+            CaptureLoggingFromScene();
+            if (uiPolish == null)
+            {
+                uiPolish = GetComponent<V4Lab2UiPolish>();
+            }
+
+            if (uiPolish == null)
+            {
+                uiPolish = gameObject.AddComponent<V4Lab2UiPolish>();
+            }
+
             WireEvents();
+            BindWizardExtras();
+            ConfigureLayerThicknessSliders();
+        }
+
+        private void ConfigureLayerThicknessSliders()
+        {
+            if (layerThicknessSliders == null)
+            {
+                return;
+            }
+
+            foreach (Slider slider in layerThicknessSliders)
+            {
+                if (slider == null)
+                {
+                    continue;
+                }
+
+                slider.minValue = 0f;
+                slider.maxValue = V4Lab2SessionConfig.MaxLayerThickness;
+            }
+        }
+
+        private void BindWizardExtras()
+        {
+            if (wizardTabs == null && wizardPanel != null)
+            {
+                wizardTabs = wizardPanel.GetComponentInChildren<V4Lab2WizardTabController>(true);
+            }
+
+            if (holeDiagram == null && wizardPanel != null)
+            {
+                holeDiagram = wizardPanel.GetComponentInChildren<V4Lab2HoleDiagramController>(true);
+            }
+
+            if (particleCountText == null && wizardPanel != null)
+            {
+                foreach (Text text in wizardPanel.GetComponentsInChildren<Text>(true))
+                {
+                    if (text != null && text.gameObject.name == "ParticleCountText")
+                    {
+                        particleCountText = text;
+                        break;
+                    }
+                }
+            }
+
+            if (particleCountText == null && wizardPanel != null)
+            {
+                Transform simulationPage = wizardPanel.transform.Find("TabContentArea/SimulationPage");
+                if (simulationPage != null)
+                {
+                    Transform content = simulationPage.Find("ScrollView/Viewport/Content");
+                    if (content != null)
+                    {
+                        particleCountText = V4Lab2UITheme.CreateBodyLabel(
+                            content,
+                            "ParticleCountText",
+                            "Particles at start: --",
+                            new Vector2(0f, -28f),
+                            new Vector2(700f, 24f));
+                    }
+                }
+            }
+
+            holeDiagram?.Bind(
+                bucket,
+                _config,
+                hole0RadiusSlider,
+                hole1RadiusSlider,
+                hole1EnabledToggle,
+                holeDiagramInfoText,
+                null);
+        }
+
+        public void BindLayerColorPickers(IReadOnlyList<V4Lab2LayerColorPicker> pickers)
+        {
+            _layerColorPickers.Clear();
+            if (pickers == null)
+            {
+                RefreshLayerColorVisuals();
+                return;
+            }
+
+            foreach (V4Lab2LayerColorPicker picker in pickers)
+            {
+                if (picker == null)
+                {
+                    continue;
+                }
+
+                _layerColorPickers.Add(picker);
+                picker.ColorChanged -= OnLayerColorChanged;
+                picker.ColorChanged += OnLayerColorChanged;
+            }
+
+            RefreshLayerColorVisuals();
+        }
+
+        private void OnLayerColorChanged(int layerIndex, Color color)
+        {
+            SetLayerColor(layerIndex, color);
         }
 
         private void Start()
@@ -149,6 +280,7 @@ namespace HarmonicEngineV4.UI.Lab2
             }
 
             V4Lab2SetupApplicator.CaptureFromScene(BuildSceneRefs(), _config);
+            CaptureLoggingFromScene();
             SyncWizardFromConfig();
             tuning?.SetVisible(false);
             statsHud?.SetPaused(true);
@@ -173,6 +305,8 @@ namespace HarmonicEngineV4.UI.Lab2
 
         private void BeginRunning(bool initializeOnly)
         {
+            ApplyLoggingConfig();
+
             if (pipeline != null)
             {
                 if (!pipeline.Initialized)
@@ -205,12 +339,14 @@ namespace HarmonicEngineV4.UI.Lab2
         private void ShowWizard()
         {
             V4Lab2SetupApplicator.CaptureFromScene(BuildSceneRefs(), _config);
+            CaptureLoggingFromScene();
             SyncWizardFromConfig();
             _state = V4Lab2UiState.Wizard;
             SetPanelActive(startupPanel, false);
             SetPanelActive(wizardPanel, true);
             SetPanelActive(playHud, false);
             SetValidation(null);
+            wizardTabs?.SelectTab(0);
         }
 
         private void OnRunScene()
@@ -240,6 +376,7 @@ namespace HarmonicEngineV4.UI.Lab2
         private void OnResetDefaults()
         {
             V4Lab2SetupApplicator.CaptureFromScene(BuildSceneRefs(), _config);
+            CaptureLoggingFromScene();
             SyncWizardFromConfig();
             SetValidation(null);
         }
@@ -258,6 +395,52 @@ namespace HarmonicEngineV4.UI.Lab2
 
             _config.ResetLayersToDefaults(bucket.height);
             SyncWizardFromConfig();
+        }
+
+        private void OnWizardEstimateChanged(float _)
+        {
+            RefreshParticleCountEstimate();
+        }
+
+        private void RefreshParticleCountEstimate()
+        {
+            if (particleCountText == null)
+            {
+                return;
+            }
+
+            ReadConfigFromWizardPartialForEstimate();
+            V4Lab2ParticleCountEstimator.Result estimate =
+                V4Lab2ParticleCountEstimator.Estimate(_config, bucket);
+            particleCountText.text = V4Lab2ParticleCountEstimator.FormatSummary(estimate);
+        }
+
+        private void ReadConfigFromWizardPartialForEstimate()
+        {
+            if (densitySlider != null)
+            {
+                _config.globalDensity = densitySlider.value;
+            }
+
+            if (layerThicknessSliders == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < V4Lab2SessionConfig.LayerCount; i++)
+            {
+                if (i >= layerThicknessSliders.Length || layerThicknessSliders[i] == null)
+                {
+                    continue;
+                }
+
+                V4Lab2LayerConfig layer = _config.layers[i];
+                layer.thickness = Mathf.Clamp(
+                    layerThicknessSliders[i].value,
+                    0f,
+                    V4Lab2SessionConfig.MaxLayerThickness);
+                _config.layers[i] = layer;
+            }
         }
 
         private void OnLiquidProfileChanged(int index)
@@ -281,6 +464,21 @@ namespace HarmonicEngineV4.UI.Lab2
             V4Lab2LayerConfig layer = _config.layers[layerIndex];
             layer.color = color;
             _config.layers[layerIndex] = layer;
+            RefreshLayerColorVisuals();
+        }
+
+        private void RefreshLayerColorVisuals()
+        {
+            for (int i = 0; i < _layerColorPickers.Count; i++)
+            {
+                V4Lab2LayerColorPicker picker = _layerColorPickers[i];
+                if (picker == null || picker.LayerIndex < 0 || picker.LayerIndex >= _config.layers.Length)
+                {
+                    continue;
+                }
+
+                picker.SetSelectedColor(_config.layers[picker.LayerIndex].color);
+            }
         }
 
         private V4Lab2SetupApplicator.SceneRefs BuildSceneRefs()
@@ -354,6 +552,14 @@ namespace HarmonicEngineV4.UI.Lab2
             BindButton(balanceLayersButton, OnBalanceLayers);
             BindButton(pauseButton, TogglePause);
             BindButton(tuningToggleButton, () => tuning?.ToggleVisible());
+            BindButton(browseLogFolderButton, OnBrowseLogFolder);
+            BindButton(useDefaultLogFolderButton, OnUseDefaultLogFolder);
+
+            if (loggingEnabledToggle != null)
+            {
+                loggingEnabledToggle.onValueChanged.RemoveListener(OnLoggingEnabledChanged);
+                loggingEnabledToggle.onValueChanged.AddListener(OnLoggingEnabledChanged);
+            }
 
             if (liquidProfileDropdown != null)
             {
@@ -361,15 +567,38 @@ namespace HarmonicEngineV4.UI.Lab2
                 liquidProfileDropdown.onValueChanged.AddListener(OnLiquidProfileChanged);
             }
 
+            if (densitySlider != null)
+            {
+                densitySlider.onValueChanged.RemoveListener(OnWizardEstimateChanged);
+                densitySlider.onValueChanged.AddListener(OnWizardEstimateChanged);
+            }
+
+            if (layerThicknessSliders != null)
+            {
+                foreach (Slider slider in layerThicknessSliders)
+                {
+                    if (slider == null)
+                    {
+                        continue;
+                    }
+
+                    slider.onValueChanged.RemoveListener(OnWizardEstimateChanged);
+                    slider.onValueChanged.AddListener(OnWizardEstimateChanged);
+                }
+            }
+
             for (int i = 0; i < V4Lab2SessionConfig.LayerCount; i++)
             {
                 int layerIndex = i;
-                BindButton(layerBlackButtons != null && i < layerBlackButtons.Length ? layerBlackButtons[i] : null,
-                    () => SetLayerColor(layerIndex, Color.black));
-                BindButton(layerWhiteButtons != null && i < layerWhiteButtons.Length ? layerWhiteButtons[i] : null,
-                    () => SetLayerColor(layerIndex, Color.white));
-                BindButton(layerYellowButtons != null && i < layerYellowButtons.Length ? layerYellowButtons[i] : null,
-                    () => SetLayerColor(layerIndex, Color.yellow));
+                if (_layerColorPickers.Count == 0)
+                {
+                    BindButton(layerBlackButtons != null && i < layerBlackButtons.Length ? layerBlackButtons[i] : null,
+                        () => SetLayerColor(layerIndex, Color.black));
+                    BindButton(layerWhiteButtons != null && i < layerWhiteButtons.Length ? layerWhiteButtons[i] : null,
+                        () => SetLayerColor(layerIndex, Color.white));
+                    BindButton(layerYellowButtons != null && i < layerYellowButtons.Length ? layerYellowButtons[i] : null,
+                        () => SetLayerColor(layerIndex, Color.yellow));
+                }
             }
         }
 
@@ -420,6 +649,10 @@ namespace HarmonicEngineV4.UI.Lab2
             SetSlider(ghostSlider, _config.boundaryGhostWeight);
             SetSlider(gravitySlider, _config.gravityY);
             SyncLiquidTuningSliders();
+            RefreshLayerColorVisuals();
+            holeDiagram?.RefreshFromConfig();
+            RefreshParticleCountEstimate();
+            SyncLoggingFromConfig();
         }
 
         private void SyncLiquidTuningSliders()
@@ -452,7 +685,7 @@ namespace HarmonicEngineV4.UI.Lab2
                 if (layerThicknessSliders != null && i < layerThicknessSliders.Length && layerThicknessSliders[i] != null)
                 {
                     V4Lab2LayerConfig layer = _config.layers[i];
-                    layer.thickness = layerThicknessSliders[i].value;
+                    layer.thickness = Mathf.Clamp(layerThicknessSliders[i].value, 0f, V4Lab2SessionConfig.MaxLayerThickness);
                     _config.layers[i] = layer;
                 }
             }
@@ -480,6 +713,181 @@ namespace HarmonicEngineV4.UI.Lab2
             liquid.colorDiffusionRate = ReadSlider(colorDiffusionSlider, liquid.colorDiffusionRate);
             liquid.settleEpsilon = ReadSlider(settleEpsilonSlider, liquid.settleEpsilon);
             _config.liquidTuning = liquid;
+
+            _config.loggingEnabled = loggingEnabledToggle != null && loggingEnabledToggle.isOn;
+            _config.logBaseDirectory = logDirectoryInput != null ? logDirectoryInput.text.Trim() : _config.logBaseDirectory;
+            ReadLoggingChannelsFromWizard();
+        }
+
+        private void CaptureLoggingFromScene()
+        {
+            V4RunRecording recording = FindFirstObjectByType<V4RunRecording>();
+            if (recording == null)
+            {
+                return;
+            }
+
+            _config.loggingEnabled = recording.recordingEnabled;
+            _config.logBaseDirectory = recording.directoryOverride ?? string.Empty;
+            _config.channelLogSettings = V4Lab2LoggingChannels.CloneSettings(recording.channelSettings);
+        }
+
+        private void ApplyLoggingConfig()
+        {
+            V4RunRecording recording = FindFirstObjectByType<V4RunRecording>();
+            if (recording == null)
+            {
+                return;
+            }
+
+            recording.ResetRecorder();
+            recording.ApplySessionSettings(
+                _config.loggingEnabled,
+                _config.logBaseDirectory,
+                V4Lab2LoggingChannels.CloneSettings(_config.channelLogSettings));
+        }
+
+        private void SyncLoggingFromConfig()
+        {
+            if (loggingEnabledToggle != null)
+            {
+                loggingEnabledToggle.SetIsOnWithoutNotify(_config.loggingEnabled);
+            }
+
+            if (logDirectoryInput != null)
+            {
+                logDirectoryInput.SetTextWithoutNotify(_config.logBaseDirectory ?? string.Empty);
+            }
+
+            SyncLoggingChannelToggles();
+            RefreshLogFolderHint();
+            SetLoggingControlsInteractable(_config.loggingEnabled);
+        }
+
+        private void SyncLoggingChannelToggles()
+        {
+            if (loggingChannelToggles == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < loggingChannelToggles.Length && i < V4Lab2LoggingChannels.All.Length; i++)
+            {
+                Toggle toggle = loggingChannelToggles[i];
+                if (toggle == null)
+                {
+                    continue;
+                }
+
+                toggle.SetIsOnWithoutNotify(
+                    V4Lab2LoggingChannels.IsRecorded(_config.channelLogSettings, V4Lab2LoggingChannels.All[i]));
+            }
+        }
+
+        private void ReadLoggingChannelsFromWizard()
+        {
+            if (loggingChannelToggles == null)
+            {
+                return;
+            }
+
+            if (_config.channelLogSettings == null)
+            {
+                _config.channelLogSettings = new V4ChannelLogSettings();
+            }
+
+            for (int i = 0; i < loggingChannelToggles.Length && i < V4Lab2LoggingChannels.All.Length; i++)
+            {
+                Toggle toggle = loggingChannelToggles[i];
+                if (toggle == null)
+                {
+                    continue;
+                }
+
+                V4Lab2LoggingChannels.SetRecorded(
+                    _config.channelLogSettings,
+                    V4Lab2LoggingChannels.All[i],
+                    toggle.isOn);
+            }
+        }
+
+        private void OnLoggingEnabledChanged(bool enabled)
+        {
+            _config.loggingEnabled = enabled;
+            SetLoggingControlsInteractable(enabled);
+        }
+
+        private void SetLoggingControlsInteractable(bool enabled)
+        {
+            if (logDirectoryInput != null)
+            {
+                logDirectoryInput.interactable = enabled;
+            }
+
+            if (browseLogFolderButton != null)
+            {
+                browseLogFolderButton.interactable = enabled;
+            }
+
+            if (useDefaultLogFolderButton != null)
+            {
+                useDefaultLogFolderButton.interactable = enabled;
+            }
+
+            if (loggingChannelToggles == null)
+            {
+                return;
+            }
+
+            foreach (Toggle toggle in loggingChannelToggles)
+            {
+                if (toggle != null)
+                {
+                    toggle.interactable = enabled;
+                }
+            }
+        }
+
+        private void OnBrowseLogFolder()
+        {
+            string current = logDirectoryInput != null ? logDirectoryInput.text : _config.logBaseDirectory;
+            string picked = V4Lab2FolderBrowser.PickFolder("Select log save folder", current);
+            if (string.IsNullOrEmpty(picked))
+            {
+                return;
+            }
+
+            _config.logBaseDirectory = picked;
+            if (logDirectoryInput != null)
+            {
+                logDirectoryInput.text = picked;
+            }
+
+            RefreshLogFolderHint();
+        }
+
+        private void OnUseDefaultLogFolder()
+        {
+            _config.logBaseDirectory = string.Empty;
+            if (logDirectoryInput != null)
+            {
+                logDirectoryInput.text = string.Empty;
+            }
+
+            RefreshLogFolderHint();
+        }
+
+        private void RefreshLogFolderHint()
+        {
+            if (logFolderHintText == null)
+            {
+                return;
+            }
+
+            string effectivePath = string.IsNullOrWhiteSpace(_config.logBaseDirectory)
+                ? V4Lab2FolderBrowser.DefaultRunsDirectory()
+                : _config.logBaseDirectory.Trim();
+            logFolderHintText.text = $"Runs save to: {effectivePath}\\run_*";
         }
 
         private static void SetSlider(Slider slider, float value)

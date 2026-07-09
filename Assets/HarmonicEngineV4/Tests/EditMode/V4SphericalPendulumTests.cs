@@ -140,6 +140,32 @@ namespace HarmonicEngineV4.Tests.EditMode
         }
 
         [Test]
+        public void DecomposePoseFromFloor_UsesHangEarInsteadOfFloorCenter()
+        {
+            Vector3 pivot = new Vector3(0f, 3f, 0f);
+            Vector3 floor = new Vector3(0f, 0.4f, 0f);
+            float attachY = 1.12f;
+            Quaternion rotation = V4SphericalPendulumMath.ComputeBucketRotation(Vector3.down, 0f);
+            V4SphericalPendulumMath.DecomposePoseFromFloor(
+                pivot,
+                floor,
+                rotation,
+                attachY,
+                twistDegrees: 0f,
+                out float length,
+                out Vector3 direction,
+                out float alpha,
+                out float beta,
+                out float omega);
+
+            Vector3 hangPoint = V4SphericalPendulumMath.HangPointFromFloor(floor, rotation, attachY);
+            Assert.AreEqual(Vector3.Distance(hangPoint, pivot), length, 1e-3f);
+            Assert.AreEqual(Vector3.down, direction, "rope should point straight down from hang ear");
+            Assert.AreEqual(180f, beta, 1e-2f);
+            Assert.AreEqual(0f, omega, 1e-3f);
+        }
+
+        [Test]
         public void DecomposePose_MatchesManualBucketPlacement()
         {
             Vector3 pivot = new Vector3(0f, 3f, 0f);

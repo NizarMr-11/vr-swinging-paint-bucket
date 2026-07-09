@@ -1,4 +1,5 @@
 using System;
+using HarmonicEngineV4.Logging;
 using UnityEngine;
 
 namespace HarmonicEngineV4.UI.Lab2
@@ -52,6 +53,7 @@ namespace HarmonicEngineV4.UI.Lab2
     public sealed class V4Lab2SessionConfig
     {
         public const int LayerCount = 3;
+        public const float MaxLayerThickness = 0.1f;
 
         [Header("Pendulum")]
         public float pivotHeightY = 3f;
@@ -68,6 +70,8 @@ namespace HarmonicEngineV4.UI.Lab2
         [Header("Holes")]
         public float hole0Radius = 0.05f;
         public float hole1Radius = 0.03f;
+        public Vector2 hole0LocalXZ = new Vector2(0.12f, 0f);
+        public Vector2 hole1LocalXZ = new Vector2(-0.19f, 0f);
         public float torricelliHeadHeight = 0.4f;
 
         [Header("Simulation")]
@@ -79,6 +83,12 @@ namespace HarmonicEngineV4.UI.Lab2
         [Range(0f, 1f)] public float boundaryGhostWeight;
         public float gravityY = -9.81f;
 
+        [Header("Logging")]
+        public bool loggingEnabled = true;
+        [Tooltip("Empty uses the project Logs/Engine2 folder.")]
+        public string logBaseDirectory = string.Empty;
+        public V4ChannelLogSettings channelLogSettings = new V4ChannelLogSettings();
+
         public V4Lab2SessionConfig()
         {
             ResetLayersToDefaults(1f);
@@ -86,11 +96,11 @@ namespace HarmonicEngineV4.UI.Lab2
 
         public void ResetLayersToDefaults(float bucketHeight)
         {
-            float slab = bucketHeight / LayerCount;
+            float perLayer = Mathf.Min(MaxLayerThickness, bucketHeight / LayerCount);
             layers = new V4Lab2LayerConfig[LayerCount];
-            layers[0] = new V4Lab2LayerConfig { thickness = slab, color = Color.black };
-            layers[1] = new V4Lab2LayerConfig { thickness = slab, color = Color.white };
-            layers[2] = new V4Lab2LayerConfig { thickness = slab, color = Color.yellow };
+            layers[0] = new V4Lab2LayerConfig { thickness = perLayer, color = Color.black };
+            layers[1] = new V4Lab2LayerConfig { thickness = perLayer, color = Color.white };
+            layers[2] = new V4Lab2LayerConfig { thickness = perLayer, color = Color.yellow };
         }
     }
 }

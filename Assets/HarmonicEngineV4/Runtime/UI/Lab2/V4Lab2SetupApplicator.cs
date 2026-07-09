@@ -31,7 +31,7 @@ namespace HarmonicEngineV4.UI.Lab2
             float layerSum = 0f;
             for (int i = 0; i < V4Lab2SessionConfig.LayerCount; i++)
             {
-                layerSum += Mathf.Max(config.layers[i].thickness, 0.001f);
+                layerSum += Mathf.Clamp(config.layers[i].thickness, 0f, V4Lab2SessionConfig.MaxLayerThickness);
             }
 
             if (layerSum > refs.bucket.height + 1e-4f)
@@ -139,11 +139,17 @@ namespace HarmonicEngineV4.UI.Lab2
                 if (refs.bucket.holes.Count > 0)
                 {
                     config.hole0Radius = refs.bucket.holes[0].radius;
+                    config.hole0LocalXZ = new Vector2(
+                        refs.bucket.holes[0].localPosition.x,
+                        refs.bucket.holes[0].localPosition.z);
                 }
 
                 if (refs.bucket.holes.Count > 1)
                 {
                     config.hole1Radius = refs.bucket.holes[1].radius;
+                    config.hole1LocalXZ = new Vector2(
+                        refs.bucket.holes[1].localPosition.x,
+                        refs.bucket.holes[1].localPosition.z);
                 }
             }
 
@@ -231,7 +237,7 @@ namespace HarmonicEngineV4.UI.Lab2
                 V4Lab2LayerConfig layer = config.layers[i];
                 bucket.heightLayers.Add(new V4LayerDef
                 {
-                    thickness = Mathf.Max(layer.thickness, 0.001f),
+                    thickness = Mathf.Clamp(layer.thickness, 0.001f, V4Lab2SessionConfig.MaxLayerThickness),
                     color = layer.color
                 });
             }
@@ -251,6 +257,7 @@ namespace HarmonicEngineV4.UI.Lab2
 
             V4HoleDef hole0 = bucket.holes[0];
             hole0.radius = Mathf.Max(0f, config.hole0Radius);
+            hole0.localPosition = new Vector3(config.hole0LocalXZ.x, 0f, config.hole0LocalXZ.y);
             hole0.outwardNormal = Vector3.down;
             bucket.holes[0] = hole0;
 
@@ -258,6 +265,7 @@ namespace HarmonicEngineV4.UI.Lab2
             {
                 V4HoleDef hole1 = bucket.holes[1];
                 hole1.radius = Mathf.Max(0f, config.hole1Radius);
+                hole1.localPosition = new Vector3(config.hole1LocalXZ.x, 0f, config.hole1LocalXZ.y);
                 hole1.outwardNormal = Vector3.down;
                 bucket.holes[1] = hole1;
             }

@@ -47,10 +47,17 @@ namespace HarmonicEngineV4.Simulation
             float sloshFeedbackScale,
             float fluidMassSmoothing,
             float twistDegrees,
-            bool applySlosh)
+            bool applySlosh,
+            float hangEarLocalY)
         {
             Vector3 u = unitDirection.sqrMagnitude > 1e-8f ? unitDirection.normalized : Vector3.down;
             Vector3 omega = V4SphericalPendulumMath.ComputeAngularVelocity(u, tangentialVelocity, ropeLength);
+            Vector3 floorOrigin = V4SphericalPendulumMath.FloorOriginFromHang(
+                pivotWorld,
+                ropeLength,
+                u,
+                twistDegrees,
+                hangEarLocalY);
 
             return new V4GpuBucketState
             {
@@ -61,7 +68,7 @@ namespace HarmonicEngineV4.Simulation
                 totalFluidMass = 0f,
                 comOffsetWorld = Vector3.zero,
                 fluidMassSmoothing = fluidMassSmoothing,
-                worldOrigin = bucketWorldPosition,
+                worldOrigin = floorOrigin,
                 twistDegrees = twistDegrees,
                 worldRotation = new Vector4(
                     bucketWorldRotation.x,
@@ -77,7 +84,9 @@ namespace HarmonicEngineV4.Simulation
                 bucketMass = bucketMass,
                 applySlosh = applySlosh ? 1f : 0f,
                 linearAcceleration = Vector3.zero,
-                useGpuState = 1f
+                useGpuState = 1f,
+                padEnd0 = hangEarLocalY,
+                padEnd1 = 0f
             };
         }
 
@@ -92,11 +101,17 @@ namespace HarmonicEngineV4.Simulation
             float sloshFeedbackScale,
             float fluidMassSmoothing,
             float twistDegrees,
-            bool applySlosh)
+            bool applySlosh,
+            float hangEarLocalY)
         {
             Vector3 u = unitDirection.sqrMagnitude > 1e-8f ? unitDirection.normalized : Vector3.down;
-            Vector3 origin = pivot + u * ropeLength;
             Quaternion rot = V4SphericalPendulumMath.ComputeBucketRotation(u, twistDegrees);
+            Vector3 origin = V4SphericalPendulumMath.FloorOriginFromHang(
+                pivot,
+                ropeLength,
+                u,
+                twistDegrees,
+                hangEarLocalY);
             Vector3 omega = V4SphericalPendulumMath.ComputeAngularVelocity(u, tangentialVelocity, ropeLength);
 
             return new V4GpuBucketState
@@ -120,15 +135,22 @@ namespace HarmonicEngineV4.Simulation
                 bucketMass = bucketMass,
                 applySlosh = applySlosh ? 1f : 0f,
                 linearAcceleration = Vector3.zero,
-                useGpuState = 1f
+                useGpuState = 1f,
+                padEnd0 = hangEarLocalY,
+                padEnd1 = 0f
             };
         }
 
-        public static void ApplySceneTransformPose(ref V4GpuBucketState state, Transform bucketTransform, Vector3 pivotWorld)
+        public static void ApplySceneTransformPose(
+            ref V4GpuBucketState state,
+            Transform bucketTransform,
+            Vector3 pivotWorld,
+            float hangEarLocalY)
         {
             Vector3 position = bucketTransform.position;
             Quaternion rotation = bucketTransform.rotation;
-            Vector3 delta = position - pivotWorld;
+            Vector3 hangPoint = V4SphericalPendulumMath.HangPointFromFloor(position, rotation, hangEarLocalY);
+            Vector3 delta = hangPoint - pivotWorld;
             if (delta.sqrMagnitude > 1e-8f)
             {
                 state.unitDirection = delta.normalized;
@@ -138,6 +160,8 @@ namespace HarmonicEngineV4.Simulation
             state.pivot = pivotWorld;
             state.worldOrigin = position;
             state.worldRotation = new Vector4(rotation.x, rotation.y, rotation.z, rotation.w);
+            state.padEnd0 = hangEarLocalY;
+            state.padEnd1 = 0f;
         }
     }
 }

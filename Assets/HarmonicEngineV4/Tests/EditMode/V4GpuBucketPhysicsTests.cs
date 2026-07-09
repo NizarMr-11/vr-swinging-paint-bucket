@@ -10,6 +10,7 @@ namespace HarmonicEngineV4.Tests.EditMode
         private const float L = 2.6f;
         private const float G = 9.81f;
         private const float Dt = 0.02f;
+        private const float NoEarAttachY = 0f;
 
         [Test]
         public void GpuBucketRotation_MatchesCpuLookRotation()
@@ -38,12 +39,14 @@ namespace HarmonicEngineV4.Tests.EditMode
                     sloshFeedbackScale: 0f,
                     fluidMassSmoothing: 0.2f,
                     twistDegrees: 0f,
-                    applySlosh: false);
+                    applySlosh: false,
+                    hangEarLocalY: NoEarAttachY);
 
                 Quaternion cpuRotation = V4SphericalPendulumMath.ComputeBucketRotation(direction, 0f);
                 buffer.SetData(new[] { state });
                 shader.SetBuffer(integrateKernel, V4GpuBucketState.BufferName, buffer);
                 shader.SetFloat("_DeltaTime", 0f);
+                shader.SetFloat("_BucketHangEarLocalY", NoEarAttachY);
                 shader.Dispatch(integrateKernel, 1, 1, 1);
 
                 var gpuScratch = new V4GpuBucketState[1];
@@ -105,12 +108,14 @@ namespace HarmonicEngineV4.Tests.EditMode
                 sloshFeedbackScale: 0f,
                 fluidMassSmoothing: 0.2f,
                 twistDegrees: 0f,
-                applySlosh: false);
+                applySlosh: false,
+                hangEarLocalY: NoEarAttachY);
 
             var buffer = new ComputeBuffer(1, V4GpuBucketState.Stride);
             buffer.SetData(new[] { state });
             shader.SetBuffer(integrateKernel, V4GpuBucketState.BufferName, buffer);
             shader.SetFloat("_DeltaTime", Dt);
+            shader.SetFloat("_BucketHangEarLocalY", NoEarAttachY);
 
             for (int i = 0; i < 30; i++)
             {
@@ -140,7 +145,11 @@ namespace HarmonicEngineV4.Tests.EditMode
         {
             Vector3 pivot = new Vector3(0f, 3f, 0f);
             Vector3 bucketWorld = new Vector3(-0.375f, 0.346f, 0.859f);
-            Vector3 delta = bucketWorld - pivot;
+            Vector3 hangPoint = V4SphericalPendulumMath.HangPointFromFloor(
+                bucketWorld,
+                V4SphericalPendulumMath.ComputeBucketRotation((bucketWorld - pivot).normalized, 0f),
+                NoEarAttachY);
+            Vector3 delta = hangPoint - pivot;
             Vector3 unitDir = delta.normalized;
             float ropeLength = delta.magnitude;
             Quaternion rotation = V4SphericalPendulumMath.ComputeBucketRotation(unitDir, 0f);
@@ -158,7 +167,8 @@ namespace HarmonicEngineV4.Tests.EditMode
                 sloshFeedbackScale: 0f,
                 fluidMassSmoothing: 0.2f,
                 twistDegrees: 0f,
-                applySlosh: false);
+                applySlosh: false,
+                hangEarLocalY: NoEarAttachY);
 
             Assert.AreEqual(bucketWorld.x, state.worldOrigin.x, 1e-4f);
             Assert.AreEqual(bucketWorld.y, state.worldOrigin.y, 1e-4f);
@@ -188,12 +198,14 @@ namespace HarmonicEngineV4.Tests.EditMode
                 sloshFeedbackScale: 0f,
                 fluidMassSmoothing: 0.2f,
                 twistDegrees: 0f,
-                applySlosh: false);
+                applySlosh: false,
+                hangEarLocalY: NoEarAttachY);
 
             var buffer = new ComputeBuffer(1, V4GpuBucketState.Stride);
             buffer.SetData(new[] { state });
             shader.SetBuffer(integrateKernel, V4GpuBucketState.BufferName, buffer);
             shader.SetFloat("_DeltaTime", Dt);
+            shader.SetFloat("_BucketHangEarLocalY", NoEarAttachY);
             shader.Dispatch(integrateKernel, 1, 1, 1);
 
             var gpuScratch = new V4GpuBucketState[1];
@@ -225,19 +237,26 @@ namespace HarmonicEngineV4.Tests.EditMode
                 sloshFeedbackScale: 0f,
                 fluidMassSmoothing: 0.2f,
                 twistDegrees: 15f,
-                applySlosh: false);
+                applySlosh: false,
+                hangEarLocalY: NoEarAttachY);
 
             var buffer = new ComputeBuffer(1, V4GpuBucketState.Stride);
             buffer.SetData(new[] { state });
             shader.SetBuffer(integrateKernel, V4GpuBucketState.BufferName, buffer);
             shader.SetFloat("_DeltaTime", Dt);
+            shader.SetFloat("_BucketHangEarLocalY", NoEarAttachY);
             shader.Dispatch(integrateKernel, 1, 1, 1);
 
             var gpuScratch = new V4GpuBucketState[1];
             buffer.GetData(gpuScratch);
             buffer.Release();
 
-            Vector3 expectedOrigin = pivot + gpuScratch[0].unitDirection * L;
+            Vector3 expectedOrigin = V4SphericalPendulumMath.FloorOriginFromHang(
+                pivot,
+                L,
+                gpuScratch[0].unitDirection,
+                15f,
+                NoEarAttachY);
             Assert.AreEqual(expectedOrigin.x, gpuScratch[0].worldOrigin.x, 1e-3f);
             Assert.AreEqual(expectedOrigin.y, gpuScratch[0].worldOrigin.y, 1e-3f);
             Assert.AreEqual(expectedOrigin.z, gpuScratch[0].worldOrigin.z, 1e-3f);

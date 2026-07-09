@@ -10,6 +10,7 @@ RWStructuredBuffer<V4BucketState> _BucketState;
 RWStructuredBuffer<uint> _FluidAccum;
 
 float _DeltaTime;
+float _BucketHangEarLocalY;
 
 #define ACC_MASS 0
 #define ACC_COMX 1
@@ -68,8 +69,10 @@ void BucketIntegrateKernel(uint3 id : SV_DispatchThreadID)
         state.applySlosh,
         dt);
 
-    state.worldOrigin = state.pivot + state.unitDirection * state.ropeLength;
     state.worldRotation = V4BucketComputeRotation(state.unitDirection, state.twistDegrees);
+    float3 up = mul(V4BucketRotationMatrix(state.worldRotation), float3(0.0, 1.0, 0.0));
+    float3 hangPoint = state.pivot + state.unitDirection * state.ropeLength;
+    state.worldOrigin = hangPoint - up * max(_BucketHangEarLocalY, 0.0);
     state.linearVelocity = state.tangentialVelocity;
     state.angularVelocity = cross(state.unitDirection, state.tangentialVelocity) / max(state.ropeLength, 1e-6);
     state.angularAcceleration = (state.angularVelocity - prevAngular) / dt;

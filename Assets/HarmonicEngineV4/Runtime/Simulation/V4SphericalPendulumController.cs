@@ -47,6 +47,7 @@ namespace HarmonicEngineV4.Simulation
         [Range(0f, 1f)] public float fluidMassSmoothing = 0.2f;
 
         private V4Bucket _bucket;
+        private V4BucketHangEar _hangEar;
         private V4FluidMassProbe _fluidProbe;
         private V4GpuBucketDriver _gpuDriver;
         private bool _gpuIntegrationActive;
@@ -63,6 +64,28 @@ namespace HarmonicEngineV4.Simulation
         public Vector3 AngularVelocityWorld { get; private set; }
         public Vector3 AngularAccelerationWorld { get; private set; }
         public Vector3 PivotPoint => GetPivotWorld();
+
+        public float HangEarAttachLocalY => ResolveHangEarAttachLocalY();
+
+        public Vector3 GetHangPointWorld()
+        {
+            return _hangEar != null
+                ? _hangEar.GetAttachWorld(transform)
+                : V4SphericalPendulumMath.HangPointFromFloor(
+                    transform.position,
+                    transform.rotation,
+                    HangEarAttachLocalY);
+        }
+
+        private float ResolveHangEarAttachLocalY()
+        {
+            if (_hangEar != null)
+            {
+                return _hangEar.AttachLocalY;
+            }
+
+            return _bucket != null ? _bucket.height : 0f;
+        }
 
         /// <summary>Azimuth α (degrees) of the rope direction around world Y.</summary>
         public float AlphaDegrees { get; private set; }
@@ -87,6 +110,7 @@ namespace HarmonicEngineV4.Simulation
         private void Awake()
         {
             _bucket = GetComponent<V4Bucket>();
+            _hangEar = GetComponent<V4BucketHangEar>();
             _fluidProbe = GetComponent<V4FluidMassProbe>();
             _gpuDriver = GetComponent<V4GpuBucketDriver>();
             CaptureRestPoseFromScene();
@@ -201,9 +225,13 @@ namespace HarmonicEngineV4.Simulation
         {
             Vector3 pivot = GetPivotWorld();
             Vector3 bucketPos = transform.position;
-            V4SphericalPendulumMath.DecomposePose(
+            Quaternion bucketRot = transform.rotation;
+            float attachY = HangEarAttachLocalY;
+            V4SphericalPendulumMath.DecomposePoseFromFloor(
                 pivot,
                 bucketPos,
+                bucketRot,
+                attachY,
                 twistAngleDegrees,
                 out float length,
                 out Vector3 direction,
@@ -223,7 +251,12 @@ namespace HarmonicEngineV4.Simulation
 
             if (moveBucket && length > 1e-4f && !adoptManualBucketPoseOnReset)
             {
-                transform.position = V4SphericalPendulumMath.WorldPosition(pivot, ropeLength, _unitDirection);
+                transform.position = V4SphericalPendulumMath.FloorOriginFromHang(
+                    pivot,
+                    ropeLength,
+                    _unitDirection,
+                    twistAngleDegrees,
+                    attachY);
             }
         }
 
@@ -241,7 +274,12 @@ namespace HarmonicEngineV4.Simulation
             }
 
             Vector3 pivot = GetPivotWorld();
-            Vector3 delta = _restBucketPosition - pivot;
+            float attachY = HangEarAttachLocalY;
+            Vector3 hangPoint = V4SphericalPendulumMath.HangPointFromFloor(
+                _restBucketPosition,
+                V4SphericalPendulumMath.ComputeBucketRotation(_unitDirection, twistAngleDegrees),
+                attachY);
+            Vector3 delta = hangPoint - pivot;
             if (delta.sqrMagnitude > 1e-8f)
             {
                 ropeLength = delta.magnitude;
@@ -269,7 +307,12 @@ namespace HarmonicEngineV4.Simulation
         {
             _restBucketPosition = transform.position;
             Vector3 pivot = GetPivotWorld();
-            Vector3 delta = _restBucketPosition - pivot;
+            float attachY = HangEarAttachLocalY;
+            Vector3 hangPoint = V4SphericalPendulumMath.HangPointFromFloor(
+                _restBucketPosition,
+                transform.rotation,
+                attachY);
+            Vector3 delta = hangPoint - pivot;
             if (delta.sqrMagnitude > 1e-8f)
             {
                 ropeLength = delta.magnitude;
@@ -296,7 +339,12 @@ namespace HarmonicEngineV4.Simulation
             if (adoptManualBucketPoseOnReset && _hasRestPose)
             {
                 Vector3 pivot = GetPivotWorld();
-                Vector3 delta = _restBucketPosition - pivot;
+                float attachY = HangEarAttachLocalY;
+                Vector3 hangPoint = V4SphericalPendulumMath.HangPointFromFloor(
+                    _restBucketPosition,
+                    V4SphericalPendulumMath.ComputeBucketRotation(_unitDirection, twistAngleDegrees),
+                    attachY);
+                Vector3 delta = hangPoint - pivot;
                 if (delta.sqrMagnitude > 1e-8f)
                 {
                     ropeLength = delta.magnitude;
@@ -325,7 +373,12 @@ namespace HarmonicEngineV4.Simulation
             if (adoptManualBucketPoseOnReset && _hasRestPose)
             {
                 Vector3 pivot = GetPivotWorld();
-                Vector3 delta = _restBucketPosition - pivot;
+                float attachY = HangEarAttachLocalY;
+                Vector3 hangPoint = V4SphericalPendulumMath.HangPointFromFloor(
+                    _restBucketPosition,
+                    V4SphericalPendulumMath.ComputeBucketRotation(_unitDirection, twistAngleDegrees),
+                    attachY);
+                Vector3 delta = hangPoint - pivot;
                 if (delta.sqrMagnitude > 1e-8f)
                 {
                     ropeLength = delta.magnitude;
@@ -398,9 +451,15 @@ namespace HarmonicEngineV4.Simulation
 
         private void ApplyPoseAndKinematics(float deltaTime)
         {
-            transform.SetPositionAndRotation(
-                V4SphericalPendulumMath.WorldPosition(GetPivotWorld(), ropeLength, _unitDirection),
-                V4SphericalPendulumMath.ComputeBucketRotation(_unitDirection, twistAngleDegrees));
+            float attachY = HangEarAttachLocalY;
+            Quaternion rotation = V4SphericalPendulumMath.ComputeBucketRotation(_unitDirection, twistAngleDegrees);
+            Vector3 floorOrigin = V4SphericalPendulumMath.FloorOriginFromHang(
+                GetPivotWorld(),
+                ropeLength,
+                _unitDirection,
+                twistAngleDegrees,
+                attachY);
+            transform.SetPositionAndRotation(floorOrigin, rotation);
 
             Vector3 linearVel = _tangentialVelocity;
             Vector3 angularVel = V4SphericalPendulumMath.ComputeAngularVelocity(

@@ -1421,9 +1421,12 @@ namespace HarmonicEngineV4.Simulation
                     bucket.height,
                     bucket.wallThickness);
                 _gpuBucketDriver.DispatchApplyMassReduce();
-                _gpuBucketDriver.DispatchIntegrate(deltaTime);
-
                 V4SphericalPendulumController pendulum = bucket.GetComponent<V4SphericalPendulumController>();
+                float hangEarLocalY = pendulum != null
+                    ? pendulum.HangEarAttachLocalY
+                    : bucket.height;
+                _gpuBucketDriver.DispatchIntegrate(deltaTime, hangEarLocalY);
+
                 if (pendulum != null)
                 {
                     _gpuBucketDriver.ReadStateToCpu();

@@ -156,5 +156,44 @@ namespace HarmonicEngineV4.Simulation
         {
             return pivot + unitDirection * ropeLength;
         }
+
+        /// <summary>World hang point from floor origin and hang offset along bucket +Y.</summary>
+        public static Vector3 HangPointFromFloor(Vector3 floorOrigin, Quaternion rotation, float attachLocalY)
+        {
+            return floorOrigin + rotation * (Vector3.up * attachLocalY);
+        }
+
+        /// <summary>Floor origin so the hang point lies on the rope sphere.</summary>
+        public static Vector3 FloorOriginFromHang(
+            Vector3 pivot,
+            float ropeLength,
+            Vector3 unitDirection,
+            float twistDegrees,
+            float attachLocalY)
+        {
+            Quaternion rotation = ComputeBucketRotation(unitDirection, twistDegrees);
+            Vector3 hangPoint = WorldPosition(pivot, ropeLength, unitDirection);
+            return hangPoint - rotation * Vector3.up * attachLocalY;
+        }
+
+        public static void DecomposePoseFromFloor(
+            Vector3 pivotWorld,
+            Vector3 floorWorld,
+            Quaternion floorRotation,
+            float attachLocalY,
+            float twistDegrees,
+            out float ropeLength,
+            out Vector3 unitDirection,
+            out float alphaDegrees,
+            out float betaDegrees,
+            out float omegaDegrees)
+        {
+            Vector3 hangPoint = HangPointFromFloor(floorWorld, floorRotation, attachLocalY);
+            Vector3 delta = hangPoint - pivotWorld;
+            ropeLength = delta.magnitude;
+            unitDirection = ropeLength > 1e-6f ? delta / ropeLength : Vector3.down;
+            SphericalAlphaBetaFromDirection(unitDirection, out alphaDegrees, out betaDegrees);
+            omegaDegrees = twistDegrees;
+        }
     }
 }

@@ -523,12 +523,11 @@ public static class ScaleDivergenceDiagRunner
         {
             float avgSpill = spillFramesWithDelta > 0 ? spillRateSum / spillFramesWithDelta : 0f;
             sb.AppendLine(
-                $"  spillOverRim=true: framesWithFallingDelta={spillFramesWithDelta} avgDeltaPerFrame={avgSpill:F2} " +
-                $"(live lab spill.log ~15-50/frame into falling/quarantine when wired)");
+                $"  spillOverRim(config=true, API removed): framesWithFallingDelta={spillFramesWithDelta} avgDeltaPerFrame={avgSpill:F2}");
         }
         else
         {
-            sb.AppendLine("  spillOverRim=false: rim-exit particles remain in internal SOA (no falling transfer expected)");
+            sb.AppendLine("  spillOverRim=false: rim-exit particles stay in internal SOA (no spill transfer path)");
         }
     }
 
@@ -691,7 +690,7 @@ public static class ScaleDivergenceDiagRunner
         pipeline.SetPbfIterations(config.PbfIters);
         pipeline.SetCanvasPlaneY(config.CanvasPlaneY);
         pipeline.SetCanvasCullingEnabled(config.CanvasCulling);
-        pipeline.SetContainerSpillOverRim(config.SpillOverRim);
+        // SetContainerSpillOverRim removed — spill transfer no longer exists in single-buffer PBF.
         return pipeline;
     }
 
