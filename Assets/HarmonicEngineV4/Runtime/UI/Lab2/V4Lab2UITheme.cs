@@ -150,6 +150,100 @@ namespace HarmonicEngineV4.UI.Lab2
             button.colors = colors;
         }
 
+        /// <summary>Ensure a generated Toggle has a visible checkbox and checkmark.</summary>
+        public static void EnsureToggleGraphics(Toggle toggle, float rowWidth = 640f)
+        {
+            if (toggle == null)
+            {
+                return;
+            }
+
+            RectTransform rowRect = toggle.GetComponent<RectTransform>();
+            if (rowRect != null && rowWidth > 0f)
+            {
+                rowRect.sizeDelta = new Vector2(rowWidth, 32f);
+            }
+
+            Transform background = toggle.transform.Find("Background");
+            Image backgroundImage;
+            if (background == null)
+            {
+                var bgGo = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                bgGo.transform.SetParent(toggle.transform, false);
+                RectTransform bgRect = bgGo.GetComponent<RectTransform>();
+                bgRect.anchorMin = new Vector2(0f, 0.5f);
+                bgRect.anchorMax = new Vector2(0f, 0.5f);
+                bgRect.pivot = new Vector2(0f, 0.5f);
+                bgRect.anchoredPosition = new Vector2(-rowWidth * 0.5f + 8f, 0f);
+                bgRect.sizeDelta = new Vector2(22f, 22f);
+                backgroundImage = bgGo.GetComponent<Image>();
+            }
+            else
+            {
+                backgroundImage = background.GetComponent<Image>();
+            }
+
+            if (backgroundImage != null)
+            {
+                backgroundImage.color = SliderTrack;
+                ApplyChipBorder(backgroundImage.transform, AccentColor, 1.5f);
+            }
+
+            Transform checkmark = toggle.transform.Find("Background/Checkmark");
+            if (checkmark == null)
+            {
+                checkmark = toggle.transform.Find("Checkmark");
+            }
+
+            Image checkmarkImage;
+            if (checkmark == null)
+            {
+                var checkGo = new GameObject("Checkmark", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                checkGo.transform.SetParent(backgroundImage != null ? backgroundImage.transform : toggle.transform, false);
+                RectTransform checkRect = checkGo.GetComponent<RectTransform>();
+                checkRect.anchorMin = Vector2.zero;
+                checkRect.anchorMax = Vector2.one;
+                checkRect.offsetMin = new Vector2(4f, 4f);
+                checkRect.offsetMax = new Vector2(-4f, -4f);
+                checkmarkImage = checkGo.GetComponent<Image>();
+            }
+            else
+            {
+                checkmarkImage = checkmark.GetComponent<Image>();
+            }
+
+            if (checkmarkImage != null)
+            {
+                checkmarkImage.color = AccentColor;
+                checkmarkImage.raycastTarget = false;
+            }
+
+            toggle.targetGraphic = backgroundImage;
+            toggle.graphic = checkmarkImage;
+            toggle.transition = Selectable.Transition.ColorTint;
+
+            ColorBlock colors = toggle.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f, 1f);
+            colors.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+            colors.selectedColor = Color.white;
+            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 0.55f);
+            colors.colorMultiplier = 1f;
+            toggle.colors = colors;
+
+            Text label = toggle.GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                RectTransform labelRect = label.GetComponent<RectTransform>();
+                labelRect.anchorMin = new Vector2(0f, 0.5f);
+                labelRect.anchorMax = new Vector2(1f, 0.5f);
+                labelRect.pivot = new Vector2(0f, 0.5f);
+                labelRect.anchoredPosition = new Vector2(-rowWidth * 0.5f + 36f, 0f);
+                labelRect.sizeDelta = new Vector2(rowWidth - 44f, 24f);
+                ApplyBodyText(label);
+            }
+        }
+
         public static void ApplySlider(Slider slider)
         {
             if (slider == null)

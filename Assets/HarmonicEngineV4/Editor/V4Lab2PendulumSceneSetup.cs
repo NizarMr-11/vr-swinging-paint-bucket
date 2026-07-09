@@ -39,7 +39,8 @@ namespace HarmonicEngineV4.Editor
             EnsureComponent<V4TorricelliEjectionSettings>(bucket);
             EnsureComponent<V4FluidMassProbe>(bucket);
             EnsureComponent<V4PendulumRopeVisualizer>(bucket);
-            EnsureComponent<V4BucketHangEar>(bucket);
+            V4BucketHangEar hangEar = EnsureComponent<V4BucketHangEar>(bucket);
+            hangEar.ropeAttachLift = 0.10f;
 
             V4Bucket bucketComponent = bucket.GetComponent<V4Bucket>();
             SetupThreeColorLayers(bucketComponent);

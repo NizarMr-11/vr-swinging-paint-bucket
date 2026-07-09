@@ -310,29 +310,20 @@ namespace HarmonicEngineV4.Rendering
 
         private void BuildHangEarArch(float rimRadius, float rimHeight)
         {
-            float halfWidth = _hangEar.earHalfWidth;
-            float rise = _hangEar.earRise;
-            int segments = Mathf.Max(4, _hangEar.archSegments);
+            float outerR = rimRadius + _bucket.wallThickness * 0.5f;
+            int segments = Mathf.Max(6, _hangEar.archSegments);
             float tube = _hangEar.tubeRadius;
-            Quaternion yaw = Quaternion.Euler(0f, _hangEar.yawDegrees, 0f);
+            _hangEar.GetBailPoints(outerR, rimHeight, out Vector3 footA, out Vector3 footB, out Vector3 apex);
 
-            Vector3 footLeft = yaw * new Vector3(rimRadius, rimHeight, -halfWidth);
-            Vector3 footRight = yaw * new Vector3(rimRadius, rimHeight, halfWidth);
-            Vector3 apex = yaw * new Vector3(rimRadius, rimHeight + rise, 0f);
-
-            Vector3 prev = footLeft;
+            Vector3 prev = footA;
             for (int i = 1; i <= segments; i++)
             {
                 float t = i / (float)segments;
-                float z = Mathf.Lerp(-halfWidth, halfWidth, t);
-                float y = rimHeight + 4f * rise * t * (1f - t);
-                Vector3 point = yaw * new Vector3(rimRadius, y, z);
+                float u = 1f - t;
+                Vector3 point = u * u * footA + 2f * u * t * apex + t * t * footB;
                 BuildEarTubeSegment(prev, point, tube);
                 prev = point;
             }
-
-            BuildEarTubeSegment(prev, footRight, tube);
-            BuildEarTubeSegment(apex, apex + yaw * Vector3.right * tube * 0.5f, tube * 0.6f);
         }
 
         private void BuildEarTubeSegment(Vector3 from, Vector3 to, float radius)

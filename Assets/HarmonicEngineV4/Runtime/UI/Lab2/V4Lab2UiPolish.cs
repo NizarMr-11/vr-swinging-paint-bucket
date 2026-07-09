@@ -32,6 +32,7 @@ namespace HarmonicEngineV4.UI.Lab2
             PolishTexts(GetComponentsInChildren<Text>(true));
             PolishButtons(GetComponentsInChildren<Button>(true));
             PolishSliders(GetComponentsInChildren<Slider>(true));
+            PolishToggles(GetComponentsInChildren<Toggle>(true));
             UpgradeLegacyColorButtons(GetComponentsInChildren<Button>(true));
             BuildLayerColorPickers();
             setupController?.BindLayerColorPickers(_layerPickers);
@@ -136,6 +137,19 @@ namespace HarmonicEngineV4.UI.Lab2
                 {
                     binder.RefreshLayout();
                 }
+            }
+        }
+
+        private static void PolishToggles(Toggle[] toggles)
+        {
+            foreach (Toggle toggle in toggles)
+            {
+                if (toggle == null)
+                {
+                    continue;
+                }
+
+                V4Lab2UITheme.EnsureToggleGraphics(toggle);
             }
         }
 

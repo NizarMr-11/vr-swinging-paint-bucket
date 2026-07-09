@@ -1,17 +1,23 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 namespace HarmonicEngineV4.UI.Lab2
 {
-    /// <summary>Compact runtime HSV color picker popup for layer paint colors.</summary>
-    public sealed class V4Lab2HsvColorPickerPanel : MonoBehaviour
+    /// <summary>Compact runtime RGB color picker popup for layer paint colors.</summary>
+    public sealed class V4Lab2RgbColorPickerPanel : MonoBehaviour
     {
         [SerializeField] private GameObject panelRoot;
-        [SerializeField] private Slider hueSlider;
-        [SerializeField] private Slider saturationSlider;
-        [SerializeField] private Slider valueSlider;
-        [SerializeField] private Image previewImage;
+        [SerializeField] private Slider redSlider;
+        [SerializeField] private Slider greenSlider;
+        [SerializeField] private Slider blueSlider;
+        [SerializeField] private Image rowPreviewImage;
+        [SerializeField] private Image popupPreviewImage;
         [SerializeField] private Button pickButton;
         [SerializeField] private Button closeButton;
 
@@ -24,46 +30,47 @@ namespace HarmonicEngineV4.UI.Lab2
         private Vector2 _popupOriginalPivot;
         private Vector2 _popupOriginalSizeDelta;
         private Canvas _popupOverlayCanvas;
+        private readonly List<RaycastResult> _raycastScratch = new List<RaycastResult>();
 
-        public static V4Lab2HsvColorPickerPanel Attach(Transform row, Image preview, Action<Color> onColorChanged)
+        public static V4Lab2RgbColorPickerPanel Attach(Transform row, Image preview, Action<Color> onColorChanged)
         {
-            var existing = row.GetComponentInChildren<V4Lab2HsvColorPickerPanel>(true);
+            var existing = row.GetComponentInChildren<V4Lab2RgbColorPickerPanel>(true);
             if (existing != null)
             {
                 existing.Bind(preview, onColorChanged);
+                existing.EnsurePopupPreview();
                 return existing;
             }
 
             var host = new GameObject("CustomColorPicker", typeof(RectTransform));
             host.transform.SetParent(row, false);
-            var panel = host.AddComponent<V4Lab2HsvColorPickerPanel>();
+            var panel = host.AddComponent<V4Lab2RgbColorPickerPanel>();
             panel.BuildUi(row, preview, onColorChanged);
             return panel;
         }
 
         public void Bind(Image preview, Action<Color> onColorChanged)
         {
-            previewImage = preview;
+            rowPreviewImage = preview;
             _onColorChanged = onColorChanged;
         }
 
         public void SetColor(Color color, bool notify = false)
         {
-            Color.RGBToHSV(color, out float h, out float s, out float v);
             _suppressEvents = true;
-            if (hueSlider != null)
+            if (redSlider != null)
             {
-                hueSlider.SetValueWithoutNotify(h);
+                redSlider.SetValueWithoutNotify(color.r);
             }
 
-            if (saturationSlider != null)
+            if (greenSlider != null)
             {
-                saturationSlider.SetValueWithoutNotify(s);
+                greenSlider.SetValueWithoutNotify(color.g);
             }
 
-            if (valueSlider != null)
+            if (blueSlider != null)
             {
-                valueSlider.SetValueWithoutNotify(v);
+                blueSlider.SetValueWithoutNotify(color.b);
             }
 
             _suppressEvents = false;
@@ -79,7 +86,9 @@ namespace HarmonicEngineV4.UI.Lab2
 
             if (open)
             {
+                EnsurePopupPreview();
                 PromotePopupToOverlay();
+                UpdatePreview(notify: false);
             }
             else
             {
@@ -87,6 +96,57 @@ namespace HarmonicEngineV4.UI.Lab2
             }
 
             panelRoot.SetActive(open);
+        }
+
+        private void LateUpdate()
+        {
+            if (panelRoot == null || !panelRoot.activeSelf)
+            {
+                return;
+            }
+
+            if (WasPointerPressedThisFrame() && !IsPointerOverPickerUi())
+            {
+                SetOpen(false);
+            }
+        }
+
+        private bool IsPointerOverPickerUi()
+        {
+            EventSystem eventSystem = EventSystem.current;
+            if (eventSystem == null)
+            {
+                return false;
+            }
+
+            var pointerData = new PointerEventData(eventSystem)
+            {
+                position = GetPointerScreenPosition()
+            };
+
+            _raycastScratch.Clear();
+            eventSystem.RaycastAll(pointerData, _raycastScratch);
+
+            foreach (RaycastResult result in _raycastScratch)
+            {
+                if (result.gameObject == null)
+                {
+                    continue;
+                }
+
+                Transform hit = result.gameObject.transform;
+                if (panelRoot != null && (hit == panelRoot.transform || hit.IsChildOf(panelRoot.transform)))
+                {
+                    return true;
+                }
+
+                if (pickButton != null && (hit == pickButton.transform || hit.IsChildOf(pickButton.transform)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void PromotePopupToOverlay()
@@ -148,6 +208,12 @@ namespace HarmonicEngineV4.UI.Lab2
                 return;
             }
 
+            Image panelImage = panelRoot.GetComponent<Image>();
+            if (panelImage != null)
+            {
+                panelImage.raycastTarget = true;
+            }
+
             if (_popupOverlayCanvas == null)
             {
                 _popupOverlayCanvas = panelRoot.GetComponent<Canvas>();
@@ -160,15 +226,18 @@ namespace HarmonicEngineV4.UI.Lab2
             _popupOverlayCanvas.overrideSorting = true;
             _popupOverlayCanvas.sortingOrder = 320;
 
-            if (panelRoot.GetComponent<GraphicRaycaster>() == null)
+            GraphicRaycaster raycaster = panelRoot.GetComponent<GraphicRaycaster>();
+            if (raycaster == null)
             {
-                panelRoot.AddComponent<GraphicRaycaster>();
+                raycaster = panelRoot.AddComponent<GraphicRaycaster>();
             }
+
+            raycaster.blockingObjects = GraphicRaycaster.BlockingObjects.None;
         }
 
         private void BuildUi(Transform row, Image preview, Action<Color> onColorChanged)
         {
-            previewImage = preview;
+            rowPreviewImage = preview;
             _onColorChanged = onColorChanged;
 
             pickButton = CreateButton(row, "PickColorButton", "Pick", new Vector2(154f, 0f), new Vector2(64f, 32f));
@@ -180,41 +249,114 @@ namespace HarmonicEngineV4.UI.Lab2
             panelRect.anchorMax = new Vector2(0.5f, 1f);
             panelRect.pivot = new Vector2(0.5f, 1f);
             panelRect.anchoredPosition = new Vector2(40f, -44f);
-            panelRect.sizeDelta = new Vector2(300f, 148f);
-            panelRoot.GetComponent<Image>().color = V4Lab2UITheme.CardColor;
+            panelRect.sizeDelta = new Vector2(300f, 188f);
+            Image panelImage = panelRoot.GetComponent<Image>();
+            panelImage.color = V4Lab2UITheme.CardColor;
+            panelImage.raycastTarget = true;
             V4Lab2UITheme.CreateChipBorder(panelRoot.transform);
 
-            float y = -12f;
-            hueSlider = CreatePopupSlider(panelRoot.transform, "Hue", 0f, 1f, 0f, ref y);
-            saturationSlider = CreatePopupSlider(panelRoot.transform, "Saturation", 0f, 1f, 1f, ref y);
-            valueSlider = CreatePopupSlider(panelRoot.transform, "Value", 0f, 1f, 1f, ref y);
+            popupPreviewImage = CreatePopupPreview(panelRoot.transform);
+            float y = -56f;
+            redSlider = CreatePopupSlider(panelRoot.transform, "Red", 0f, 1f, 1f, ref y);
+            greenSlider = CreatePopupSlider(panelRoot.transform, "Green", 0f, 1f, 1f, ref y);
+            blueSlider = CreatePopupSlider(panelRoot.transform, "Blue", 0f, 1f, 1f, ref y);
             closeButton = CreateButton(panelRoot.transform, "CloseColorPickerButton", "Done", new Vector2(0f, y - 8f), new Vector2(120f, 28f));
 
             pickButton.onClick.AddListener(() => SetOpen(true));
             closeButton.onClick.AddListener(() => SetOpen(false));
-            hueSlider.onValueChanged.AddListener(_ => UpdatePreview(notify: true));
-            saturationSlider.onValueChanged.AddListener(_ => UpdatePreview(notify: true));
-            valueSlider.onValueChanged.AddListener(_ => UpdatePreview(notify: true));
+            redSlider.onValueChanged.AddListener(_ => UpdatePreview(notify: true));
+            greenSlider.onValueChanged.AddListener(_ => UpdatePreview(notify: true));
+            blueSlider.onValueChanged.AddListener(_ => UpdatePreview(notify: true));
             panelRoot.SetActive(false);
         }
 
         private void UpdatePreview(bool notify)
         {
-            if (hueSlider == null || saturationSlider == null || valueSlider == null)
+            if (redSlider == null || greenSlider == null || blueSlider == null)
             {
                 return;
             }
 
-            Color color = Color.HSVToRGB(hueSlider.value, saturationSlider.value, valueSlider.value);
-            if (previewImage != null)
+            Color color = new Color(redSlider.value, greenSlider.value, blueSlider.value, 1f);
+            if (popupPreviewImage != null)
             {
-                previewImage.color = color;
+                popupPreviewImage.color = color;
+            }
+
+            if (rowPreviewImage != null)
+            {
+                rowPreviewImage.color = color;
             }
 
             if (notify && !_suppressEvents)
             {
                 _onColorChanged?.Invoke(color);
             }
+        }
+
+        private static bool WasPointerPressedThisFrame()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                return true;
+            }
+
+            return Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame;
+#else
+            return Input.GetMouseButtonDown(0);
+#endif
+        }
+
+        private static Vector2 GetPointerScreenPosition()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.isPressed)
+            {
+                return Touchscreen.current.primaryTouch.position.ReadValue();
+            }
+
+            if (Mouse.current != null)
+            {
+                return Mouse.current.position.ReadValue();
+            }
+#endif
+            return Input.mousePosition;
+        }
+
+        private void EnsurePopupPreview()
+        {
+            if (popupPreviewImage != null || panelRoot == null)
+            {
+                return;
+            }
+
+            popupPreviewImage = CreatePopupPreview(panelRoot.transform);
+            if (panelRoot.transform is RectTransform panelRect)
+            {
+                Vector2 size = panelRect.sizeDelta;
+                if (size.y < 188f)
+                {
+                    panelRect.sizeDelta = new Vector2(size.x, 188f);
+                }
+            }
+        }
+
+        private static Image CreatePopupPreview(Transform parent)
+        {
+            var go = new GameObject("PopupColorPreview", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            go.transform.SetParent(parent, false);
+            RectTransform rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 1f);
+            rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, -10f);
+            rect.sizeDelta = new Vector2(268f, 40f);
+            Image image = go.GetComponent<Image>();
+            image.color = Color.white;
+            image.raycastTarget = false;
+            V4Lab2UITheme.CreateChipBorder(go.transform);
+            return image;
         }
 
         private static Slider CreatePopupSlider(Transform parent, string label, float min, float max, float value, ref float y)
@@ -236,6 +378,7 @@ namespace HarmonicEngineV4.UI.Lab2
             rect.sizeDelta = new Vector2(120f, 20f);
             Text label = go.GetComponent<Text>();
             label.text = text;
+            label.raycastTarget = false;
             V4Lab2UITheme.ApplyBodyText(label);
         }
 
@@ -324,6 +467,7 @@ namespace HarmonicEngineV4.UI.Lab2
             Text text = textGo.GetComponent<Text>();
             text.text = label;
             text.alignment = TextAnchor.MiddleCenter;
+            text.raycastTarget = false;
             V4Lab2UITheme.ApplyBodyText(text);
             return button;
         }

@@ -400,10 +400,11 @@ namespace HarmonicEngineV4.Editor
             y -= 40f;
             w.browseLogFolder = CreateInlineButton(loggingContent, "Browse...", ref y, topAnchored: true);
             w.useDefaultLogFolder = CreateInlineButton(loggingContent, "Use project default", ref y, topAnchored: true);
+            y -= 12f;
             w.logFolderHint = CreateText("LogFolderHint", loggingContent,
-                "Runs save to: (project)/Logs/Engine2/run_*", 13, TextAnchor.MiddleLeft,
-                new Vector2(0f, y), new Vector2(700f, 36f), muted: true, topAnchored: true);
-            y -= 44f;
+                "Runs save to: (project)/Logs/Engine2/run_*", 13, TextAnchor.UpperLeft,
+                new Vector2(0f, y), new Vector2(700f, 48f), muted: true, topAnchored: true);
+            y -= 56f;
             CreateSectionHeader(loggingContent, "Channels to record", ref y, topAnchored: true);
             for (int i = 0; i < V4Lab2LoggingChannels.All.Length; i++)
             {
@@ -878,15 +879,16 @@ namespace HarmonicEngineV4.Editor
 
         private static Toggle CreateLabeledToggle(Transform parent, string label, bool value, ref float y, bool panelSpace = false, bool topAnchored = false)
         {
-            y -= panelSpace ? 44f : 40f;
+            y -= panelSpace ? 44f : 36f;
             var go = new GameObject(label + "Toggle", typeof(RectTransform), typeof(Toggle));
             go.transform.SetParent(parent, false);
             RectTransform rect = go.GetComponent<RectTransform>();
-            ApplyTopAnchoredRect(rect, new Vector2(0f, y), new Vector2(300f, 28f), topAnchored);
+            ApplyTopAnchoredRect(rect, new Vector2(0f, y), new Vector2(640f, 32f), topAnchored);
 
             Toggle toggle = go.GetComponent<Toggle>();
             toggle.isOn = value;
-            CreateText("Label", go.transform, label, 14, TextAnchor.MiddleLeft, new Vector2(-120f, 0f), new Vector2(260f, 24f));
+            CreateText("Label", go.transform, label, 14, TextAnchor.MiddleLeft, Vector2.zero, new Vector2(580f, 24f));
+            V4Lab2UITheme.EnsureToggleGraphics(toggle);
             return toggle;
         }
 

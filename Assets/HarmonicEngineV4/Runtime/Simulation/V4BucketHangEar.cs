@@ -3,46 +3,55 @@ using UnityEngine;
 namespace HarmonicEngineV4.Simulation
 {
     /// <summary>
-    /// Bail-style hang ear on the bucket rim. The rope attaches at the arch apex;
-    /// bucket-local +Y still points toward the pivot (perpendicular hang).
+    /// Diameter bail handle on the bucket rim. The arch spans opposite rim points through
+    /// the center; the rope attaches at the arch apex. Bucket +Y still points toward pivot.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(V4Bucket))]
     public sealed class V4BucketHangEar : MonoBehaviour
     {
-        [Min(0.02f)] public float earHalfWidth = 0.12f;
-        [Min(0.02f)] public float earRise = 0.12f;
-        [Range(0f, 360f)] public float yawDegrees;
-        [Min(4)] public int archSegments = 20;
-        [Min(0.004f)] public float tubeRadius = 0.012f;
+        [Min(0.02f)] public float earRise = 0.18f;
+        [Tooltip("Extra lift for the rope attach above the bail tube top.")]
+        [Min(0f)] public float ropeAttachLift = 0.10f;
+        [Tooltip("Rotates the bail plane around bucket +Y (degrees).")]
+        [Range(0f, 360f)] public float yawDegrees = 90f;
+        [Min(6)] public int archSegments = 28;
+        [Min(0.004f)] public float tubeRadius = 0.015f;
 
         private V4Bucket _bucket;
 
-        /// <summary>Bucket-local Y from floor center to rope attach (arch apex).</summary>
+        /// <summary>Bucket-local Y from floor center to rope attach (above bail tube top).</summary>
         public float AttachLocalY
         {
             get
             {
                 CacheBucket();
-                return _bucket != null ? _bucket.height + earRise : earRise;
+                float rimAttach = _bucket != null ? _bucket.height + earRise : earRise;
+                return rimAttach + tubeRadius + ropeAttachLift;
             }
         }
 
-        /// <summary>Bucket-local position of the rope attach point (arch apex).</summary>
+        /// <summary>Bucket-local position of the rope attach point (arch apex above rim center).</summary>
         public Vector3 AttachLocalPosition
         {
             get
             {
-                CacheBucket();
-                float radius = _bucket != null ? _bucket.innerRadius : 0.5f;
-                Vector3 local = new Vector3(radius, AttachLocalY, 0f);
+                Vector3 apex = new Vector3(0f, AttachLocalY, 0f);
                 if (Mathf.Abs(yawDegrees) > 1e-3f)
                 {
-                    local = Quaternion.Euler(0f, yawDegrees, 0f) * local;
+                    apex = Quaternion.Euler(0f, yawDegrees, 0f) * apex;
                 }
 
-                return local;
+                return apex;
             }
+        }
+
+        public void GetBailPoints(float outerRimRadius, float rimHeight, out Vector3 footA, out Vector3 footB, out Vector3 apex)
+        {
+            Quaternion yaw = Quaternion.Euler(0f, yawDegrees, 0f);
+            footA = yaw * new Vector3(outerRimRadius, rimHeight, 0f);
+            footB = yaw * new Vector3(-outerRimRadius, rimHeight, 0f);
+            apex = yaw * new Vector3(0f, rimHeight + earRise, 0f);
         }
 
         public Vector3 GetAttachWorld(Transform bucketTransform)
