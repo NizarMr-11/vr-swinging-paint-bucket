@@ -231,6 +231,43 @@ namespace HarmonicEngineV4.Tests.PlayMode
             Assert.Less(meanRatio, 1.5f, $"carry overshoots the rigid frame (mean ratio {meanRatio:F3})");
         }
 
+        private static V4TestRig.Config Lab2HeightLayerHoleConfig()
+        {
+            return new V4TestRig.Config
+            {
+                BucketRadius = 0.3f,
+                BucketHeight = 0.6f,
+                WallThickness = 0.05f,
+                GlobalDensity = 800000f,
+                Holes = new List<V4HoleDef>
+                {
+                    new V4HoleDef
+                    {
+                        localPosition = new Vector3(0.1f, 0f, 0f),
+                        radius = 0.05f,
+                        outwardNormal = Vector3.down
+                    }
+                },
+                ConfigureBucket = (bucket, root) =>
+                {
+                    bucket.heightLayers.Clear();
+                    float slab = bucket.height / 3f;
+                    bucket.heightLayers.Add(new V4LayerDef { thickness = slab, color = Color.black });
+                    bucket.heightLayers.Add(new V4LayerDef { thickness = slab, color = Color.white });
+                    bucket.heightLayers.Add(new V4LayerDef { thickness = slab, color = Color.yellow });
+                    bucket.topBandHeight = slab;
+                }
+            };
+        }
+
+        [Test]
+        public void Lab2HeightLayerHole_DrainsThroughFloorHole()
+        {
+            using var rig = V4TestRig.Create(Lab2HeightLayerHoleConfig());
+            rig.Step(600, Dt);
+            Assert.Greater(rig.Root.EscapedTotal, 0, "height-layer Lab2 setup should eject through the floor hole");
+        }
+
         [Test]
         public void HoleDrain_ParticlesEscape_FallAndSettleOnCanvas()
         {

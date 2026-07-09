@@ -247,11 +247,17 @@ int V4FindLayerIndex(float y, StructuredBuffer<V4Layer> layers, uint layerCount)
     return -1;
 }
 
-bool V4IsInHoleEjectFootprint(float3 localPos, V4Hole hole, V4Layer layer)
+bool V4IsInHoleEjectFootprint(float3 localPos, V4Hole hole, V4Layer layer, float particleRadius)
 {
+    if (hole.radius <= 1e-6)
+    {
+        return false;
+    }
+
     float dx = localPos.x - hole.localPosition.x;
     float dz = localPos.z - hole.localPosition.z;
-    if (dx * dx + dz * dz > hole.radius * hole.radius)
+    float effectiveRadius = hole.radius + particleRadius;
+    if (dx * dx + dz * dz > effectiveRadius * effectiveRadius)
     {
         return false;
     }
@@ -266,6 +272,7 @@ uint V4ClassifyZones(
     uint holeCount,
     StructuredBuffer<V4Layer> layers,
     uint layerCount,
+    float particleRadius,
     out uint auxIndex)
 {
     auxIndex = 0u;
@@ -276,13 +283,18 @@ uint V4ClassifyZones(
 
     for (uint i = 0u; i < holeCount; i++)
     {
+        if (holes[i].radius <= 1e-6)
+        {
+            continue;
+        }
+
         int holeLayer = V4FindLayerIndex(holes[i].localPosition.y, layers, layerCount);
         if (holeLayer < 0)
         {
             continue;
         }
 
-        if (V4IsInHoleEjectFootprint(localPos, holes[i], layers[(uint)holeLayer]))
+        if (V4IsInHoleEjectFootprint(localPos, holes[i], layers[(uint)holeLayer], particleRadius))
         {
             auxIndex = i;
             return V4_ZONE_HOLE0;

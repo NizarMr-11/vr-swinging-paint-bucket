@@ -45,9 +45,20 @@ namespace HarmonicEngineV4.Editor
             if (bucketComponent.holes.Count > 0)
             {
                 V4HoleDef hole = bucketComponent.holes[0];
-                hole.radius = 0.03f;
+                hole.radius = 0.05f;
                 hole.outwardNormal = Vector3.down;
                 bucketComponent.holes[0] = hole;
+            }
+
+            for (int i = 1; i < bucketComponent.holes.Count; i++)
+            {
+                V4HoleDef hole = bucketComponent.holes[i];
+                if (hole.radius <= 1e-4f)
+                {
+                    hole.radius = 0.03f;
+                    hole.outwardNormal = Vector3.down;
+                    bucketComponent.holes[i] = hole;
+                }
             }
 
             V4PipelineRoot root = pipeline.GetComponent<V4PipelineRoot>();

@@ -205,15 +205,18 @@ MonoBehaviour:
   height: 0.6
   wallThickness: 0.05
   holes:
-  - localPosition: {x: 0.1, y: 0, z: 0}
+  - localPosition: {x: 0.12, y: 0, z: 0}
     radius: 0.03
     outwardNormal: {x: 0, y: -1, z: 0}
-  - localPosition: {x: -0.15, y: 0, z: 0.15}
-    radius: 0
+  - localPosition: {x: -0.19, y: 0, z: 0}
+    radius: 0.03
     outwardNormal: {x: 0, y: -1, z: 0}
   heightLayers:
   - thickness: 0.03
     color: {r: 0, g: 0, b: 0, a: 1}
+    forceStrength: 0
+  - thickness: 0.03
+    color: {r: 0.9339623, g: 0.9339623, b: 0.9339623, a: 1}
     forceStrength: 0
   topBandHeight: 0.2
   ringSpacing: 0.06
@@ -331,7 +334,7 @@ MonoBehaviour:
   dampingCoefficient: 0.05
   adoptManualBucketPoseOnReset: 1
   twistAngleDegrees: 0
-  initialTangentialVelocity: {x: 0, y: 0, z: 0}
+  initialTangentialVelocity: {x: 0.42, y: 0.6, z: 0}
   bucketMass: 0.5
   sloshFeedbackScale: 0
   fluidMassSmoothing: 0.2

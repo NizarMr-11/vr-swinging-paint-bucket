@@ -67,8 +67,8 @@ Per particle, each frame (unless escaped):
 2. `inside = V4BucketIsInside(localPos)`
 3. Set Inside flag
 4. `V4ClassifyZones` — priority resolution:
-   - **Level 1:** nearest hole within `d2` → HoleZone0/1/2
-   - **Level 2:** if no hole and `y ≥ height - topBandHeight` → TopBand
+   - **Level 1:** hole eject footprint — XZ disk of radius `hole.radius + particleRadius` on the height layer that contains the hole's `localPosition.y` → HoleZone0 (holes with `radius <= 0` are skipped)
+   - **Level 2:** otherwise, assign height layer by particle `y`
 5. **Hole Zone 0:** set Outside + **permanent escape latch**, increment escaped + per-hole eject counters
 
 Escaped particles: forced Outside, zone None, never re-classified.

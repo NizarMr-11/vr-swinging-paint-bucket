@@ -101,6 +101,37 @@ namespace HarmonicEngineV4.Tests.EditMode
         }
 
         [Test]
+        public void HoleEject_InflatesFootprintByParticleRadius()
+        {
+            var holes = new[] { MakeHole(new Vector3(0.1f, 0.05f, 0f), 0.04f) };
+            V4BakedLayer[] layers = new[] { new V4BakedLayer { yMin = 0f, yMax = 0.4f } };
+            const float particleRadius = 0.006f;
+
+            V4ZoneMath.ZoneResult strict = V4ZoneMath.Classify(
+                new Vector3(0.145f, 0.08f, 0f), true, holes, 1, layers, 1, 0f);
+            Assert.AreEqual(V4Zone.HeightLayer, strict.Zone);
+
+            V4ZoneMath.ZoneResult inflated = V4ZoneMath.Classify(
+                new Vector3(0.145f, 0.08f, 0f), true, holes, 1, layers, 1, particleRadius);
+            Assert.AreEqual(V4Zone.HoleZone0, inflated.Zone);
+        }
+
+        [Test]
+        public void HoleEject_SkipsZeroRadiusHoles()
+        {
+            var holes = new[]
+            {
+                MakeHole(new Vector3(0.1f, 0.05f, 0f), 0f),
+                MakeHole(new Vector3(0.1f, 0.05f, 0f), 0.04f)
+            };
+            V4BakedLayer[] layers = new[] { new V4BakedLayer { yMin = 0f, yMax = 0.4f } };
+            V4ZoneMath.ZoneResult result = V4ZoneMath.Classify(
+                new Vector3(0.1f, 0.08f, 0f), true, holes, 2, layers, 1);
+            Assert.AreEqual(V4Zone.HoleZone0, result.Zone);
+            Assert.AreEqual(1, result.HoleIndex);
+        }
+
+        [Test]
         public void BakeLayers_StacksUserThicknessesToRim()
         {
             var defs = new[]

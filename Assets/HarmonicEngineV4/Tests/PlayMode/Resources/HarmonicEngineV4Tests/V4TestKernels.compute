@@ -48,7 +48,7 @@ void GeometryParityKernel(uint3 id : SV_DispatchThreadID)
     bool shell = V4BucketIsInSolidShell(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
 
     uint auxIndex;
-    uint zone = V4ClassifyZones(localPos, inside, _Holes, _HoleCount, _Layers, _LayerCount, auxIndex);
+    uint zone = V4ClassifyZones(localPos, inside, _Holes, _HoleCount, _Layers, _LayerCount, 0.0, auxIndex);
 
     float3 forceDir = float3(0, 0, 0);
     if (zone == V4_ZONE_HOLE0)

@@ -57,11 +57,21 @@ namespace HarmonicEngineV4.Core
             return -1;
         }
 
-        public static bool IsInHoleEjectFootprint(Vector3 localPos, in V4BakedHole hole, in V4BakedLayer layer)
+        public static bool IsInHoleEjectFootprint(
+            Vector3 localPos,
+            in V4BakedHole hole,
+            in V4BakedLayer layer,
+            float particleRadius = 0f)
         {
+            if (hole.radius <= 1e-6f)
+            {
+                return false;
+            }
+
             float dx = localPos.x - hole.localPosition.x;
             float dz = localPos.z - hole.localPosition.z;
-            if (dx * dx + dz * dz > hole.radius * hole.radius)
+            float effectiveRadius = hole.radius + particleRadius;
+            if (dx * dx + dz * dz > effectiveRadius * effectiveRadius)
             {
                 return false;
             }
@@ -75,7 +85,8 @@ namespace HarmonicEngineV4.Core
             V4BakedHole[] holes,
             int holeCount,
             V4BakedLayer[] layers,
-            int layerCount)
+            int layerCount,
+            float particleRadius = 0f)
         {
             if (!inside)
             {
@@ -84,13 +95,18 @@ namespace HarmonicEngineV4.Core
 
             for (int i = 0; i < holeCount; i++)
             {
+                if (holes[i].radius <= 1e-6f)
+                {
+                    continue;
+                }
+
                 int holeLayer = FindLayerIndex(holes[i].localPosition.y, layers, layerCount);
                 if (holeLayer < 0)
                 {
                     continue;
                 }
 
-                if (IsInHoleEjectFootprint(localPos, holes[i], layers[holeLayer]))
+                if (IsInHoleEjectFootprint(localPos, holes[i], layers[holeLayer], particleRadius))
                 {
                     return new ZoneResult(V4Zone.HoleZone0, i);
                 }

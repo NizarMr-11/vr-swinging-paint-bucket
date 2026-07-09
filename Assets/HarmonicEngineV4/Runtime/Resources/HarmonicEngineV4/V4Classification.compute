@@ -90,7 +90,9 @@ void ClassifyKernel(uint3 id : SV_DispatchThreadID)
     flags = inside ? (flags | V4_FLAG_INSIDE) : (flags & ~V4_FLAG_INSIDE);
 
     uint auxIndex;
-    uint zone = V4ClassifyZones(localPos, inside, _Holes, _HoleCount, _Layers, _LayerCount, auxIndex);
+    float particleRadius = _Block0[i].w;
+    uint zone = V4ClassifyZones(
+        localPos, inside, _Holes, _HoleCount, _Layers, _LayerCount, particleRadius, auxIndex);
 
     if (zone == V4_ZONE_HOLE0)
     {
