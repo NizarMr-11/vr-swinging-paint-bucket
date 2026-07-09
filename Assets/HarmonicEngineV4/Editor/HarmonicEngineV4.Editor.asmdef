@@ -2,7 +2,9 @@
     "name": "HarmonicEngineV4.Editor",
     "rootNamespace": "HarmonicEngineV4.Editor",
     "references": [
-        "HarmonicEngineV4.Runtime"
+        "HarmonicEngineV4.Runtime",
+        "Unity.UGUI",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [
         "Editor"

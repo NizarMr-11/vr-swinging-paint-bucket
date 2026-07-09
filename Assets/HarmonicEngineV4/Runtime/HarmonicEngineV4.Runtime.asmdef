@@ -3,7 +3,8 @@
     "rootNamespace": "HarmonicEngineV4",
     "references": [
         "Unity.InputSystem",
-        "Unity.Mathematics"
+        "Unity.Mathematics",
+        "Unity.UGUI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

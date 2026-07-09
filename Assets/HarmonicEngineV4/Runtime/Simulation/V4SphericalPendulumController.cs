@@ -40,6 +40,8 @@ namespace HarmonicEngineV4.Simulation
         public Vector3 initialTangentialVelocity = Vector3.zero;
 
         [Header("Slosh feedback")]
+        [Tooltip("When false, Space no longer resets the pendulum (e.g. Lab2 UI uses Space for pause).")]
+        public bool enableKeyboardReset = true;
         [Min(0f)] public float bucketMass = 0.5f;
         [Range(0f, 1f)] public float sloshFeedbackScale = 1f;
         [Range(0f, 1f)] public float fluidMassSmoothing = 0.2f;
@@ -169,7 +171,7 @@ namespace HarmonicEngineV4.Simulation
                 return;
             }
 
-            if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
+            if (enableKeyboardReset && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
             {
                 ResetSimulation();
             }
@@ -182,7 +184,7 @@ namespace HarmonicEngineV4.Simulation
                 return;
             }
 
-            if (Input.GetKeyDown(KeyCode.Space))
+            if (enableKeyboardReset && Input.GetKeyDown(KeyCode.Space))
             {
                 ResetSimulation();
             }

@@ -33,6 +33,8 @@ namespace HarmonicEngineV4.Simulation
         public bool restrictSpawnToBucketCavity = true;
 
         [Header("Simulation")]
+        [Tooltip("When true, Start() skips Initialize() so a setup UI can configure the scene first.")]
+        public bool deferAutoInitialize;
         public bool autoRun = true;
         [Range(1, 4)] public int pbfIterations = 2;
         [Min(0f)] public float carryRate = 10f;
@@ -407,6 +409,11 @@ namespace HarmonicEngineV4.Simulation
 
         private void Start()
         {
+            if (deferAutoInitialize)
+            {
+                return;
+            }
+
             if (!Initialized)
             {
                 Initialize();
@@ -442,6 +449,23 @@ namespace HarmonicEngineV4.Simulation
         }
 
         // ------------------------------------------------------------------ init
+
+        /// <summary>Release GPU resources and run the full bake + buffer setup again.</summary>
+        public void Reinitialize()
+        {
+            if (Initialized)
+            {
+                ReleaseAll();
+                FrameIndex = 0;
+                ActiveParticleCount = 0;
+                SpawnedTotal = 0;
+                EscapedTotal = 0;
+                SettledTotal = 0;
+                TopBandCountLastFrame = 0;
+            }
+
+            Initialize();
+        }
 
         public void Initialize()
         {
