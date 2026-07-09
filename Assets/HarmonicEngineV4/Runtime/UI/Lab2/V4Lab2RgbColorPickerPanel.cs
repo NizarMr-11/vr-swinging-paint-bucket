@@ -51,7 +51,7 @@ namespace HarmonicEngineV4.UI.Lab2
 
         public void Bind(Image preview, Action<Color> onColorChanged)
         {
-            rowPreviewImage = preview;
+            rowPreviewImage = V4Lab2UITheme.EnsureColorPreview(preview, Color.white);
             _onColorChanged = onColorChanged;
         }
 
@@ -237,7 +237,7 @@ namespace HarmonicEngineV4.UI.Lab2
 
         private void BuildUi(Transform row, Image preview, Action<Color> onColorChanged)
         {
-            rowPreviewImage = preview;
+            rowPreviewImage = V4Lab2UITheme.EnsureColorPreview(preview, Color.white);
             _onColorChanged = onColorChanged;
 
             pickButton = CreateButton(row, "PickColorButton", "Pick", new Vector2(154f, 0f), new Vector2(64f, 32f));
@@ -326,12 +326,23 @@ namespace HarmonicEngineV4.UI.Lab2
 
         private void EnsurePopupPreview()
         {
-            if (popupPreviewImage != null || panelRoot == null)
+            if (panelRoot == null)
             {
                 return;
             }
 
-            popupPreviewImage = CreatePopupPreview(panelRoot.transform);
+            Color current = popupPreviewImage != null ? popupPreviewImage.color : Color.white;
+            Transform previewRoot = panelRoot.transform.Find("PopupColorPreview");
+            if (previewRoot != null)
+            {
+                Image root = previewRoot.GetComponent<Image>();
+                popupPreviewImage = V4Lab2UITheme.EnsureColorPreview(root, current);
+            }
+            else if (popupPreviewImage == null)
+            {
+                popupPreviewImage = CreatePopupPreview(panelRoot.transform);
+            }
+
             if (panelRoot.transform is RectTransform panelRect)
             {
                 Vector2 size = panelRect.sizeDelta;
@@ -340,11 +351,14 @@ namespace HarmonicEngineV4.UI.Lab2
                     panelRect.sizeDelta = new Vector2(size.x, 188f);
                 }
             }
+
+            UpdatePreview(notify: false);
         }
 
         private static Image CreatePopupPreview(Transform parent)
         {
-            var go = new GameObject("PopupColorPreview", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            var go = new GameObject("PopupColorPreview",
+                typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             go.transform.SetParent(parent, false);
             RectTransform rect = go.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 1f);
@@ -352,11 +366,9 @@ namespace HarmonicEngineV4.UI.Lab2
             rect.pivot = new Vector2(0.5f, 1f);
             rect.anchoredPosition = new Vector2(0f, -10f);
             rect.sizeDelta = new Vector2(268f, 40f);
-            Image image = go.GetComponent<Image>();
-            image.color = Color.white;
-            image.raycastTarget = false;
-            V4Lab2UITheme.CreateChipBorder(go.transform);
-            return image;
+            Image root = go.GetComponent<Image>();
+            root.raycastTarget = false;
+            return V4Lab2UITheme.EnsureColorPreview(root, Color.white);
         }
 
         private static Slider CreatePopupSlider(Transform parent, string label, float min, float max, float value, ref float y)

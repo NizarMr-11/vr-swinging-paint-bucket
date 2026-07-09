@@ -316,7 +316,8 @@ namespace HarmonicEngineV4.UI.Lab2
             Transform existing = row.Find($"Layer{layerIndex + 1}Preview");
             if (existing != null)
             {
-                return existing.GetComponent<Image>();
+                Image root = existing.GetComponent<Image>();
+                return V4Lab2UITheme.EnsureColorPreview(root, Color.white);
             }
 
             var previewGo = new GameObject($"Layer{layerIndex + 1}Preview",
@@ -328,10 +329,9 @@ namespace HarmonicEngineV4.UI.Lab2
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = new Vector2(-70f, 0f);
             rect.sizeDelta = new Vector2(56f, 36f);
-            Image image = previewGo.GetComponent<Image>();
-            image.color = Color.white;
-            V4Lab2UITheme.CreateChipBorder(previewGo.transform);
-            return image;
+            Image rootImage = previewGo.GetComponent<Image>();
+            rootImage.raycastTarget = false;
+            return V4Lab2UITheme.EnsureColorPreview(rootImage, Color.white);
         }
     }
 }

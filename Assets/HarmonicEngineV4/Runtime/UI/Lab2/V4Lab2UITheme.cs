@@ -301,6 +301,33 @@ namespace HarmonicEngineV4.UI.Lab2
             return image;
         }
 
+        /// <summary>Ensure a preview swatch uses ChipFill for the visible color, not the border overlay.</summary>
+        public static Image EnsureColorPreview(Image previewRoot, Color initialColor)
+        {
+            if (previewRoot == null)
+            {
+                return null;
+            }
+
+            Transform fillTransform = previewRoot.transform.Find("ChipFill");
+            if (fillTransform != null)
+            {
+                Image existingFill = fillTransform.GetComponent<Image>();
+                if (existingFill != null)
+                {
+                    existingFill.color = initialColor;
+                }
+
+                return existingFill;
+            }
+
+            previewRoot.color = new Color(0f, 0f, 0f, 0.15f);
+            CreateChipBorder(previewRoot.transform);
+            Image fill = CreateChipFill(previewRoot.transform);
+            fill.color = initialColor;
+            return fill;
+        }
+
         public static Image CreateChipBorder(Transform parent)
         {
             return ApplyChipBorder(parent, ChipBorder, 2f);

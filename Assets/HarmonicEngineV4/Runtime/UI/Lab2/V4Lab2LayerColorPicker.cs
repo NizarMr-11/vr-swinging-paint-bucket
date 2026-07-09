@@ -23,7 +23,7 @@ namespace HarmonicEngineV4.UI.Lab2
         public void Configure(int index, Image previewImage, V4Lab2ColorChip black, V4Lab2ColorChip white, V4Lab2ColorChip yellow)
         {
             layerIndex = index;
-            preview = previewImage;
+            preview = V4Lab2UITheme.EnsureColorPreview(previewImage, SelectedColor);
             chips = new[] { black, white, yellow };
             WireChips();
             for (int i = 0; i < chips.Length; i++)

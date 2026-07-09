@@ -985,8 +985,9 @@ namespace HarmonicEngineV4.Editor
             previewRect.pivot = new Vector2(0.5f, 0.5f);
             previewRect.anchoredPosition = new Vector2(-70f, 0f);
             previewRect.sizeDelta = new Vector2(56f, 36f);
-            previewGo.GetComponent<Image>().color = Color.white;
-            V4Lab2UITheme.CreateChipBorder(previewGo.transform);
+            Image previewRoot = previewGo.GetComponent<Image>();
+            previewRoot.raycastTarget = false;
+            V4Lab2UITheme.EnsureColorPreview(previewRoot, Color.white);
 
             black = CreateColorChipButton(row.transform, $"L{layerNumber}BlackButton", Color.black, new Vector2(10f, 0f));
             white = CreateColorChipButton(row.transform, $"L{layerNumber}WhiteButton", Color.white, new Vector2(58f, 0f));
