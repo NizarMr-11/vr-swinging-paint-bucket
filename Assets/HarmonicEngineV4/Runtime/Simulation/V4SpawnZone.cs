@@ -5,9 +5,7 @@ using UnityEngine;
 namespace HarmonicEngineV4.Simulation
 {
     /// <summary>
-    /// Spherical spawn zone (spec sections 1-3). Particle count derives from zone volume
-    /// x global density; particles receive this zone's color and liquid profile
-    /// (falling back to the pipeline root's global profile when none is set).
+    /// Legacy spherical spawn zone. Prefer <see cref="V4Bucket.heightLayers"/> for cylinder slab spawns.
     /// </summary>
     public sealed class V4SpawnZone : MonoBehaviour
     {
@@ -18,11 +16,5 @@ namespace HarmonicEngineV4.Simulation
         public V4LiquidProfile profile;
 
         public float Volume => V4SpawnMath.SphereVolume(radius);
-
-        private void OnDrawGizmosSelected()
-        {
-            Gizmos.color = new Color(color.r, color.g, color.b, 0.4f);
-            Gizmos.DrawWireSphere(transform.position, radius);
-        }
     }
 }

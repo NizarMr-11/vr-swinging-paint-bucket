@@ -34,6 +34,61 @@ namespace HarmonicEngineV4.Bake
         }
 
         /// <summary>
+        /// Even cubic-lattice fill of a vertical cylinder (bucket-local: floor center origin, +Y up).
+        /// Same algorithm as <see cref="LatticeFillSphere"/>: integer spacing grid, then shape filter.
+        /// </summary>
+        public static List<Vector3> LatticeFillCylinder(
+            float innerRadius,
+            float yMin,
+            float yMax,
+            float particlesPerCubicMeter)
+        {
+            var points = new List<Vector3>();
+            if (innerRadius <= 1e-6f || yMax <= yMin + 1e-6f)
+            {
+                return points;
+            }
+
+            float spacing = SpacingFromDensity(particlesPerCubicMeter);
+            int stepsR = Mathf.CeilToInt(innerRadius / spacing);
+            int stepsY = Mathf.CeilToInt((yMax - yMin) / spacing);
+            float r2 = innerRadius * innerRadius;
+
+            for (int x = -stepsR; x <= stepsR; x++)
+            for (int yi = 0; yi <= stepsY; yi++)
+            for (int z = -stepsR; z <= stepsR; z++)
+            {
+                var local = new Vector3(x * spacing, yMin + yi * spacing, z * spacing);
+                if (local.y > yMax + 1e-5f)
+                {
+                    continue;
+                }
+
+                float radial2 = local.x * local.x + local.z * local.z;
+                if (radial2 <= r2)
+                {
+                    points.Add(local);
+                }
+            }
+
+            return points;
+        }
+
+        /// <summary>Backward-compatible alias.</summary>
+        public static List<Vector3> LatticeFillCylinderSlab(
+            float innerRadius,
+            float yMin,
+            float yMax,
+            float particlesPerCubicMeter) =>
+            LatticeFillCylinder(innerRadius, yMin, yMax, particlesPerCubicMeter);
+
+        public static float CylinderSlabVolume(float innerRadius, float yMin, float yMax)
+        {
+            float h = Mathf.Max(0f, yMax - yMin);
+            return Mathf.PI * innerRadius * innerRadius * h;
+        }
+
+        /// <summary>
         /// Even cubic-lattice fill of a sphere. The actual generated count converges to
         /// volume x density as the zone grows; every point is strictly inside the sphere.
         /// </summary>

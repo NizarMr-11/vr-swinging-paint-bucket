@@ -32,7 +32,25 @@ vel += (v_target - vel) × blend
 |-----------|---------|--------|
 | `carryRate` | 10 | Higher = fluid tracks bucket motion faster |
 
-Kinematics from `V4Bucket.SampleKinematics(dt)` at frame start.
+Kinematics from `_BucketState` after GPU bucket integrate (pendulum) or `V4Bucket.SampleKinematics(dt)` (keyboard). Bucket **pose** (origin and local/world matrices) is always taken from the Unity transform via CPU uniforms; velocities and accelerations come from `_BucketState`.
+
+---
+
+## Non-inertial forces (pendulum mode)
+
+When `V4BucketMotionSettings.IsPendulumMode` is true, inside particles also receive fictitious accelerations in world space (after gravity, using pre-carry relative velocity for Coriolis):
+
+```
+r = pos - bucketOrigin
+v_rel = vel - (linearVel + angularVel × r)
+centrifugal = -ω × (ω × r)
+euler = -α × r
+coriolis = -2 × ω × v_rel
+translational = -linearAcceleration
+vel += (centrifugal + euler + coriolis + translational) × dt
+```
+
+`linearAcceleration` is computed each frame in `BucketIntegrateKernel` from the change in bucket linear velocity.
 
 ---
 
@@ -69,8 +87,10 @@ Particles in **TopBand** zone receive downward acceleration based on historical 
 
 ```
 pushDown = (TotalExpectedLoss / max(topBandCount, 1)) × downwardScale × topBandScale × dt
-vel.y -= pushDown
+vel += bucketLocalDown × pushDown
 ```
+
+`bucketLocalDown` is the world-space direction of local −Y (bucket floor normal).
 
 | Input | Source |
 |-------|--------|
@@ -97,8 +117,9 @@ Typical order per particle:
 
 1. Gravity
 2. Carry (if in containment footprint)
-3. Zone force (if zone active)
-4. Top-band push (if TopBand)
+3. Non-inertial fictitious forces (if pendulum mode)
+4. Zone force (if zone active)
+5. Top-band push (if TopBand)
 
 Exact implementation in `V4ExternalForces.compute` — consult source for branch order.
 

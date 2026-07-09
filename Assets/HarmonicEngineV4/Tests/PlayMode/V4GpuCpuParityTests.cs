@@ -1,3 +1,4 @@
+using HarmonicEngineV4.Bake;
 using HarmonicEngineV4.Core;
 using NUnit.Framework;
 using UnityEngine;
@@ -32,17 +33,20 @@ namespace HarmonicEngineV4.Tests.PlayMode
                 {
                     localPosition = new Vector3(0.5f, 0.3f, 0f),
                     radius = 0.04f,
-                    outwardNormal = Vector3.right,
-                    d0 = 0.04f, d1 = 0.1f, d2 = 0.16f
+                    outwardNormal = Vector3.right
                 },
                 new V4BakedHole
                 {
                     localPosition = new Vector3(0f, 0f, 0f),
                     radius = 0.05f,
-                    outwardNormal = Vector3.down,
-                    d0 = 0.05f, d1 = 0.12f, d2 = 0.19f
+                    outwardNormal = Vector3.down
                 }
             };
+        }
+
+        private static V4BakedLayer[] MakeLayers()
+        {
+            return V4BucketBake.BakeLayers(null, BucketHeight, TopBandHeight);
         }
 
         /// <summary>Seeded local-space sample points covering cavity, shell, rims, holes and outside.</summary>
@@ -67,11 +71,13 @@ namespace HarmonicEngineV4.Tests.PlayMode
         {
             ComputeShader shader = LoadTestShader();
             V4BakedHole[] holes = MakeHoles();
+            V4BakedLayer[] layers = MakeLayers();
             Vector4[] positions = MakeSamplePositions(SampleCount, 12345);
 
             int kernel = shader.FindKernel("GeometryParityKernel");
             var posBuffer = new ComputeBuffer(SampleCount, 16);
             var holesBuffer = new ComputeBuffer(holes.Length, 48);
+            var layersBuffer = new ComputeBuffer(layers.Length, sizeof(float) * 4);
             var outInside = new ComputeBuffer(SampleCount, 4);
             var outShell = new ComputeBuffer(SampleCount, 4);
             var outZone = new ComputeBuffer(SampleCount, 4);
@@ -82,9 +88,11 @@ namespace HarmonicEngineV4.Tests.PlayMode
             {
                 posBuffer.SetData(positions);
                 holesBuffer.SetData(holes);
+                layersBuffer.SetData(layers);
 
                 shader.SetBuffer(kernel, "_TestPositions", posBuffer);
                 shader.SetBuffer(kernel, "_Holes", holesBuffer);
+                shader.SetBuffer(kernel, "_Layers", layersBuffer);
                 shader.SetBuffer(kernel, "_OutUint0", outInside);
                 shader.SetBuffer(kernel, "_OutUint1", outShell);
                 shader.SetBuffer(kernel, "_OutUint2", outZone);
@@ -95,6 +103,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
                 shader.SetFloat("_BucketWallThickness", WallThickness);
                 shader.SetFloat("_TopBandHeight", TopBandHeight);
                 shader.SetInt("_HoleCount", holes.Length);
+                shader.SetInt("_LayerCount", layers.Length);
                 shader.SetInt("_TestCount", SampleCount);
                 shader.Dispatch(kernel, Mathf.CeilToInt(SampleCount / 64f), 1, 1);
 
@@ -116,11 +125,12 @@ namespace HarmonicEngineV4.Tests.PlayMode
 
                     bool cpuInside = V4BucketGeometry.IsInside(p, BucketRadius, BucketHeight);
                     bool cpuShell = V4BucketGeometry.IsInSolidShell(p, BucketRadius, BucketHeight, WallThickness);
-                    V4ZoneMath.ZoneResult cpuZone = V4ZoneMath.Classify(p, cpuInside, holes, holes.Length, BucketHeight, TopBandHeight);
+                    V4ZoneMath.ZoneResult cpuZone = V4ZoneMath.Classify(
+                        p, cpuInside, holes, holes.Length, layers, layers.Length);
 
                     // Points within float epsilon of a threshold may legitimately differ
                     // between fp32 GPU and CPU rounding; skip only provably-borderline cases.
-                    if (IsNearAnyBoundary(p, holes))
+                    if (IsNearAnyBoundary(p, holes, layers))
                     {
                         boundarySkips++;
                         continue;
@@ -130,7 +140,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
                     Assert.AreEqual(cpuShell ? 1u : 0u, gpuShell[i], $"shell mismatch at {p} (sample {i})");
                     Assert.AreEqual((uint)cpuZone.Zone, gpuZone[i], $"zone mismatch at {p} (sample {i})");
 
-                    if (cpuZone.Zone == V4Zone.HoleZone0 || cpuZone.Zone == V4Zone.HoleZone1 || cpuZone.Zone == V4Zone.HoleZone2)
+                    if (cpuZone.Zone == V4Zone.HoleZone0)
                     {
                         Assert.AreEqual((uint)cpuZone.HoleIndex, gpuHole[i], $"hole owner mismatch at {p} (sample {i})");
 
@@ -146,6 +156,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
             {
                 posBuffer.Release();
                 holesBuffer.Release();
+                layersBuffer.Release();
                 outInside.Release();
                 outShell.Release();
                 outZone.Release();
@@ -154,7 +165,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
             }
         }
 
-        private static bool IsNearAnyBoundary(Vector3 p, V4BakedHole[] holes)
+        private static bool IsNearAnyBoundary(Vector3 p, V4BakedHole[] holes, V4BakedLayer[] layers)
         {
             const float eps = 1e-4f;
             float r = Mathf.Sqrt(p.x * p.x + p.z * p.z);
@@ -164,16 +175,25 @@ namespace HarmonicEngineV4.Tests.PlayMode
             }
 
             if (Mathf.Abs(p.y) < eps || Mathf.Abs(p.y - BucketHeight) < eps ||
-                Mathf.Abs(p.y + WallThickness) < eps ||
-                Mathf.Abs(p.y - (BucketHeight - TopBandHeight)) < eps)
+                Mathf.Abs(p.y + WallThickness) < eps)
             {
                 return true;
             }
 
+            foreach (V4BakedLayer layer in layers)
+            {
+                if (Mathf.Abs(p.y - layer.yMin) < eps || Mathf.Abs(p.y - layer.yMax) < eps)
+                {
+                    return true;
+                }
+            }
+
             foreach (V4BakedHole hole in holes)
             {
-                float dist = Vector3.Distance(p, hole.localPosition);
-                if (Mathf.Abs(dist - hole.d0) < eps || Mathf.Abs(dist - hole.d1) < eps || Mathf.Abs(dist - hole.d2) < eps)
+                float dx = p.x - hole.localPosition.x;
+                float dz = p.z - hole.localPosition.z;
+                float dist = Mathf.Sqrt(dx * dx + dz * dz);
+                if (Mathf.Abs(dist - hole.radius) < eps)
                 {
                     return true;
                 }
@@ -233,7 +253,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
                 for (int i = 0; i < SampleCount; i++)
                 {
                     Vector3 p = positions[i];
-                    if (IsNearAnyBoundary(p, new V4BakedHole[0]))
+                    if (IsNearAnyBoundary(p, System.Array.Empty<V4BakedHole>(), MakeLayers()))
                     {
                         boundarySkips++;
                         continue;
@@ -267,7 +287,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
             var inputs = new uint[count];
             for (int i = 0; i < count; i++)
             {
-                uint zone = (uint)rng.Next(0, 5);
+                uint zone = (uint)rng.Next(0, 8);
                 uint hole = (uint)rng.Next(0, 32);
                 uint profile = (uint)rng.Next(0, 256);
                 inputs[i] = zone | (hole << 8) | (profile << 16);

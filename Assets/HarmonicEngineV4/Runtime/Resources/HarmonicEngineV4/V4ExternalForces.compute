@@ -8,6 +8,7 @@
 #include "Include/V4Common.hlsl"
 #include "Include/V4BucketZones.hlsl"
 #include "Include/V4Profiles.hlsl"
+#include "Include/V4BucketBindings.hlsl"
 
 #define COUNTER_TOP_BAND 3
 
@@ -18,22 +19,17 @@ StructuredBuffer<V4Hole> _Holes;
 StructuredBuffer<V4GpuProfile> _Profiles;
 StructuredBuffer<uint> _Counters;
 
-float4x4 _BucketWorldToLocal;
-float4x4 _BucketLocalToWorld;
 float _BucketInnerRadius;
 float _BucketHeight;
 float _BucketWallThickness;
-float3 _BucketLinearVelocity;
-float3 _BucketAngularVelocity;
-float3 _BucketWorldOrigin;
 float3 _Gravity;
 float _DeltaTime;
 float _CarryRate;              // relaxation rate toward the bucket frame velocity
 float _TotalExpectedLoss;      // CPU-side EMA sum across holes (spec section 5)
 float _DownwardScale;
-float3 _BucketAngularAcceleration;
 float _ApplyNonInertialForces;
 float _HoleExitSpeedOverride;
+uint _LayerCount;
 uint _ActiveParticleCount;
 
 [numthreads(64, 1, 1)]
@@ -54,63 +50,65 @@ void ExternalForcesKernel(uint3 id : SV_DispatchThreadID)
     // Gravity applies to everyone, escaped included (they still fall to the canvas).
     vel += _Gravity * _DeltaTime;
 
-    float3 localPos = mul(_BucketWorldToLocal, float4(pos, 1.0)).xyz;
+    float4x4 worldToLocal;
+    float4x4 localToWorld;
+    float3 bucketLinearVelocity;
+    float3 bucketAngularVelocity;
+    float3 bucketAngularAcceleration;
+    float3 bucketLinearAcceleration;
+    float3 bucketWorldOrigin;
+    V4LoadBucketKinematics(
+        worldToLocal, localToWorld, bucketLinearVelocity, bucketAngularVelocity,
+        bucketAngularAcceleration, bucketLinearAcceleration, bucketWorldOrigin);
+
+    float3 localPos = mul(worldToLocal, float4(pos, 1.0)).xyz;
     if (V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness))
     {
-        // Same footprint as collision: co-move particles physically in the bucket
-        // volume, including brief sub-floor lag during fast motion.
-        float3 frameVel = _BucketLinearVelocity + cross(_BucketAngularVelocity, pos - _BucketWorldOrigin);
+        float3 frameVel = bucketLinearVelocity + cross(bucketAngularVelocity, pos - bucketWorldOrigin);
+        float3 relVel = vel - frameVel;
         float blend = 1.0 - exp(-_CarryRate * _DeltaTime);
         vel += (frameVel - vel) * blend;
 
         if (_ApplyNonInertialForces > 0.5)
         {
-            float3 rWorld = pos - _BucketWorldOrigin;
-            float3 centrifugal = -cross(_BucketAngularVelocity, cross(_BucketAngularVelocity, rWorld));
-            float3 euler = -cross(_BucketAngularAcceleration, rWorld);
-            float3 coriolis = -2.0 * cross(_BucketAngularVelocity, vel);
-            vel += (centrifugal + euler + coriolis) * _DeltaTime;
+            float3 rWorld = pos - bucketWorldOrigin;
+            float3 centrifugal = -cross(bucketAngularVelocity, cross(bucketAngularVelocity, rWorld));
+            float3 euler = -cross(bucketAngularAcceleration, rWorld);
+            float3 coriolis = -2.0 * cross(bucketAngularVelocity, relVel);
+            float3 translational = -bucketLinearAcceleration;
+            vel += (centrifugal + euler + coriolis + translational) * _DeltaTime;
         }
     }
 
     uint zone = V4GetZone(flags);
-    if (zone == V4_ZONE_HOLE0 || zone == V4_ZONE_HOLE1 || zone == V4_ZONE_HOLE2)
+    if (zone == V4_ZONE_HOLE0)
     {
         V4Hole hole = _Holes[V4GetHole(flags)];
-        float3 dirLocal = V4ZoneForceDirection(localPos, hole, zone);
-        float3 dirWorld = normalize(mul((float3x3)_BucketLocalToWorld, dirLocal));
+        float3 dirLocal = hole.outwardNormal;
+        float3 dirWorld = normalize(mul((float3x3)localToWorld, dirLocal));
 
-        if (zone == V4_ZONE_HOLE0)
+        float targetExit = profile.zoneStrength0;
+        if (_HoleExitSpeedOverride > targetExit)
         {
-            float targetExit = profile.zoneStrength0;
-            if (_HoleExitSpeedOverride > targetExit)
-            {
-                targetExit = _HoleExitSpeedOverride;
-            }
-
-            // Eject (not dt-scaled): raise the velocity along the hole's outward normal
-            // up to the profile's target exit speed (spec section 5). Velocity-targeting
-            // instead of a raw add keeps the outflow a continuous stream rather than
-            // per-frame clumps, since particles keep whatever exit speed they built up.
-            float exitSpeed = dot(vel, dirWorld);
-            if (exitSpeed < targetExit)
-            {
-                vel += dirWorld * (targetExit - exitSpeed);
-            }
+            targetExit = _HoleExitSpeedOverride;
         }
-        else
+
+        float exitSpeed = dot(vel, dirWorld);
+        if (exitSpeed < targetExit)
         {
-            float strength = zone == V4_ZONE_HOLE1 ? profile.zoneStrength1 : profile.zoneStrength2;
-            vel += dirWorld * strength * _DeltaTime;
+            vel += dirWorld * (targetExit - exitSpeed);
         }
     }
-    else if (zone == V4_ZONE_TOPBAND)
+    else if (zone == V4_ZONE_HEIGHT_LAYER)
     {
-        // Level 2 pressure redistribution (spec section 5):
-        // pushDown = totalExpectedLoss / max(topLayerCount, 1) * downwardScale.
-        uint topCount = max(_Counters[COUNTER_TOP_BAND], 1u);
-        float pushDown = _TotalExpectedLoss / (float)topCount * _DownwardScale * profile.topBandScale;
-        vel.y -= pushDown * _DeltaTime;
+        uint layerIndex = V4GetHole(flags);
+        if (_LayerCount > 0u && layerIndex == _LayerCount - 1u)
+        {
+            uint topCount = max(_Counters[COUNTER_TOP_BAND], 1u);
+            float pushDown = _TotalExpectedLoss / (float)topCount * _DownwardScale * profile.topBandScale;
+            float3 bucketDown = mul((float3x3)localToWorld, float3(0.0, -1.0, 0.0));
+            vel += bucketDown * pushDown * _DeltaTime;
+        }
     }
 
     _Block1[i] = float4(vel, 0.0);

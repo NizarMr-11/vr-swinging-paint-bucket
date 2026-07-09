@@ -10,6 +10,51 @@ namespace HarmonicEngineV4.Tests.EditMode
         private const float G = 9.81f;
 
         [Test]
+        public void IntegrateVerletStep_PreservesSphereRadius()
+        {
+            Vector3 unitDirection = V4SphericalPendulumMath.NormalizeDirection(
+                new Vector3(0.7f, -0.7f, 0.3f),
+                Vector3.down);
+            Vector3 tangentialVelocity = Vector3.zero;
+            Vector3 pivot = new Vector3(0f, 3f, 0f);
+
+            for (int i = 0; i < 120; i++)
+            {
+                V4SphericalPendulumMath.IntegrateVerletStep(
+                    ref unitDirection,
+                    ref tangentialVelocity,
+                    L,
+                    G,
+                    damping: 0.05f,
+                    deltaTime: 0.02f,
+                    sloshAcceleration: Vector3.zero);
+
+                Vector3 worldPos = V4SphericalPendulumMath.WorldPosition(pivot, L, unitDirection);
+                float distance = Vector3.Distance(worldPos, pivot);
+                Assert.AreEqual(L, distance, 1e-3f, $"radius drift at step {i}");
+            }
+        }
+
+        [Test]
+        public void IntegrateVerletStep_WithDamping_ReducesSpeed()
+        {
+            Vector3 unitDirection = V4SphericalPendulumMath.NormalizeDirection(Vector3.right, Vector3.down);
+            Vector3 tangentialVelocity = Vector3.forward * 2f;
+            float initialSpeed = tangentialVelocity.magnitude;
+
+            V4SphericalPendulumMath.IntegrateVerletStep(
+                ref unitDirection,
+                ref tangentialVelocity,
+                L,
+                G,
+                damping: 0.5f,
+                deltaTime: 0.02f,
+                sloshAcceleration: Vector3.zero);
+
+            Assert.Less(tangentialVelocity.magnitude, initialSpeed);
+        }
+
+        [Test]
         public void IntegrateStep_PreservesSphereRadius()
         {
             Vector3 unitDirection = V4SphericalPendulumMath.NormalizeDirection(

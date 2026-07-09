@@ -82,7 +82,18 @@ namespace HarmonicEngineV4.Simulation
         private ComputeShader _pbfShader;
         private ComputeShader _canvasShader;
 
+        private V4GpuBucketDriver _gpuBucketDriver;
+        private int _classifyKernel;
+        private int _externalForcesKernel;
+        private int _predictKernel;
+        private int _densityKernel;
+        private int _lambdaKernel;
+        private int _solveDeltaKernel;
+        private int _applyDeltaKernel;
+        private int _finalizeKernel;
+
         private ComputeBuffer _holesBuffer;
+        private ComputeBuffer _layersBuffer;
         private ComputeBuffer _profilesBuffer;
         private ComputeBuffer _countersBuffer;
         private ComputeBuffer _predictedBuffer;
@@ -99,6 +110,7 @@ namespace HarmonicEngineV4.Simulation
         private ComputeBuffer _sortTempValuesBuffer;
 
         private V4BakedHole[] _bakedHoles;
+        private V4BakedLayer[] _bakedLayers;
         private readonly List<V4LiquidProfile> _profileTable = new List<V4LiquidProfile>();
         private readonly uint[] _countersReadback = new uint[V4Counters.SlotCount];
         private readonly int[] _ejectedScratch = new int[V4ParticleFlags.MaxHoles];
@@ -220,6 +232,7 @@ namespace HarmonicEngineV4.Simulation
 
         public V4ParticleSoa Soa => _soa;
         public ComputeBuffer CanvasGridBuffer => _canvasGridBuffer;
+        public V4GpuBucketDriver GpuBucketDriver => _gpuBucketDriver;
 
         /// <summary>Test instrumentation: read Poly6 densities from the last PBF density pass.</summary>
         public void ReadDensities(float[] destination)
@@ -386,6 +399,7 @@ namespace HarmonicEngineV4.Simulation
         public RenderTexture CanvasTexture { get; private set; }
         public V4PassManifest ActiveManifest => _executor?.Manifest;
         public IReadOnlyList<V4BakedHole> BakedHoles => _bakedHoles;
+        public IReadOnlyList<V4BakedLayer> BakedLayers => _bakedLayers;
         public IReadOnlyList<V4LiquidProfile> ProfileTable => _profileTable;
 
         /// <summary>Raised after every simulation step with (frameIndex, live, escaped, settled).</summary>
@@ -464,6 +478,7 @@ namespace HarmonicEngineV4.Simulation
                 return;
             }
 
+            SyncBucketPoseBeforeSpawnBake();
             List<SpawnedParticle> spawned = BakeSpawnZones();
             Capacity = Mathf.Max(1, spawned.Count);
 
@@ -471,6 +486,8 @@ namespace HarmonicEngineV4.Simulation
             UploadProfiles();
             _calibratedRestDensity = GpuRestDensity(0);
             _calibratedRestDensityLogged = false;
+            InitializeGpuBucketDriver();
+            AlignSpawnedParticlesToBucketTransform(spawned);
             UploadParticles(spawned);
             BuildManifestAndExecutor();
             InitializeCanvasGrid();
@@ -482,9 +499,57 @@ namespace HarmonicEngineV4.Simulation
                 $"pipeline initialized capacity={Capacity} particleRadius={ParticleRadius:F4} h={SmoothingRadius:F4} holes={_bakedHoles.Length} canvasGrid={CanvasGridSize.x}x{CanvasGridSize.y}");
         }
 
+        private void SyncBucketPoseBeforeSpawnBake()
+        {
+            if (!UseGpuBucketPendulum())
+            {
+                return;
+            }
+
+            V4SphericalPendulumController pendulum = bucket.GetComponent<V4SphericalPendulumController>();
+            if (pendulum == null)
+            {
+                return;
+            }
+
+            pendulum.CaptureRestPoseFromScene();
+            pendulum.PreparePlayInitPose();
+        }
+
+        private void AlignSpawnedParticlesToBucketTransform(List<SpawnedParticle> spawned)
+        {
+            if (spawned == null || spawned.Count == 0)
+            {
+                return;
+            }
+
+            Matrix4x4 localToWorld = bucket.LocalToWorld;
+            if (_spawnLocalPoints.Count == spawned.Count)
+            {
+                for (int i = 0; i < spawned.Count; i++)
+                {
+                    Vector3 local = _spawnLocalPoints[i];
+                    SpawnedParticle particle = spawned[i];
+                    particle.Position = localToWorld.MultiplyPoint3x4(local);
+                    spawned[i] = particle;
+                }
+
+                return;
+            }
+
+            Matrix4x4 worldToLocal = bucket.WorldToLocal;
+            for (int i = 0; i < spawned.Count; i++)
+            {
+                SpawnedParticle particle = spawned[i];
+                Vector3 local = worldToLocal.MultiplyPoint3x4(particle.Position);
+                particle.Position = localToWorld.MultiplyPoint3x4(local);
+                spawned[i] = particle;
+            }
+        }
+
         private bool BakeBucket()
         {
-            V4BucketBake.Result result = bucket.BakeHoles();
+            V4BucketBake.Result result = bucket.BakeBucket();
             foreach (string error in result.Errors)
             {
                 V4Log.Error(V4LogCategory.Bake, $"bucket bake: {error}");
@@ -495,13 +560,11 @@ namespace HarmonicEngineV4.Simulation
                 return false;
             }
 
-            if (result.RingsShrunk)
-            {
-                V4Log.Warning(V4LogCategory.Bake, "bucket bake: zone rings were auto-shrunk to satisfy hole spacing");
-            }
-
-            _bakedHoles = result.Holes;
-            V4Log.Info(V4LogCategory.Bake, $"bucket baked holes={_bakedHoles.Length} spacingOk={result.SpacingOk}");
+            _bakedHoles = result.Holes ?? System.Array.Empty<V4BakedHole>();
+            _bakedLayers = result.Layers ?? System.Array.Empty<V4BakedLayer>();
+            V4Log.Info(
+                V4LogCategory.Bake,
+                $"bucket baked holes={_bakedHoles.Length} layers={_bakedLayers.Length} spacingOk={result.SpacingOk}");
             return true;
         }
 
@@ -523,9 +586,12 @@ namespace HarmonicEngineV4.Simulation
         private struct SpawnedParticle
         {
             public Vector3 Position;
+            public Vector3 LocalPosition;
             public uint Color;
             public int ProfileIndex;
         }
+
+        private readonly List<Vector3> _spawnLocalPoints = new List<Vector3>();
 
         private List<SpawnedParticle> BakeSpawnZones()
         {
@@ -535,6 +601,86 @@ namespace HarmonicEngineV4.Simulation
                 _profileTable.Add(globalProfile);
             }
 
+            if (bucket.heightLayers != null && bucket.heightLayers.Count > 0)
+            {
+                return BakeHeightLayerSpawns();
+            }
+
+            return BakeSphereSpawnZones();
+        }
+
+        private List<SpawnedParticle> BakeHeightLayerSpawns()
+        {
+            var spawned = new List<SpawnedParticle>();
+            _spawnLocalPoints.Clear();
+            V4BakedLayer[] layers = _bakedLayers ?? V4BucketBake.BakeLayers(
+                bucket.heightLayers,
+                bucket.height,
+                bucket.topBandHeight);
+            int profileIndex = ResolveProfileIndex(globalProfile);
+
+            float spawnRadius = bucket.innerRadius - ParticleRadius;
+            float spawnYMin = ParticleRadius;
+            float spawnYMax = V4BucketBake.ComputeAuthoredFillHeight(bucket.heightLayers, bucket.height) - ParticleRadius;
+            if (spawnYMax <= spawnYMin + 1e-6f)
+            {
+                V4Log.Warning(V4LogCategory.Spawn, "height layers define no spawn volume; skipping spawn bake.");
+                SpawnedTotal = 0;
+                return spawned;
+            }
+
+            List<Vector3> localPoints = V4SpawnMath.LatticeFillCylinder(
+                spawnRadius,
+                spawnYMin,
+                spawnYMax,
+                globalDensity);
+
+            float spawnVolume = V4SpawnMath.CylinderSlabVolume(spawnRadius, spawnYMin, spawnYMax);
+            int expectedCount = V4SpawnMath.ExpectedCount(spawnVolume, globalDensity);
+            V4Log.Info(
+                V4LogCategory.Spawn,
+                $"cylinder spawn r={spawnRadius:F3} y=[{spawnYMin:F3},{spawnYMax:F3}] volume={spawnVolume:F4}m³ density={globalDensity:F0} expected≈{expectedCount}");
+
+            int[] perLayer = new int[layers.Length];
+            Matrix4x4 localToWorld = bucket.LocalToWorld;
+            foreach (Vector3 local in localPoints)
+            {
+                int layerIndex = V4ZoneMath.FindLayerIndex(local.y, layers, layers.Length);
+                if (layerIndex < 0)
+                {
+                    continue;
+                }
+
+                Color layerColor = layerIndex < bucket.heightLayers.Count
+                    ? bucket.heightLayers[layerIndex].color
+                    : Color.white;
+
+                spawned.Add(new SpawnedParticle
+                {
+                    Position = localToWorld.MultiplyPoint3x4(local),
+                    LocalPosition = local,
+                    Color = PackColor(layerColor),
+                    ProfileIndex = profileIndex
+                });
+                _spawnLocalPoints.Add(local);
+                perLayer[layerIndex]++;
+            }
+
+            for (int i = 0; i < layers.Length; i++)
+            {
+                Color layerColor = i < bucket.heightLayers.Count ? bucket.heightLayers[i].color : Color.white;
+                V4Log.Info(
+                    V4LogCategory.Spawn,
+                    $"layer {i} y=[{layers[i].yMin:F3},{layers[i].yMax:F3}] color=#{ColorUtility.ToHtmlStringRGB(layerColor)} spawned={perLayer[i]}");
+            }
+
+            EnsureProfileTableFallback();
+            SpawnedTotal = spawned.Count;
+            return spawned;
+        }
+
+        private List<SpawnedParticle> BakeSphereSpawnZones()
+        {
             var spawned = new List<SpawnedParticle>();
 
             // Spawn hygiene: zones authored slightly too large or overlapping each other
@@ -598,16 +744,39 @@ namespace HarmonicEngineV4.Simulation
                     $"zone '{zone.name}' volume={zone.Volume:F4} spawned={kept} profile={(profile != null ? profile.profileName : "<default>")}");
             }
 
-            if (_profileTable.Count == 0)
-            {
-                V4Log.Warning(V4LogCategory.Spawn, "no liquid profile assigned anywhere; using built-in defaults");
-                var fallback = ScriptableObject.CreateInstance<V4LiquidProfile>();
-                fallback.profileName = "RuntimeDefault";
-                _profileTable.Add(fallback);
-            }
-
+            EnsureProfileTableFallback();
             SpawnedTotal = spawned.Count;
             return spawned;
+        }
+
+        private int ResolveProfileIndex(V4LiquidProfile profile)
+        {
+            if (profile == null)
+            {
+                return 0;
+            }
+
+            int profileIndex = _profileTable.IndexOf(profile);
+            if (profileIndex < 0)
+            {
+                _profileTable.Add(profile);
+                profileIndex = _profileTable.Count - 1;
+            }
+
+            return profileIndex;
+        }
+
+        private void EnsureProfileTableFallback()
+        {
+            if (_profileTable.Count > 0)
+            {
+                return;
+            }
+
+            V4Log.Warning(V4LogCategory.Spawn, "no liquid profile assigned anywhere; using built-in defaults");
+            var fallback = ScriptableObject.CreateInstance<V4LiquidProfile>();
+            fallback.profileName = "RuntimeDefault";
+            _profileTable.Add(fallback);
         }
 
         /// <summary>
@@ -650,7 +819,9 @@ namespace HarmonicEngineV4.Simulation
             _compactionSort = new V4GpuRadixSort(V4ShaderLibrary.Load(V4ShaderLibrary.RadixSort), Capacity);
 
             int holeCount = Mathf.Max(1, _bakedHoles.Length);
+            int layerCount = Mathf.Max(1, _bakedLayers.Length);
             _holesBuffer = _registry.Create("_Holes", holeCount, 48, V4BufferLifetime.StaticBaked);
+            _layersBuffer = _registry.Create("_Layers", layerCount, sizeof(float) * 4, V4BufferLifetime.StaticBaked);
             _profilesBuffer = _registry.Create("_Profiles", Mathf.Max(1, _profileTable.Count), V4GpuProfileData.Stride, V4BufferLifetime.StaticBaked);
             _countersBuffer = _registry.Create(V4Counters.BufferName, V4Counters.SlotCount, sizeof(uint), V4BufferLifetime.PerFrame);
             _predictedBuffer = _registry.Create("_Predicted", Capacity, sizeof(float) * 4, V4BufferLifetime.PerFrame);
@@ -721,6 +892,11 @@ namespace HarmonicEngineV4.Simulation
             if (_bakedHoles.Length > 0)
             {
                 _holesBuffer.SetData(_bakedHoles);
+            }
+
+            if (_bakedLayers.Length > 0)
+            {
+                _layersBuffer.SetData(_bakedLayers);
             }
         }
 
@@ -861,7 +1037,7 @@ namespace HarmonicEngineV4.Simulation
                     shader = _classificationShader,
                     kernelName = "ClassifyKernel",
                     readWriteBuffers = new[] { "_Flags", V4Counters.BufferName },
-                    readOnlyBuffers = new[] { "_Block0", "_Holes" }
+                    readOnlyBuffers = new[] { "_Block0", "_Holes", "_Layers" }
                 },
                 new V4PassDef
                 {
@@ -869,7 +1045,7 @@ namespace HarmonicEngineV4.Simulation
                     shader = _forcesShader,
                     kernelName = "ExternalForcesKernel",
                     readWriteBuffers = new[] { "_Block1" },
-                    readOnlyBuffers = new[] { "_Block0", "_Flags", "_Holes", "_Profiles", V4Counters.BufferName }
+                    readOnlyBuffers = new[] { "_Block0", "_Flags", "_Holes", "_Layers", "_Profiles", V4Counters.BufferName }
                 },
                 new V4PassDef
                 {
@@ -1000,7 +1176,8 @@ namespace HarmonicEngineV4.Simulation
 
             ConfigurePerformanceCollectorForFrame();
 
-            bucket.SampleKinematics(deltaTime);
+            RunGpuBucketFrameBegin(deltaTime);
+            BindBucketStateBuffers();
             SetFrameUniforms(deltaTime);
 
             using (V4Log.BeginPerfPhase("PrePbf"))
@@ -1074,6 +1251,8 @@ namespace HarmonicEngineV4.Simulation
 
             FinalizePerformanceCollectorForFrame();
 
+            RunGpuBucketFrameEnd(deltaTime);
+
             FrameIndex++;
             FrameCompleted?.Invoke(FrameIndex, ActiveParticleCount, EscapedTotal, SettledTotal);
         }
@@ -1145,30 +1324,176 @@ namespace HarmonicEngineV4.Simulation
             return flags.Count == 0 ? "none" : string.Join(",", flags);
         }
 
-        private void SetFrameUniforms(float deltaTime)
+        private bool UseGpuBucketPendulum()
         {
-            Matrix4x4 worldToLocal = bucket.WorldToLocal;
-            Matrix4x4 localToWorld = bucket.LocalToWorld;
+            if (bucket == null)
+            {
+                return false;
+            }
+
+            V4BucketMotionSettings settings = bucket.GetComponent<V4BucketMotionSettings>();
+            return settings != null && settings.UseGpuPendulum;
+        }
+
+        private float ComputeParticleMassForBucket()
+        {
+            float density = GpuRestDensity();
+            return density * (4f / 3f * Mathf.PI * ParticleRadius * ParticleRadius * ParticleRadius);
+        }
+
+        private void InitializeGpuBucketDriver()
+        {
+            _gpuBucketDriver = bucket.GetComponent<V4GpuBucketDriver>();
+            if (_gpuBucketDriver == null)
+            {
+                _gpuBucketDriver = bucket.gameObject.AddComponent<V4GpuBucketDriver>();
+            }
+
+            _gpuBucketDriver.Initialize(_registry);
+
+            _classifyKernel = _classificationShader.FindKernel("ClassifyKernel");
+            _externalForcesKernel = _forcesShader.FindKernel("ExternalForcesKernel");
+            _predictKernel = _pbfShader.FindKernel("PredictKernel");
+            _densityKernel = _pbfShader.FindKernel("DensityKernel");
+            _lambdaKernel = _pbfShader.FindKernel("LambdaKernel");
+            _solveDeltaKernel = _pbfShader.FindKernel("SolveDeltaKernel");
+            _applyDeltaKernel = _pbfShader.FindKernel("ApplyDeltaKernel");
+            _finalizeKernel = _pbfShader.FindKernel("FinalizeKernel");
+
+            V4SphericalPendulumController pendulum = bucket.GetComponent<V4SphericalPendulumController>();
+            if (UseGpuBucketPendulum() && pendulum != null)
+            {
+                gravity = new Vector3(0f, -Mathf.Abs(pendulum.gravity), 0f);
+                _gpuBucketDriver.ResetFromPendulum(pendulum);
+            }
+            else
+            {
+                bucket.SampleKinematics(0.02f);
+                _gpuBucketDriver.DispatchUploadFromCpu(bucket);
+                _gpuBucketDriver.ApplyStateToBucket(bucket);
+            }
+            BindBucketStateBuffers();
+            SetBucketTransformUniforms();
+            _gpuBucketDriver.ApplyStateToBucket(bucket);
+        }
+
+        private void RunGpuBucketFrameBegin(float deltaTime)
+        {
+            if (_gpuBucketDriver == null || !_gpuBucketDriver.IsInitialized)
+            {
+                bucket.SampleKinematics(deltaTime);
+                return;
+            }
+
+            if (UseGpuBucketPendulum())
+            {
+                _gpuBucketDriver.DispatchMassReduce(
+                    _soa.ReadBlock0,
+                    _soa.ReadBlock1,
+                    _soa.ReadFlags,
+                    ComputeParticleMassForBucket(),
+                    ActiveParticleCount,
+                    bucket.innerRadius,
+                    bucket.height,
+                    bucket.wallThickness);
+                _gpuBucketDriver.DispatchApplyMassReduce();
+                _gpuBucketDriver.DispatchIntegrate(deltaTime);
+
+                V4SphericalPendulumController pendulum = bucket.GetComponent<V4SphericalPendulumController>();
+                if (pendulum != null)
+                {
+                    _gpuBucketDriver.ReadStateToCpu();
+                    pendulum.SyncStateFromGpu(_gpuBucketDriver.LatestState);
+                }
+                else
+                {
+                    _gpuBucketDriver.ApplyStateToBucket(bucket);
+                }
+
+                SetBucketTransformUniforms();
+                return;
+            }
+
+            bucket.SampleKinematics(deltaTime);
+            _gpuBucketDriver.DispatchUploadFromCpu(bucket);
+            _gpuBucketDriver.ApplyStateToBucket(bucket);
+        }
+
+        private void RunGpuBucketFrameEnd(float deltaTime)
+        {
+            if (_gpuBucketDriver == null || !_gpuBucketDriver.IsInitialized)
+            {
+                return;
+            }
+
+            if (!UseGpuBucketPendulum())
+            {
+                return;
+            }
+
+            _gpuBucketDriver.SyncTransformIfRequested(bucket.transform);
+        }
+
+        private void RunGpuBucketPhysicsStep(float deltaTime)
+        {
+            RunGpuBucketFrameBegin(deltaTime);
+            RunGpuBucketFrameEnd(deltaTime);
+        }
+
+        private void BindBucketStateBuffers()
+        {
+            if (_gpuBucketDriver == null || !_gpuBucketDriver.IsInitialized)
+            {
+                return;
+            }
+
+            _gpuBucketDriver.BindBucketStateToShader(
+                _classificationShader,
+                _classifyKernel);
+            _gpuBucketDriver.BindBucketStateToShader(
+                _forcesShader,
+                _externalForcesKernel);
+            _gpuBucketDriver.BindBucketStateToShader(
+                _pbfShader,
+                _predictKernel,
+                _densityKernel,
+                _lambdaKernel,
+                _solveDeltaKernel,
+                _applyDeltaKernel,
+                _finalizeKernel);
+        }
+
+        private void SetBucketTransformUniforms()
+        {
+            if (bucket == null)
+            {
+                return;
+            }
 
             foreach (ComputeShader shader in new[] { _classificationShader, _forcesShader, _pbfShader })
             {
-                shader.SetMatrix("_BucketWorldToLocal", worldToLocal);
-                shader.SetMatrix("_BucketLocalToWorld", localToWorld);
+                V4GpuBucketDriver.SetBucketTransformUniforms(shader, bucket);
+            }
+
+            if (_gpuBucketDriver != null)
+            {
+                _gpuBucketDriver.SetMassReduceTransformUniforms(bucket);
+            }
+        }
+
+        private void SetFrameUniforms(float deltaTime)
+        {
+            SetBucketTransformUniforms();
+            foreach (ComputeShader shader in new[] { _classificationShader, _forcesShader, _pbfShader })
+            {
                 shader.SetFloat("_BucketInnerRadius", bucket.innerRadius);
                 shader.SetFloat("_BucketHeight", bucket.height);
                 shader.SetFloat("_BucketWallThickness", bucket.wallThickness);
                 shader.SetFloat("_TopBandHeight", bucket.topBandHeight);
                 shader.SetInt("_HoleCount", _bakedHoles.Length);
+                shader.SetInt("_LayerCount", _bakedLayers.Length);
                 shader.SetInt("_ActiveParticleCount", ActiveParticleCount);
             }
-
-            _forcesShader.SetVector("_BucketLinearVelocity", bucket.LinearVelocity);
-            _forcesShader.SetVector("_BucketAngularVelocity", bucket.AngularVelocity);
-            _forcesShader.SetVector("_BucketAngularAcceleration", bucket.AngularAcceleration);
-            _forcesShader.SetVector("_BucketWorldOrigin", bucket.transform.position);
-            _pbfShader.SetVector("_BucketLinearVelocity", bucket.LinearVelocity);
-            _pbfShader.SetVector("_BucketAngularVelocity", bucket.AngularVelocity);
-            _pbfShader.SetVector("_BucketWorldOrigin", bucket.transform.position);
             _forcesShader.SetVector("_Gravity", gravity);
             _forcesShader.SetFloat("_DeltaTime", deltaTime);
             _forcesShader.SetFloat("_CarryRate", carryRate);
@@ -1176,6 +1501,7 @@ namespace HarmonicEngineV4.Simulation
             _forcesShader.SetFloat("_DownwardScale", downwardScale);
             _forcesShader.SetFloat("_ApplyNonInertialForces", ShouldApplyNonInertialForces() ? 1f : 0f);
             _forcesShader.SetFloat("_HoleExitSpeedOverride", ResolveTorricelliExitSpeed());
+            _forcesShader.SetInt("_LayerCount", _bakedLayers.Length);
 
             _pbfShader.SetFloat("_DeltaTime", deltaTime);
             _pbfShader.SetFloat("_SmoothingRadius", SmoothingRadius);

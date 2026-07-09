@@ -14,6 +14,7 @@ StructuredBuffer<float4> _TestPositions;   // bucket-local positions
 StructuredBuffer<float4> _TestVelocities;
 StructuredBuffer<uint> _TestUintInput;
 StructuredBuffer<V4Hole> _Holes;
+StructuredBuffer<V4Layer> _Layers;
 
 RWStructuredBuffer<uint> _OutUint0;
 RWStructuredBuffer<uint> _OutUint1;
@@ -30,6 +31,7 @@ float _Restitution;
 float _Friction;
 uint _ContainInside;
 uint _HoleCount;
+uint _LayerCount;
 uint _TestCount;
 
 [numthreads(64, 1, 1)]
@@ -45,19 +47,19 @@ void GeometryParityKernel(uint3 id : SV_DispatchThreadID)
     bool inside = V4BucketIsInside(localPos, _BucketInnerRadius, _BucketHeight);
     bool shell = V4BucketIsInSolidShell(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness);
 
-    uint holeIndex;
-    uint zone = V4ClassifyZones(localPos, inside, _Holes, _HoleCount, _BucketHeight, _TopBandHeight, holeIndex);
+    uint auxIndex;
+    uint zone = V4ClassifyZones(localPos, inside, _Holes, _HoleCount, _Layers, _LayerCount, auxIndex);
 
     float3 forceDir = float3(0, 0, 0);
-    if (zone == V4_ZONE_HOLE0 || zone == V4_ZONE_HOLE1 || zone == V4_ZONE_HOLE2)
+    if (zone == V4_ZONE_HOLE0)
     {
-        forceDir = V4ZoneForceDirection(localPos, _Holes[holeIndex], zone);
+        forceDir = V4ZoneForceDirection(localPos, _Holes[auxIndex], zone);
     }
 
     _OutUint0[i] = inside ? 1u : 0u;
     _OutUint1[i] = shell ? 1u : 0u;
     _OutUint2[i] = zone;
-    _OutUint3[i] = holeIndex;
+    _OutUint3[i] = auxIndex;
     _OutFloat0[i] = float4(forceDir, 0.0);
 }
 

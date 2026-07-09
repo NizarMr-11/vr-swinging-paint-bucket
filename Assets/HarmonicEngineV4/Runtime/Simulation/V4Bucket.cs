@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using HarmonicEngineV4.Bake;
+using HarmonicEngineV4.Core;
 using UnityEngine;
 
 namespace HarmonicEngineV4.Simulation
@@ -19,15 +20,18 @@ namespace HarmonicEngineV4.Simulation
         [Header("Holes")]
         public List<V4HoleDef> holes = new List<V4HoleDef>();
 
-        [Tooltip("Ring step between d0->d1 and d1->d2 (bucket-local meters).")]
+        [Header("Height layers")]
+        [Tooltip("Horizontal slabs stacked from the floor up. Empty = auto-split from Top Band Height.")]
+        public List<V4LayerDef> heightLayers = new List<V4LayerDef>();
+
+        [Tooltip("Legacy fallback when Height Layers is empty: rim slab thickness.")]
+        [Min(0f)] public float topBandHeight = 0.15f;
+
+        [Tooltip("Deprecated: spherical ring spacing is no longer used.")]
         [Min(0.001f)] public float ringSpacing = 0.08f;
 
-        [Tooltip("Shrink overlapping zone rings at bake time instead of failing the bake.")]
+        [Tooltip("Deprecated: kept for old scenes.")]
         public bool autoShrinkRings = true;
-
-        [Header("Zones")]
-        [Tooltip("Height of the Level 2 top band measured down from the rim.")]
-        [Min(0f)] public float topBandHeight = 0.15f;
 
         private Vector3 _prevPosition;
         private Quaternion _prevRotation;
@@ -99,9 +103,14 @@ namespace HarmonicEngineV4.Simulation
             AngularAcceleration = Vector3.zero;
         }
 
+        public V4BucketBake.Result BakeBucket()
+        {
+            return V4BucketBake.BakeBucket(holes, heightLayers, height, topBandHeight);
+        }
+
         public V4BucketBake.Result BakeHoles()
         {
-            return V4BucketBake.BakeHoles(holes, ringSpacing, autoShrinkRings);
+            return BakeBucket();
         }
 
         private void OnDrawGizmosSelected()
@@ -109,14 +118,31 @@ namespace HarmonicEngineV4.Simulation
             Gizmos.matrix = transform.localToWorldMatrix;
             Gizmos.color = Color.cyan;
             DrawWireCylinder(innerRadius, height);
+
+            V4BakedLayer[] layers = V4BucketBake.BakeLayers(heightLayers, height, topBandHeight);
+            for (int i = 0; i < layers.Length; i++)
+            {
+                float t = layers.Length > 1 ? i / (float)(layers.Length - 1) : 0f;
+                Color layerColor = i < heightLayers.Count ? heightLayers[i].color : Color.HSVToRGB(t * 0.55f + 0.05f, 0.85f, 1f);
+                Gizmos.color = new Color(layerColor.r, layerColor.g, layerColor.b, 0.9f);
+                if (layers[i].yMin > 1e-4f)
+                {
+                    DrawWireCircle(layers[i].yMin, innerRadius);
+                }
+
+                DrawWireCircle(layers[i].yMax, innerRadius);
+            }
+
             Gizmos.color = new Color(1f, 0.6f, 0f, 1f);
             foreach (V4HoleDef hole in holes)
             {
-                Gizmos.DrawWireSphere(hole.localPosition, hole.radius);
-            }
+                if (hole.radius <= 1e-4f)
+                {
+                    continue;
+                }
 
-            Gizmos.color = new Color(1f, 1f, 0f, 0.4f);
-            DrawWireCircle(height - topBandHeight, innerRadius);
+                DrawWireCircle(hole.localPosition.y, hole.radius, hole.localPosition.x, hole.localPosition.z);
+            }
         }
 
         private static void DrawWireCylinder(float radius, float h)
@@ -131,14 +157,14 @@ namespace HarmonicEngineV4.Simulation
             }
         }
 
-        private static void DrawWireCircle(float y, float radius)
+        private static void DrawWireCircle(float y, float radius, float centerX = 0f, float centerZ = 0f)
         {
             const int segments = 32;
-            Vector3 prev = new Vector3(radius, y, 0f);
+            Vector3 prev = new Vector3(centerX + radius, y, centerZ);
             for (int i = 1; i <= segments; i++)
             {
                 float a = i / (float)segments * Mathf.PI * 2f;
-                var next = new Vector3(Mathf.Cos(a) * radius, y, Mathf.Sin(a) * radius);
+                var next = new Vector3(centerX + Mathf.Cos(a) * radius, y, centerZ + Mathf.Sin(a) * radius);
                 Gizmos.DrawLine(prev, next);
                 prev = next;
             }

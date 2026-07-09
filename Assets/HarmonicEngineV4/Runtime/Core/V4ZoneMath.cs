@@ -17,9 +17,7 @@ namespace HarmonicEngineV4.Core
     }
 
     /// <summary>
-    /// Pure CPU reference for the zone system (spec section 5, plan Phase 3 Step 1).
-    /// Priority resolution is a hard rule: Level 1 (hole zones) always wins over
-    /// Level 2 (top band); a particle receives at most one zone per frame.
+    /// Pure CPU reference for the zone system. Priority: hole eject footprint, then height layer.
     /// The HLSL mirror lives in V4BucketZones.hlsl.
     /// </summary>
     public static class V4ZoneMath
@@ -35,37 +33,79 @@ namespace HarmonicEngineV4.Core
                 HoleIndex = holeIndex;
             }
 
+            public int LayerIndex => HoleIndex;
+
             public static readonly ZoneResult None = new ZoneResult(V4Zone.None, 0);
         }
 
-        /// <summary>Zone ring classification against one hole. Distance in bucket-local space to the hole opening.</summary>
-        public static V4Zone ClassifyAgainstHole(Vector3 localPos, in V4BakedHole hole)
+        public static int FindLayerIndex(float y, V4BakedLayer[] layers, int layerCount)
         {
-            float dist = Vector3.Distance(localPos, hole.localPosition);
-            if (dist <= hole.d0)
+            if (layers == null || layerCount <= 0)
             {
-                return V4Zone.HoleZone0;
+                return -1;
             }
 
-            if (dist <= hole.d1)
+            for (int i = 0; i < layerCount; i++)
             {
-                return V4Zone.HoleZone1;
+                bool isLast = i == layerCount - 1;
+                if (y >= layers[i].yMin && (isLast ? y <= layers[i].yMax : y < layers[i].yMax))
+                {
+                    return i;
+                }
             }
 
-            if (dist <= hole.d2)
-            {
-                return V4Zone.HoleZone2;
-            }
-
-            return V4Zone.None;
+            return -1;
         }
 
-        /// <summary>
-        /// Full priority-based classification (spec section 5 resolution rule):
-        /// Level 1 hole zones first - if any hole claims the particle, that is final.
-        /// Only unclaimed particles are then tested against the Level 2 top band.
-        /// Non-inside particles receive no zone (they are outside or escaped).
-        /// </summary>
+        public static bool IsInHoleEjectFootprint(Vector3 localPos, in V4BakedHole hole, in V4BakedLayer layer)
+        {
+            float dx = localPos.x - hole.localPosition.x;
+            float dz = localPos.z - hole.localPosition.z;
+            if (dx * dx + dz * dz > hole.radius * hole.radius)
+            {
+                return false;
+            }
+
+            return localPos.y >= layer.yMin && localPos.y <= layer.yMax;
+        }
+
+        public static ZoneResult Classify(
+            Vector3 localPos,
+            bool inside,
+            V4BakedHole[] holes,
+            int holeCount,
+            V4BakedLayer[] layers,
+            int layerCount)
+        {
+            if (!inside)
+            {
+                return ZoneResult.None;
+            }
+
+            for (int i = 0; i < holeCount; i++)
+            {
+                int holeLayer = FindLayerIndex(holes[i].localPosition.y, layers, layerCount);
+                if (holeLayer < 0)
+                {
+                    continue;
+                }
+
+                if (IsInHoleEjectFootprint(localPos, holes[i], layers[holeLayer]))
+                {
+                    return new ZoneResult(V4Zone.HoleZone0, i);
+                }
+            }
+
+            int layerIndex = FindLayerIndex(localPos.y, layers, layerCount);
+            if (layerIndex >= 0)
+            {
+                return new ZoneResult(V4Zone.HeightLayer, layerIndex);
+            }
+
+            return ZoneResult.None;
+        }
+
+        /// <summary>Legacy overload used while migrating callers.</summary>
         public static ZoneResult Classify(
             Vector3 localPos,
             bool inside,
@@ -74,44 +114,10 @@ namespace HarmonicEngineV4.Core
             float bucketHeight,
             float topBandHeight)
         {
-            if (!inside)
-            {
-                return ZoneResult.None;
-            }
-
-            // Level 1: hole zones. The bake-time min-spacing constraint guarantees at
-            // most one hole's d2 ring contains the particle; take the nearest for
-            // robustness against exactly-on-boundary float noise.
-            int bestHole = -1;
-            float bestDist = float.MaxValue;
-            for (int i = 0; i < holeCount; i++)
-            {
-                float dist = Vector3.Distance(localPos, holes[i].localPosition);
-                if (dist <= holes[i].d2 && dist < bestDist)
-                {
-                    bestDist = dist;
-                    bestHole = i;
-                }
-            }
-
-            if (bestHole >= 0)
-            {
-                return new ZoneResult(ClassifyAgainstHole(localPos, holes[bestHole]), bestHole);
-            }
-
-            // Level 2: top band, only for particles no hole claimed this frame.
-            if (localPos.y >= bucketHeight - topBandHeight)
-            {
-                return new ZoneResult(V4Zone.TopBand, 0);
-            }
-
-            return ZoneResult.None;
+            V4BakedLayer[] layers = V4BucketBakeShim.LegacyLayers(bucketHeight, topBandHeight);
+            return Classify(localPos, inside, holes, holeCount, layers, layers.Length);
         }
 
-        /// <summary>
-        /// Zone force direction (spec section 5): Zones 1/2 pull toward the hole opening;
-        /// Zone 0 ejects along the hole's outward normal.
-        /// </summary>
         public static Vector3 ForceDirection(Vector3 localPos, in V4BakedHole hole, V4Zone zone)
         {
             if (zone == V4Zone.HoleZone0)
@@ -124,10 +130,17 @@ namespace HarmonicEngineV4.Core
             return len > 1e-6f ? toHole / len : hole.outwardNormal;
         }
 
-        /// <summary>Top-band push-down magnitude (spec section 5 loss approximation).</summary>
         public static float TopBandPushDown(float totalExpectedLoss, int topBandCount, float downwardScale)
         {
             return totalExpectedLoss / Mathf.Max(topBandCount, 1) * downwardScale;
+        }
+    }
+
+    internal static class V4BucketBakeShim
+    {
+        public static V4BakedLayer[] LegacyLayers(float bucketHeight, float topBandHeight)
+        {
+            return HarmonicEngineV4.Bake.V4BucketBake.BakeLayers(null, bucketHeight, topBandHeight);
         }
     }
 }

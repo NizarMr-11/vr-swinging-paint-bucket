@@ -15,9 +15,11 @@
 //    float    _BucketInnerRadius;
 //    float    _BucketHeight;
 //    float    _BucketWallThickness;
-//    float    _TopBandHeight;
+//    float    _TopBandHeight;   (legacy, unused by height layers)
 //    uint     _HoleCount;
-//    StructuredBuffer<V4Hole> _Holes;   (declared by the including shader)
+//    uint     _LayerCount;
+//    StructuredBuffer<V4Hole> _Holes;
+//    StructuredBuffer<V4Layer> _Layers;
 // =============================================================================
 
 #include "V4Common.hlsl"
@@ -32,6 +34,14 @@ struct V4Hole
     float d2;
     float pad0;
     float pad1;
+};
+
+struct V4Layer
+{
+    float yMin;
+    float yMax;
+    float forceStrength;
+    float pad;
 };
 
 // --- Geometry (mirror of V4BucketGeometry.cs) --------------------------------
@@ -218,66 +228,72 @@ void V4BucketResolveCollision(
 
 // --- Zones (mirror of V4ZoneMath.cs) -----------------------------------------
 
-uint V4ClassifyAgainstHole(float3 localPos, V4Hole hole)
+int V4FindLayerIndex(float y, StructuredBuffer<V4Layer> layers, uint layerCount)
 {
-    float dist = distance(localPos, hole.localPosition);
-    if (dist <= hole.d0)
+    if (layerCount == 0u)
     {
-        return V4_ZONE_HOLE0;
+        return -1;
     }
 
-    if (dist <= hole.d1)
+    for (uint i = 0u; i < layerCount; i++)
     {
-        return V4_ZONE_HOLE1;
+        bool isLast = i == layerCount - 1u;
+        if (y >= layers[i].yMin && (isLast ? y <= layers[i].yMax : y < layers[i].yMax))
+        {
+            return (int)i;
+        }
     }
 
-    if (dist <= hole.d2)
-    {
-        return V4_ZONE_HOLE2;
-    }
-
-    return V4_ZONE_NONE;
+    return -1;
 }
 
-// Priority-based classification: Level 1 hole zones first (single nearest owner),
-// Level 2 top band only when no hole claims the particle. Returns zone id and
-// writes the owning hole index.
+bool V4IsInHoleEjectFootprint(float3 localPos, V4Hole hole, V4Layer layer)
+{
+    float dx = localPos.x - hole.localPosition.x;
+    float dz = localPos.z - hole.localPosition.z;
+    if (dx * dx + dz * dz > hole.radius * hole.radius)
+    {
+        return false;
+    }
+
+    return localPos.y >= layer.yMin && localPos.y <= layer.yMax;
+}
+
 uint V4ClassifyZones(
     float3 localPos,
     bool inside,
     StructuredBuffer<V4Hole> holes,
     uint holeCount,
-    float bucketHeight,
-    float topBandHeight,
-    out uint holeIndex)
+    StructuredBuffer<V4Layer> layers,
+    uint layerCount,
+    out uint auxIndex)
 {
-    holeIndex = 0u;
+    auxIndex = 0u;
     if (!inside)
     {
         return V4_ZONE_NONE;
     }
 
-    int bestHole = -1;
-    float bestDist = 3.402823466e+38;
     for (uint i = 0u; i < holeCount; i++)
     {
-        float dist = distance(localPos, holes[i].localPosition);
-        if (dist <= holes[i].d2 && dist < bestDist)
+        int holeLayer = V4FindLayerIndex(holes[i].localPosition.y, layers, layerCount);
+        if (holeLayer < 0)
         {
-            bestDist = dist;
-            bestHole = (int)i;
+            continue;
+        }
+
+        if (V4IsInHoleEjectFootprint(localPos, holes[i], layers[(uint)holeLayer]))
+        {
+            auxIndex = i;
+            return V4_ZONE_HOLE0;
         }
     }
 
-    if (bestHole >= 0)
+    int layerIndex = V4FindLayerIndex(localPos.y, layers, layerCount);
+    if (layerIndex >= 0)
     {
-        holeIndex = (uint)bestHole;
-        return V4ClassifyAgainstHole(localPos, holes[bestHole]);
-    }
-
-    if (localPos.y >= bucketHeight - topBandHeight)
-    {
-        return V4_ZONE_TOPBAND;
+        auxIndex = (uint)layerIndex;
+        return V4_ZONE_HEIGHT_LAYER;
     }
 
     return V4_ZONE_NONE;

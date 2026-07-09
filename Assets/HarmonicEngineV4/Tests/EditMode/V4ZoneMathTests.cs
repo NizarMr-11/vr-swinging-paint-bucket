@@ -1,178 +1,97 @@
+using HarmonicEngineV4.Bake;
 using HarmonicEngineV4.Core;
 using NUnit.Framework;
 using UnityEngine;
 
 namespace HarmonicEngineV4.Tests.EditMode
 {
-    /// <summary>
-    /// Layer 1 CPU reference tests for the zone system (spec section 5, plan Phase 3 Step 1),
-    /// including the exact ring-boundary edge cases that plagued the V3 implementation.
-    /// </summary>
     public sealed class V4ZoneMathTests
     {
         private const float BucketHeight = 1f;
-        private const float TopBand = 0.15f;
 
-        private static V4BakedHole MakeHole(Vector3 pos, float d0 = 0.05f, float d1 = 0.13f, float d2 = 0.21f)
+        private static V4BakedHole MakeHole(Vector3 pos, float radius = 0.05f)
         {
             return new V4BakedHole
             {
                 localPosition = pos,
-                radius = d0,
-                outwardNormal = Vector3.right,
-                d0 = d0,
-                d1 = d1,
-                d2 = d2
+                radius = radius,
+                outwardNormal = Vector3.down
             };
         }
 
-        // --- Ring classification against a single hole ---
-
-        [Test]
-        public void AtHoleCenter_IsZone0()
+        private static V4BakedLayer[] ThreeLayers()
         {
-            V4BakedHole hole = MakeHole(new Vector3(0.5f, 0.2f, 0f));
-            Assert.AreEqual(V4Zone.HoleZone0, V4ZoneMath.ClassifyAgainstHole(hole.localPosition, hole));
+            return new[]
+            {
+                new V4BakedLayer { yMin = 0f, yMax = 0.33f },
+                new V4BakedLayer { yMin = 0.33f, yMax = 0.66f },
+                new V4BakedLayer { yMin = 0.66f, yMax = 1f }
+            };
         }
 
         [Test]
-        public void ExactlyOnD0_IsZone0()
+        public void FindLayerIndex_AssignsStackedSlabs()
         {
-            V4BakedHole hole = MakeHole(Vector3.zero);
-            Assert.AreEqual(V4Zone.HoleZone0, V4ZoneMath.ClassifyAgainstHole(new Vector3(hole.d0, 0f, 0f), hole));
+            V4BakedLayer[] layers = ThreeLayers();
+            Assert.AreEqual(0, V4ZoneMath.FindLayerIndex(0.1f, layers, layers.Length));
+            Assert.AreEqual(1, V4ZoneMath.FindLayerIndex(0.5f, layers, layers.Length));
+            Assert.AreEqual(2, V4ZoneMath.FindLayerIndex(0.95f, layers, layers.Length));
         }
 
         [Test]
-        public void JustPastD0_IsZone1()
+        public void HoleEject_RequiresXZFootprintInHoleLayer()
         {
-            V4BakedHole hole = MakeHole(Vector3.zero);
-            Assert.AreEqual(V4Zone.HoleZone1, V4ZoneMath.ClassifyAgainstHole(new Vector3(hole.d0 + 1e-4f, 0f, 0f), hole));
+            var holes = new[] { MakeHole(new Vector3(0.1f, 0.05f, 0f), 0.04f) };
+            V4BakedLayer[] layers = new[] { new V4BakedLayer { yMin = 0f, yMax = 0.4f } };
+
+            V4ZoneMath.ZoneResult insideFootprint = V4ZoneMath.Classify(
+                new Vector3(0.1f, 0.08f, 0f), true, holes, 1, layers, 1);
+            Assert.AreEqual(V4Zone.HoleZone0, insideFootprint.Zone);
+
+            V4ZoneMath.ZoneResult outsideFootprint = V4ZoneMath.Classify(
+                new Vector3(0.3f, 0.08f, 0f), true, holes, 1, layers, 1);
+            Assert.AreEqual(V4Zone.HeightLayer, outsideFootprint.Zone);
+            Assert.AreEqual(0, outsideFootprint.LayerIndex);
         }
 
         [Test]
-        public void ExactlyOnD1_IsZone1()
+        public void HoleEject_WinsOverHeightLayer()
         {
-            V4BakedHole hole = MakeHole(Vector3.zero);
-            Assert.AreEqual(V4Zone.HoleZone1, V4ZoneMath.ClassifyAgainstHole(new Vector3(hole.d1, 0f, 0f), hole));
-        }
-
-        [Test]
-        public void BetweenD1AndD2_IsZone2()
-        {
-            V4BakedHole hole = MakeHole(Vector3.zero);
-            Assert.AreEqual(V4Zone.HoleZone2, V4ZoneMath.ClassifyAgainstHole(new Vector3((hole.d1 + hole.d2) * 0.5f, 0f, 0f), hole));
-        }
-
-        [Test]
-        public void PastD2_IsNoZone()
-        {
-            V4BakedHole hole = MakeHole(Vector3.zero);
-            Assert.AreEqual(V4Zone.None, V4ZoneMath.ClassifyAgainstHole(new Vector3(hole.d2 + 1e-4f, 0f, 0f), hole));
-        }
-
-        // --- Priority resolution (Level 1 beats Level 2, hard rule) ---
-
-        [Test]
-        public void ParticleInHoleZoneAndTopBand_GetsHoleZoneOnly()
-        {
-            // Hole near the rim so its d2 ring overlaps the top band.
-            var holes = new[] { MakeHole(new Vector3(0.4f, 0.95f, 0f)) };
-            Vector3 pos = new Vector3(0.4f, 0.92f, 0f); // dist 0.03 < d0 => Zone0; also in top band (y >= 0.85)
-
-            V4ZoneMath.ZoneResult result = V4ZoneMath.Classify(pos, inside: true, holes, holes.Length, BucketHeight, TopBand);
-            Assert.AreEqual(V4Zone.HoleZone0, result.Zone, "Level 1 must always win over Level 2");
-        }
-
-        [Test]
-        public void ParticleInTopBandOnly_GetsTopBand()
-        {
-            var holes = new[] { MakeHole(new Vector3(0.4f, 0.2f, 0f)) };
-            Vector3 pos = new Vector3(-0.3f, 0.9f, 0f);
-
-            V4ZoneMath.ZoneResult result = V4ZoneMath.Classify(pos, inside: true, holes, holes.Length, BucketHeight, TopBand);
-            Assert.AreEqual(V4Zone.TopBand, result.Zone);
-        }
-
-        [Test]
-        public void ExactlyAtTopBandBoundary_IsInTopBand()
-        {
+            var holes = new[] { MakeHole(new Vector3(0.1f, 0.9f, 0f), 0.04f) };
+            V4BakedLayer[] layers = ThreeLayers();
             V4ZoneMath.ZoneResult result = V4ZoneMath.Classify(
-                new Vector3(0f, BucketHeight - TopBand, 0f), true,
-                new V4BakedHole[0], 0, BucketHeight, TopBand);
-            Assert.AreEqual(V4Zone.TopBand, result.Zone);
+                new Vector3(0.1f, 0.92f, 0f), true, holes, 1, layers, layers.Length);
+            Assert.AreEqual(V4Zone.HoleZone0, result.Zone);
         }
 
         [Test]
-        public void JustBelowTopBand_IsNoZone()
+        public void ParticleInTopLayer_GetsHeightLayerIndex()
         {
+            V4BakedLayer[] layers = ThreeLayers();
             V4ZoneMath.ZoneResult result = V4ZoneMath.Classify(
-                new Vector3(0f, BucketHeight - TopBand - 1e-4f, 0f), true,
-                new V4BakedHole[0], 0, BucketHeight, TopBand);
-            Assert.AreEqual(V4Zone.None, result.Zone);
+                new Vector3(-0.2f, 0.9f, 0f), true, new V4BakedHole[0], 0, layers, layers.Length);
+            Assert.AreEqual(V4Zone.HeightLayer, result.Zone);
+            Assert.AreEqual(2, result.LayerIndex);
         }
 
         [Test]
         public void OutsideParticle_GetsNoZone_EvenNearHole()
         {
-            var holes = new[] { MakeHole(new Vector3(0.5f, 0.2f, 0f)) };
+            var holes = new[] { MakeHole(new Vector3(0.1f, 0.05f, 0f)) };
+            V4BakedLayer[] layers = new[] { new V4BakedLayer { yMin = 0f, yMax = 1f } };
             V4ZoneMath.ZoneResult result = V4ZoneMath.Classify(
-                holes[0].localPosition, inside: false, holes, holes.Length, BucketHeight, TopBand);
+                new Vector3(0.1f, 0.05f, 0f), false, holes, 1, layers, 1);
             Assert.AreEqual(V4Zone.None, result.Zone);
-        }
-
-        // --- Hole ownership uniqueness at minimum legal spacing ---
-
-        [Test]
-        public void TwoHolesAtMinimumSpacing_EveryZonedPointClaimedByExactlyNearestHole()
-        {
-            // Centers exactly d2_a + d2_b apart: rings touch but do not overlap.
-            var holeA = MakeHole(new Vector3(-0.21f, 0.3f, 0f));
-            var holeB = MakeHole(new Vector3(0.21f, 0.3f, 0f));
-            var holes = new[] { holeA, holeB };
-
-            for (int i = 0; i <= 100; i++)
-            {
-                float x = Mathf.Lerp(-0.45f, 0.45f, i / 100f);
-                var pos = new Vector3(x, 0.3f, 0f);
-                V4ZoneMath.ZoneResult result = V4ZoneMath.Classify(pos, true, holes, 2, BucketHeight, TopBand);
-                if (result.Zone == V4Zone.None || result.Zone == V4Zone.TopBand)
-                {
-                    continue;
-                }
-
-                int nearest = Vector3.Distance(pos, holeA.localPosition) <= Vector3.Distance(pos, holeB.localPosition) ? 0 : 1;
-                Assert.AreEqual(nearest, result.HoleIndex, $"ambiguous hole ownership at x={x}");
-            }
-        }
-
-        // --- Force direction ---
-
-        [Test]
-        public void Zone1ForceDirection_PointsTowardHole()
-        {
-            V4BakedHole hole = MakeHole(new Vector3(0.5f, 0.2f, 0f));
-            Vector3 pos = new Vector3(0.4f, 0.2f, 0f);
-            Vector3 dir = V4ZoneMath.ForceDirection(pos, hole, V4Zone.HoleZone1);
-            Assert.AreEqual(1f, Vector3.Dot(dir, Vector3.right), 1e-4f);
         }
 
         [Test]
         public void Zone0ForceDirection_IsOutwardNormal()
         {
-            V4BakedHole hole = MakeHole(new Vector3(0.5f, 0.2f, 0f));
-            Vector3 dir = V4ZoneMath.ForceDirection(new Vector3(0.49f, 0.2f, 0f), hole, V4Zone.HoleZone0);
-            Assert.AreEqual(hole.outwardNormal, dir);
+            V4BakedHole hole = MakeHole(new Vector3(0.1f, 0.05f, 0f));
+            hole.outwardNormal = Vector3.right;
+            Vector3 dir = V4ZoneMath.ForceDirection(new Vector3(0.09f, 0.05f, 0f), hole, V4Zone.HoleZone0);
+            Assert.AreEqual(Vector3.right, dir);
         }
-
-        [Test]
-        public void ForceDirection_AtExactHoleCenter_FallsBackToNormal()
-        {
-            V4BakedHole hole = MakeHole(new Vector3(0.5f, 0.2f, 0f));
-            Vector3 dir = V4ZoneMath.ForceDirection(hole.localPosition, hole, V4Zone.HoleZone1);
-            Assert.AreEqual(hole.outwardNormal, dir, "degenerate zero-length direction must fall back to the outward normal");
-        }
-
-        // --- Top-band push-down ---
 
         [Test]
         public void TopBandPushDown_MatchesSpecFormula()
@@ -182,9 +101,18 @@ namespace HarmonicEngineV4.Tests.EditMode
         }
 
         [Test]
-        public void TopBandPushDown_ZeroCount_DoesNotDivideByZero()
+        public void BakeLayers_StacksUserThicknessesToRim()
         {
-            Assert.AreEqual(10f, V4ZoneMath.TopBandPushDown(10f, 0, 1f), 1e-5f);
+            var defs = new[]
+            {
+                new V4LayerDef { thickness = 0.2f },
+                new V4LayerDef { thickness = 0.2f },
+                new V4LayerDef { thickness = 0.2f }
+            };
+            V4BakedLayer[] layers = V4BucketBake.BakeLayers(defs, 0.6f, 0.1f);
+            Assert.AreEqual(3, layers.Length);
+            Assert.AreEqual(0f, layers[0].yMin, 1e-5f);
+            Assert.AreEqual(0.6f, layers[2].yMax, 1e-5f);
         }
     }
 }

@@ -21,9 +21,13 @@ namespace HarmonicEngineV4.Rendering
         public Color bucketColor = new Color(0.75f, 0.78f, 0.82f, 1f);
 
         private V4Bucket _bucket;
+        private V4PipelineRoot _pipeline;
         private GameObject _meshGo;
         private Mesh _mesh;
         private Material _material;
+        private MaterialPropertyBlock _propertyBlock;
+        private static readonly int WorldOriginId = Shader.PropertyToID("_V4BucketWorldOrigin");
+        private static readonly int WorldRotationId = Shader.PropertyToID("_V4BucketWorldRotation");
 
         private readonly List<Vector3> _vertices = new List<Vector3>();
         private readonly List<Vector3> _normals = new List<Vector3>();
@@ -32,8 +36,15 @@ namespace HarmonicEngineV4.Rendering
         private void Start()
         {
             _bucket = GetComponent<V4Bucket>();
+            _pipeline = GetComponentInParent<V4PipelineRoot>();
+            if (_pipeline == null)
+            {
+                _pipeline = FindFirstObjectByType<V4PipelineRoot>();
+            }
+
             _material = CreateMaterial();
             _mesh = BuildMesh();
+            _propertyBlock = new MaterialPropertyBlock();
 
             _meshGo = new GameObject("V4BucketVisual");
             _meshGo.transform.SetParent(transform, false);
@@ -41,6 +52,29 @@ namespace HarmonicEngineV4.Rendering
             var meshRenderer = _meshGo.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterial = _material;
             meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        private void LateUpdate()
+        {
+            if (_meshGo == null || _propertyBlock == null)
+            {
+                return;
+            }
+
+            V4GpuBucketDriver driver = _pipeline != null ? _pipeline.GpuBucketDriver : null;
+            if (driver != null && driver.IsInitialized)
+            {
+                Quaternion rotation = transform.rotation;
+                _propertyBlock.SetVector(WorldOriginId, transform.position);
+                _propertyBlock.SetVector(
+                    WorldRotationId,
+                    new Vector4(rotation.x, rotation.y, rotation.z, rotation.w));
+                _meshGo.GetComponent<MeshRenderer>().SetPropertyBlock(_propertyBlock);
+                return;
+            }
+
+            _meshGo.transform.localPosition = Vector3.zero;
+            _meshGo.transform.localRotation = Quaternion.identity;
         }
 
         private void OnDestroy()

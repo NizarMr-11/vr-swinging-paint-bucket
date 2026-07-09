@@ -9,6 +9,7 @@
 
 #include "Include/V4Common.hlsl"
 #include "Include/V4BucketZones.hlsl"
+#include "Include/V4BucketBindings.hlsl"
 
 // Counter slot layout (mirror of V4Counters in C#):
 //   0 write/compaction count   1 escaped total   2 settled total
@@ -25,13 +26,14 @@ StructuredBuffer<float4> _Block0;      // position.xyz, radius
 RWStructuredBuffer<uint> _Flags;
 RWStructuredBuffer<uint> _Counters;
 StructuredBuffer<V4Hole> _Holes;
+StructuredBuffer<V4Layer> _Layers;
 
-float4x4 _BucketWorldToLocal;
 float _BucketInnerRadius;
 float _BucketHeight;
 float _BucketWallThickness;
 float _TopBandHeight;
 uint _HoleCount;
+uint _LayerCount;
 uint _ActiveParticleCount;
 
 [numthreads(64, 1, 1)]
@@ -72,13 +74,23 @@ void ClassifyKernel(uint3 id : SV_DispatchThreadID)
     }
 
     float3 worldPos = _Block0[i].xyz;
-    float3 localPos = mul(_BucketWorldToLocal, float4(worldPos, 1.0)).xyz;
+    float4x4 worldToLocal;
+    float4x4 localToWorld;
+    float3 linearVelocity;
+    float3 angularVelocity;
+    float3 angularAcceleration;
+    float3 linearAcceleration;
+    float3 worldOrigin;
+    V4LoadBucketKinematics(
+        worldToLocal, localToWorld, linearVelocity, angularVelocity,
+        angularAcceleration, linearAcceleration, worldOrigin);
+    float3 localPos = mul(worldToLocal, float4(worldPos, 1.0)).xyz;
 
     bool inside = V4BucketIsInside(localPos, _BucketInnerRadius, _BucketHeight);
     flags = inside ? (flags | V4_FLAG_INSIDE) : (flags & ~V4_FLAG_INSIDE);
 
-    uint holeIndex;
-    uint zone = V4ClassifyZones(localPos, inside, _Holes, _HoleCount, _BucketHeight, _TopBandHeight, holeIndex);
+    uint auxIndex;
+    uint zone = V4ClassifyZones(localPos, inside, _Holes, _HoleCount, _Layers, _LayerCount, auxIndex);
 
     if (zone == V4_ZONE_HOLE0)
     {
@@ -87,14 +99,14 @@ void ClassifyKernel(uint3 id : SV_DispatchThreadID)
         flags = flags & ~V4_FLAG_INSIDE;
         flags = flags | V4_FLAG_ESCAPED;
         InterlockedAdd(_Counters[COUNTER_ESCAPED_TOTAL], 1u);
-        InterlockedAdd(_Counters[COUNTER_EJECTED_BASE + holeIndex], 1u);
+        InterlockedAdd(_Counters[COUNTER_EJECTED_BASE + auxIndex], 1u);
     }
-    else if (zone == V4_ZONE_TOPBAND)
+    else if (zone == V4_ZONE_HEIGHT_LAYER && auxIndex == _LayerCount - 1u)
     {
         InterlockedAdd(_Counters[COUNTER_TOP_BAND], 1u);
     }
 
     flags = V4SetZone(flags, zone);
-    flags = V4SetHole(flags, holeIndex);
+    flags = V4SetHole(flags, auxIndex);
     _Flags[i] = flags;
 }

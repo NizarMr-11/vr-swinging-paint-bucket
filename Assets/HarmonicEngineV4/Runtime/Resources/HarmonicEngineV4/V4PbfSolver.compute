@@ -20,6 +20,7 @@
 #include "Include/V4BucketZones.hlsl"
 #include "Include/V4Profiles.hlsl"
 #include "Include/V4NeighborQuery.hlsl"
+#include "Include/V4BucketBindings.hlsl"
 
 #define COUNTER_WRITE_COUNT 0
 #define COUNTER_ESCAPED_TOTAL 1
@@ -90,11 +91,6 @@ RWStructuredBuffer<V4SplatEvent> _SplatEvents;
 StructuredBuffer<V4GpuProfile> _Profiles;
 StructuredBuffer<V4Hole> _Holes;
 
-float4x4 _BucketWorldToLocal;
-float4x4 _BucketLocalToWorld;
-float3 _BucketLinearVelocity;
-float3 _BucketAngularVelocity;
-float3 _BucketWorldOrigin;
 float _BucketInnerRadius;
 float _BucketHeight;
 float _BucketWallThickness;
@@ -132,12 +128,32 @@ RWStructuredBuffer<uint> _DebugBoundaryPressureNeighbors;
 
 float3 V4ToLocal(float3 worldPos)
 {
-    return mul(_BucketWorldToLocal, float4(worldPos, 1.0)).xyz;
+    float4x4 worldToLocal;
+    float4x4 localToWorld;
+    float3 linearVelocity;
+    float3 angularVelocity;
+    float3 angularAcceleration;
+    float3 linearAcceleration;
+    float3 worldOrigin;
+    V4LoadBucketKinematics(
+        worldToLocal, localToWorld, linearVelocity, angularVelocity,
+        angularAcceleration, linearAcceleration, worldOrigin);
+    return mul(worldToLocal, float4(worldPos, 1.0)).xyz;
 }
 
 float3 V4ToWorld(float3 localPos)
 {
-    return mul(_BucketLocalToWorld, float4(localPos, 1.0)).xyz;
+    float4x4 worldToLocal;
+    float4x4 localToWorld;
+    float3 linearVelocity;
+    float3 angularVelocity;
+    float3 angularAcceleration;
+    float3 linearAcceleration;
+    float3 worldOrigin;
+    V4LoadBucketKinematics(
+        worldToLocal, localToWorld, linearVelocity, angularVelocity,
+        angularAcceleration, linearAcceleration, worldOrigin);
+    return mul(localToWorld, float4(localPos, 1.0)).xyz;
 }
 
 // Mirror-particle boundary density/gradient for bucket floor and inner wall.
@@ -227,13 +243,23 @@ float3 V4ClampPositionToBucket(float3 worldPos, uint flags, float3 refWorldPos)
     float3 localPos = V4ToLocal(worldPos);
     bool containInside = V4ComputeContainInside(flags, localPos, V4ToLocal(refWorldPos));
     float3 approachVelWorld = (worldPos - refWorldPos) / max(_DeltaTime, 1e-6);
-    float3 localVel = mul((float3x3)_BucketWorldToLocal, approachVelWorld);
+    float4x4 worldToLocal;
+    float4x4 localToWorld;
+    float3 bucketLinearVelocity;
+    float3 bucketAngularVelocity;
+    float3 bucketAngularAcceleration;
+    float3 bucketLinearAcceleration;
+    float3 bucketWorldOrigin;
+    V4LoadBucketKinematics(
+        worldToLocal, localToWorld, bucketLinearVelocity, bucketAngularVelocity,
+        bucketAngularAcceleration, bucketLinearAcceleration, bucketWorldOrigin);
+    float3 localVel = mul((float3x3)worldToLocal, approachVelWorld);
     float3 localVelBefore = localVel;
-    float3 contactVelWorld = _BucketLinearVelocity + cross(_BucketAngularVelocity, worldPos - _BucketWorldOrigin);
-    float3 contactVelLocal = mul((float3x3)_BucketWorldToLocal, contactVelWorld);
+    float3 contactVelWorld = V4BucketContactVelAt(worldPos);
+    float3 contactVelLocal = mul((float3x3)worldToLocal, contactVelWorld);
     V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness, 0.0, 0.0,
         containInside, contactVelLocal);
-    float3 velDeltaWorld = mul((float3x3)_BucketLocalToWorld, localVel - localVelBefore) * _DeltaTime;
+    float3 velDeltaWorld = mul((float3x3)localToWorld, localVel - localVelBefore) * _DeltaTime;
     return V4ToWorld(localPos) + velDeltaWorld;
 }
 
@@ -532,14 +558,24 @@ void FinalizeKernel(uint3 id : SV_DispatchThreadID)
     if (!V4HasEscaped(flags))
     {
         float3 localPos = V4ToLocal(pos);
-        float3 localVel = mul((float3x3)_BucketWorldToLocal, vel);
-        float3 contactVelWorld = _BucketLinearVelocity + cross(_BucketAngularVelocity, pos - _BucketWorldOrigin);
-        float3 contactVelLocal = mul((float3x3)_BucketWorldToLocal, contactVelWorld);
+        float4x4 worldToLocal;
+        float4x4 localToWorld;
+        float3 bucketLinearVelocity;
+        float3 bucketAngularVelocity;
+        float3 bucketAngularAcceleration;
+        float3 bucketLinearAcceleration;
+        float3 bucketWorldOrigin;
+        V4LoadBucketKinematics(
+            worldToLocal, localToWorld, bucketLinearVelocity, bucketAngularVelocity,
+            bucketAngularAcceleration, bucketLinearAcceleration, bucketWorldOrigin);
+        float3 localVel = mul((float3x3)worldToLocal, vel);
+        float3 contactVelWorld = V4BucketContactVelAt(pos);
+        float3 contactVelLocal = mul((float3x3)worldToLocal, contactVelWorld);
         bool containInside = V4ComputeContainInside(flags, localPos, V4ToLocal(oldP.xyz));
         V4BucketResolveCollision(localPos, localVel, _BucketInnerRadius, _BucketHeight, _BucketWallThickness,
             profile.surfaceRestitution, profile.surfaceFriction, containInside, contactVelLocal);
         pos = V4ToWorld(localPos);
-        vel = mul((float3x3)_BucketLocalToWorld, localVel);
+        vel = mul((float3x3)localToWorld, localVel);
     }
 
     bool removed = false;

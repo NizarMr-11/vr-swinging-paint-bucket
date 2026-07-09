@@ -1,0 +1,138 @@
+// GPU bucket pendulum integration and CPU upload fallback.
+#pragma kernel BucketIntegrateKernel
+#pragma kernel BucketUploadFromCpuKernel
+#pragma kernel BucketApplyMassReduceKernel
+
+#include "Include/V4BucketState.hlsl"
+#include "Include/V4BucketPhysics.hlsl"
+
+RWStructuredBuffer<V4BucketState> _BucketState;
+RWStructuredBuffer<uint> _FluidAccum;
+
+float _DeltaTime;
+
+#define ACC_MASS 0
+#define ACC_COMX 1
+#define ACC_COMY 2
+#define ACC_COMZ 3
+#define ACC_COUNT 7
+#define MICRO_SCALE 1000000.0
+
+[numthreads(1, 1, 1)]
+void BucketApplyMassReduceKernel(uint3 id : SV_DispatchThreadID)
+{
+    V4BucketState state = _BucketState[0];
+
+    float rawMass = (float)_FluidAccum[ACC_MASS] / MICRO_SCALE;
+    float3 rawCom = float3(0.0, 0.0, 0.0);
+    if (rawMass > 1e-8)
+    {
+        rawCom = float3(
+            (float)_FluidAccum[ACC_COMX] / MICRO_SCALE,
+            (float)_FluidAccum[ACC_COMY] / MICRO_SCALE,
+            (float)_FluidAccum[ACC_COMZ] / MICRO_SCALE) / rawMass;
+    }
+
+    float3 rawOffset = rawMass > 1e-8 ? rawCom - state.worldOrigin : float3(0.0, 0.0, 0.0);
+    float blend = saturate(state.fluidMassSmoothing);
+    state.totalFluidMass = lerp(state.totalFluidMass, rawMass, blend);
+    state.comOffsetWorld = lerp(state.comOffsetWorld, rawOffset, blend);
+
+    _BucketState[0] = state;
+
+    _FluidAccum[ACC_MASS] = 0u;
+    _FluidAccum[ACC_COMX] = 0u;
+    _FluidAccum[ACC_COMY] = 0u;
+    _FluidAccum[ACC_COMZ] = 0u;
+    _FluidAccum[ACC_COUNT] = 0u;
+}
+
+[numthreads(1, 1, 1)]
+void BucketIntegrateKernel(uint3 id : SV_DispatchThreadID)
+{
+    V4BucketState state = _BucketState[0];
+    float3 prevAngular = state.angularVelocity;
+    float3 prevLinear = state.linearVelocity;
+    float dt = max(_DeltaTime, 1e-6);
+
+    V4BucketIntegrateVerlet(
+        state.unitDirection,
+        state.tangentialVelocity,
+        state.comOffsetWorld,
+        state.totalFluidMass,
+        state.bucketMass,
+        state.ropeLength,
+        state.gravity,
+        state.damping,
+        state.sloshFeedbackScale,
+        state.applySlosh,
+        dt);
+
+    state.worldOrigin = state.pivot + state.unitDirection * state.ropeLength;
+    state.worldRotation = V4BucketComputeRotation(state.unitDirection, state.twistDegrees);
+    state.linearVelocity = state.tangentialVelocity;
+    state.angularVelocity = cross(state.unitDirection, state.tangentialVelocity) / max(state.ropeLength, 1e-6);
+    state.angularAcceleration = (state.angularVelocity - prevAngular) / dt;
+    float3 linearAccel = (state.linearVelocity - prevLinear) / dt;
+    state.linearAccelerationX = linearAccel.x;
+    state.linearAccelerationY = linearAccel.y;
+    state.linearAccelerationZ = linearAccel.z;
+    state.useGpuState = 1.0;
+
+    _BucketState[0] = state;
+}
+
+// Keyboard mode: upload CPU transform and finite-differenced velocities.
+float4x4 _CpuBucketWorldToLocal;
+float4x4 _CpuBucketLocalToWorld;
+float3 _CpuBucketLinearVelocity;
+float3 _CpuBucketAngularVelocity;
+float3 _CpuBucketAngularAcceleration;
+float3 _CpuBucketWorldOrigin;
+
+[numthreads(1, 1, 1)]
+void BucketUploadFromCpuKernel(uint3 id : SV_DispatchThreadID)
+{
+    V4BucketState state = _BucketState[0];
+    state.worldOrigin = _CpuBucketWorldOrigin;
+    state.worldRotation = float4(0.0, 0.0, 0.0, 1.0);
+    // Extract rotation from local-to-world matrix columns.
+    float3 col0 = _CpuBucketLocalToWorld[0].xyz;
+    float3 col1 = _CpuBucketLocalToWorld[1].xyz;
+    float3 col2 = _CpuBucketLocalToWorld[2].xyz;
+    float trace = col0.x + col1.y + col2.z;
+    float4 q;
+    if (trace > 0.0)
+    {
+        float s = sqrt(trace + 1.0) * 2.0;
+        q = float4(
+            (col2.y - col1.z) / s,
+            (col0.z - col2.x) / s,
+            (col1.x - col0.y) / s,
+            0.25 * s);
+    }
+    else if (col0.x > col1.y && col0.x > col2.z)
+    {
+        float s = sqrt(1.0 + col0.x - col1.y - col2.z) * 2.0;
+        q = float4(0.25 * s, (col0.y + col1.x) / s, (col0.z + col2.x) / s, (col2.y - col1.z) / s);
+    }
+    else if (col1.y > col2.z)
+    {
+        float s = sqrt(1.0 + col1.y - col0.x - col2.z) * 2.0;
+        q = float4((col0.y + col1.x) / s, 0.25 * s, (col1.z + col2.y) / s, (col0.z - col2.x) / s);
+    }
+    else
+    {
+        float s = sqrt(1.0 + col2.z - col0.x - col1.y) * 2.0;
+        q = float4((col0.z + col2.x) / s, (col1.z + col2.y) / s, 0.25 * s, (col1.x - col0.y) / s);
+    }
+    state.worldRotation = normalize(q);
+    state.linearVelocity = _CpuBucketLinearVelocity;
+    state.angularVelocity = _CpuBucketAngularVelocity;
+    state.angularAcceleration = _CpuBucketAngularAcceleration;
+    state.linearAccelerationX = 0.0;
+    state.linearAccelerationY = 0.0;
+    state.linearAccelerationZ = 0.0;
+    state.useGpuState = 0.0;
+    _BucketState[0] = state;
+}

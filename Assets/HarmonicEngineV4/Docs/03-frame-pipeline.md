@@ -14,12 +14,13 @@ Called from `Start()` or manually via `Initialize()`:
 3. BakeBucket()     → _bakedHoles[], upload _Holes buffer
 4. BakeCanvas()     → CanvasGridSize, CanvasCellSize
 5. BakeSpawnZones() → list of SpawnedParticle (deterministic lattice)
-6. CreateBuffers()  → SOA, scratch, canvas grid, counters, sort temps
+6. CreateBuffers()  → SOA, scratch, canvas grid, counters, sort temps, _BucketState
 7. UploadProfiles() → _Profiles buffer from V4LiquidProfile table
-8. UploadParticles()→ initial SOA read set
-9. BuildManifestAndExecutor()
-10. ClearCanvas + BlitCanvasToTexture (empty canvas)
-11. V4EmaLossModel init
+8. InitializeGpuBucketDriver() → seed _BucketState from pendulum pose or CPU transform
+9. UploadParticles()→ initial SOA read set (uses bucket kinematics from _BucketState)
+10. BuildManifestAndExecutor()
+11. ClearCanvas + BlitCanvasToTexture (empty canvas)
+12. V4EmaLossModel init
 ```
 
 If `bucket` or `canvas` is null, initialization aborts and the component disables itself.
@@ -31,13 +32,16 @@ If `bucket` or `canvas` is null, initialization aborts and the component disable
 ```
 Step(deltaTime):
 │
-├─ 1. bucket.SampleKinematics(dt)     → LinearVelocity, AngularVelocity
-├─ 2. SetFrameUniforms(dt)             → matrices, bucket params, gravity, canvas plane
+├─ 1. GPU bucket physics (mode-dependent, before classify/forces)
+│      Pendulum+GPU: FluidMassReduce → ApplyMassReduce → BucketIntegrate → sync transform
+│      Keyboard: SampleKinematics → BucketUploadFromCpu
+├─ 2. Bind _BucketState to classification / forces / PBF shaders
+├─ 3. SetFrameUniforms(dt)             → bucket geometry, gravity, canvas plane
 │
-├─ 3. ClearFrameCounters              [Classification shader, 1 group]
-├─ 4. Classify                        [ActiveParticleCount threads]
-├─ 5. ExternalForces                  [ActiveParticleCount threads]
-├─ 6. Predict                         [ActiveParticleCount threads]
+├─ 4. ClearFrameCounters              [Classification shader, 1 group]
+├─ 5. Classify                        [ActiveParticleCount threads]
+├─ 6. ExternalForces                  [ActiveParticleCount threads]
+├─ 7. Predict                         [ActiveParticleCount threads]
 │
 ├─ 7. Spatial hash build on _Predicted:
 │      ClearGridCells → GenerateGridKeys → RadixSort → BuildCellRanges
@@ -136,7 +140,7 @@ pipeline.Initialize();
 pipeline.Step(1f / 60f);
 ```
 
-Lab keyboard controller moves the bucket transform; kinematics are sampled at the start of each `Step`.
+Lab keyboard controller moves the bucket transform; kinematics are sampled at the start of each `Step`. GPU pendulum mode integrates the bucket at frame begin and syncs the transform before classify/forces.
 
 ---
 

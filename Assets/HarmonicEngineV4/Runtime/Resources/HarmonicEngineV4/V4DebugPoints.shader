@@ -59,9 +59,9 @@ Shader "HarmonicEngineV4/DebugPoints"
                     return float3(1.0, 0.0, 0.0);
                 }
 
-                if (V4GetZone(flags) == V4_ZONE_TOPBAND)
+                if (V4GetZone(flags) == V4_ZONE_HEIGHT_LAYER)
                 {
-                    return float3(1.0, 1.0, 0.0);
+                    return float3(0.2, 0.85, 1.0);
                 }
 
                 return float3(0.0, 1.0, 0.0);

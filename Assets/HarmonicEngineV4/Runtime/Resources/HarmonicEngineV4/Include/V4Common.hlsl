@@ -23,8 +23,7 @@ struct HashCellGridRange
 //  Particle flag layout (must match V4ParticleFlags in C#).
 //    bit 0      : Inside bucket volume this frame (reversible)
 //    bit 1      : hasEscaped latch (permanent, only Classification may set it)
-//    bits 2-4   : zone assignment this frame (0=None 1=HoleZone0 2=HoleZone1
-//                 3=HoleZone2 4=TopBand)
+//    bits 2-4   : zone assignment this frame (0=None 1=HoleEject 2=HeightLayer …)
 //    bits 5-9   : owning hole index (valid when zone is a hole zone)
 //    bits 10-17 : liquid profile index
 // -----------------------------------------------------------------------------
@@ -37,11 +36,12 @@ struct HashCellGridRange
 #define V4_PROFILE_SHIFT      10u
 #define V4_PROFILE_MASK       (255u << 10)
 
-#define V4_ZONE_NONE       0u
-#define V4_ZONE_HOLE0      1u
-#define V4_ZONE_HOLE1      2u
-#define V4_ZONE_HOLE2      3u
-#define V4_ZONE_TOPBAND    4u
+#define V4_ZONE_NONE          0u
+#define V4_ZONE_HOLE0         1u
+#define V4_ZONE_HEIGHT_LAYER  2u
+#define V4_ZONE_HOLE1         3u
+#define V4_ZONE_HOLE2         4u
+#define V4_ZONE_TOPBAND       5u
 
 uint V4GetZone(uint flags) { return (flags & V4_ZONE_MASK) >> V4_ZONE_SHIFT; }
 uint V4GetHole(uint flags) { return (flags & V4_HOLE_MASK) >> V4_HOLE_SHIFT; }

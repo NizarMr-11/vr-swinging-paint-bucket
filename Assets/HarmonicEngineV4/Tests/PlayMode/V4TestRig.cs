@@ -37,6 +37,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
                 new List<(Vector3, float, Color)> { (new Vector3(0f, 0.25f, 0f), 0.12f, Color.red) };
             public Action<V4LiquidProfile> ConfigureProfile;
             public Action<V4PipelineRoot> ConfigureRoot;
+            public Action<V4Bucket, V4PipelineRoot> ConfigureBucket;
         }
 
         public static V4TestRig Create(Config config = null)
@@ -76,6 +77,7 @@ namespace HarmonicEngineV4.Tests.PlayMode
             root.globalProfile = profile;
             root.restrictSpawnToBucketCavity = config.RestrictSpawnToBucketCavity;
             config.ConfigureRoot?.Invoke(root);
+            config.ConfigureBucket?.Invoke(rig.Bucket, root);
 
             foreach ((Vector3 localPos, float radius, Color color) zone in config.SpawnZones)
             {

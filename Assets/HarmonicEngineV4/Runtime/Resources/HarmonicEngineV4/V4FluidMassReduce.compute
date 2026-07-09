@@ -3,12 +3,12 @@
 
 #include "Include/V4Common.hlsl"
 #include "Include/V4BucketZones.hlsl"
+#include "Include/V4BucketBindings.hlsl"
 
 StructuredBuffer<float4> _Block0;
 StructuredBuffer<float4> _Block1;
 StructuredBuffer<uint> _Flags;
 
-float4x4 _BucketWorldToLocal;
 float _BucketInnerRadius;
 float _BucketHeight;
 float _BucketWallThickness;
@@ -48,7 +48,15 @@ void FluidMassReduceKernel(uint3 id : SV_DispatchThreadID)
 
     float3 pos = _Block0[i].xyz;
     float3 vel = _Block1[i].xyz;
-    float3 localPos = mul(_BucketWorldToLocal, float4(pos, 1.0)).xyz;
+    float4x4 worldToLocal;
+    float4x4 localToWorld;
+    float3 linearVelocity;
+    float3 angularVelocity;
+    float3 angularAcceleration;
+    float3 linearAcceleration;
+    float3 worldOrigin;
+    V4LoadBucketKinematics(worldToLocal, localToWorld, linearVelocity, angularVelocity, angularAcceleration, linearAcceleration, worldOrigin);
+    float3 localPos = mul(worldToLocal, float4(pos, 1.0)).xyz;
 
     if (!V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness))
     {

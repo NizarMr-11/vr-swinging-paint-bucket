@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HarmonicEngineV4.Bake
 {
-    /// <summary>Authoring definition of one hole, before ring thresholds are baked.</summary>
+    /// <summary>Authoring definition of one hole, before bake.</summary>
     [System.Serializable]
     public struct V4HoleDef
     {
@@ -18,95 +18,145 @@ namespace HarmonicEngineV4.Bake
         public Vector3 outwardNormal;
     }
 
+    /// <summary>One horizontal slab stacked from the bucket floor upward.</summary>
+    [System.Serializable]
+    public struct V4LayerDef
+    {
+        [Min(0.001f)]
+        [Tooltip("Layer thickness in meters (stacked bottom to top).")]
+        public float thickness;
+
+        [Tooltip("Spawn / debug color for liquid in this slab.")]
+        public Color color;
+
+        [Tooltip("Optional zone force scale for this layer; <= 0 uses the liquid profile curve.")]
+        public float forceStrength;
+    }
+
     /// <summary>
-    /// Bucket geometry bake (spec section 2.1): holes plus their zone ring thresholds
-    /// d0 &lt; d1 &lt; d2, with the bake-time minimum-spacing constraint so no particle is
-    /// ever ambiguous about which hole's zone it belongs to.
+    /// Bucket geometry bake: holes (cylindrical eject footprints) and stacked height layers.
     /// </summary>
     public static class V4BucketBake
     {
         public sealed class Result
         {
             public V4BakedHole[] Holes;
+            public V4BakedLayer[] Layers;
             public bool SpacingOk;
-            public bool RingsShrunk;
             public readonly List<string> Errors = new List<string>();
         }
 
-        /// <summary>
-        /// d0 = hole radius, then two equal ring steps outward. d0 is clamped to a
-        /// fraction of the ring spacing so a zero/near-zero authored radius still gives
-        /// the eject zone a real volume - a point-sized Zone 0 can never claim a
-        /// particle, which jams the outflow into burst clumps instead of a stream.
-        /// </summary>
-        public static void ComputeRings(float holeRadius, float ringSpacing, out float d0, out float d1, out float d2)
+        public static V4BakedLayer[] BakeLayers(IReadOnlyList<V4LayerDef> layerDefs, float bucketHeight, float legacyTopBandHeight)
         {
-            d0 = Mathf.Max(holeRadius, ringSpacing * 0.25f);
-            d1 = d0 + ringSpacing;
-            d2 = d1 + ringSpacing;
+            if (bucketHeight <= 1e-6f)
+            {
+                return new[]
+                {
+                    new V4BakedLayer { yMin = 0f, yMax = 1f }
+                };
+            }
+
+            if (layerDefs == null || layerDefs.Count == 0)
+            {
+                return BuildDefaultLayers(bucketHeight, legacyTopBandHeight);
+            }
+
+            var layers = new V4BakedLayer[layerDefs.Count];
+            float y = 0f;
+            for (int i = 0; i < layerDefs.Count; i++)
+            {
+                float thickness = Mathf.Max(layerDefs[i].thickness, 0.001f);
+                float yMax = i == layerDefs.Count - 1
+                    ? bucketHeight
+                    : Mathf.Min(y + thickness, bucketHeight);
+                layers[i] = new V4BakedLayer
+                {
+                    yMin = y,
+                    yMax = yMax,
+                    forceStrength = layerDefs[i].forceStrength
+                };
+                y = yMax;
+            }
+
+            if (y < bucketHeight - 1e-5f)
+            {
+                layers[layers.Length - 1].yMax = bucketHeight;
+            }
+
+            return layers;
         }
 
         /// <summary>
-        /// Bakes holes and validates spacing: two holes' outermost rings (d2) must not
-        /// overlap. With autoShrinkRings the rings are shrunk to fit (never below the
-        /// physical hole radius); otherwise overlap is a bake error.
+        /// Total fluid fill height from authored layer thicknesses (spawn volume), not zone extension to bucket top.
         /// </summary>
-        public static Result BakeHoles(IReadOnlyList<V4HoleDef> holeDefs, float ringSpacing, bool autoShrinkRings)
+        public static float ComputeAuthoredFillHeight(IReadOnlyList<V4LayerDef> layerDefs, float bucketHeight)
+        {
+            if (bucketHeight <= 1e-6f)
+            {
+                return 0f;
+            }
+
+            if (layerDefs == null || layerDefs.Count == 0)
+            {
+                return bucketHeight;
+            }
+
+            float fillHeight = 0f;
+            for (int i = 0; i < layerDefs.Count; i++)
+            {
+                fillHeight += Mathf.Max(layerDefs[i].thickness, 0.001f);
+            }
+
+            return Mathf.Min(fillHeight, bucketHeight);
+        }
+
+        private static V4BakedLayer[] BuildDefaultLayers(float bucketHeight, float legacyTopBandHeight)
+        {
+            float topHeight = Mathf.Clamp(legacyTopBandHeight, 0.001f, bucketHeight);
+            if (topHeight >= bucketHeight - 1e-5f)
+            {
+                return new[]
+                {
+                    new V4BakedLayer { yMin = 0f, yMax = bucketHeight }
+                };
+            }
+
+            return new[]
+            {
+                new V4BakedLayer { yMin = 0f, yMax = bucketHeight - topHeight },
+                new V4BakedLayer { yMin = bucketHeight - topHeight, yMax = bucketHeight }
+            };
+        }
+
+        /// <summary>
+        /// Bakes hole footprints and validates that physical openings do not overlap in XZ.
+        /// </summary>
+        public static Result BakeBucket(
+            IReadOnlyList<V4HoleDef> holeDefs,
+            IReadOnlyList<V4LayerDef> layerDefs,
+            float bucketHeight,
+            float legacyTopBandHeight)
         {
             var result = new Result
             {
-                Holes = new V4BakedHole[holeDefs.Count],
+                Holes = BakeHoles(holeDefs),
+                Layers = BakeLayers(layerDefs, bucketHeight, legacyTopBandHeight),
                 SpacingOk = true
             };
-
-            for (int i = 0; i < holeDefs.Count; i++)
-            {
-                V4HoleDef def = holeDefs[i];
-                ComputeRings(def.radius, ringSpacing, out float d0, out float d1, out float d2);
-                result.Holes[i] = new V4BakedHole
-                {
-                    localPosition = def.localPosition,
-                    radius = def.radius,
-                    outwardNormal = def.outwardNormal.sqrMagnitude > 1e-8f ? def.outwardNormal.normalized : Vector3.up,
-                    d0 = d0,
-                    d1 = d1,
-                    d2 = d2
-                };
-            }
 
             for (int i = 0; i < result.Holes.Length; i++)
             {
                 for (int j = i + 1; j < result.Holes.Length; j++)
                 {
-                    float centerDist = Vector3.Distance(result.Holes[i].localPosition, result.Holes[j].localPosition);
-                    float required = result.Holes[i].d2 + result.Holes[j].d2;
-                    if (centerDist >= required)
-                    {
-                        continue;
-                    }
-
-                    if (!autoShrinkRings)
+                    float centerDist = HorizontalDistance(
+                        result.Holes[i].localPosition,
+                        result.Holes[j].localPosition);
+                    float required = result.Holes[i].radius + result.Holes[j].radius;
+                    if (centerDist < required - 1e-5f)
                     {
                         result.SpacingOk = false;
                         result.Errors.Add(
-                            $"holes {i} and {j} are too close: center distance {centerDist:F4} < combined d2 rings {required:F4}");
-                        continue;
-                    }
-
-                    // Shrink both holes' rings proportionally so d2_i + d2_j == centerDist,
-                    // clamped so rings never collapse below the physical hole radius.
-                    float scale = centerDist / required;
-                    ShrinkRings(ref result.Holes[i], scale, ringSpacing);
-                    ShrinkRings(ref result.Holes[j], scale, ringSpacing);
-                    result.RingsShrunk = true;
-
-                    if (result.Holes[i].d2 + result.Holes[j].d2 > centerDist + 1e-5f)
-                    {
-                        // Even fully shrunk rings (d2 == hole radius) overlap: the physical
-                        // holes themselves are too close - unrecoverable authoring error.
-                        result.SpacingOk = false;
-                        result.Errors.Add(
-                            $"holes {i} and {j} physically overlap even with fully shrunk rings (center distance {centerDist:F4})");
+                            $"holes {i} and {j} overlap in XZ: center distance {centerDist:F4} < combined radius {required:F4}");
                     }
                 }
             }
@@ -114,12 +164,42 @@ namespace HarmonicEngineV4.Bake
             return result;
         }
 
-        private static void ShrinkRings(ref V4BakedHole hole, float scale, float ringSpacing)
+        public static V4BakedHole[] BakeHoles(IReadOnlyList<V4HoleDef> holeDefs)
         {
-            // d0 stays at the physical hole radius; d1/d2 scale down toward it,
-            // never collapsing below it.
-            hole.d2 = Mathf.Max(hole.radius, hole.d2 * scale);
-            hole.d1 = Mathf.Max(hole.radius, Mathf.Min(hole.d1 * scale, (hole.d0 + hole.d2) * 0.5f));
+            var holes = new V4BakedHole[holeDefs.Count];
+            for (int i = 0; i < holeDefs.Count; i++)
+            {
+                V4HoleDef def = holeDefs[i];
+                holes[i] = new V4BakedHole
+                {
+                    localPosition = def.localPosition,
+                    radius = def.radius,
+                    outwardNormal = def.outwardNormal.sqrMagnitude > 1e-8f ? def.outwardNormal.normalized : Vector3.up
+                };
+            }
+
+            return holes;
+        }
+
+        /// <summary>Legacy entry: holes only, no layers.</summary>
+        public static Result BakeHoles(IReadOnlyList<V4HoleDef> holeDefs, float ringSpacing, bool autoShrinkRings)
+        {
+            return BakeBucket(holeDefs, null, 1f, 0.15f);
+        }
+
+        /// <summary>Legacy ring helper kept for tests migrating off spherical zones.</summary>
+        public static void ComputeRings(float holeRadius, float ringSpacing, out float d0, out float d1, out float d2)
+        {
+            d0 = Mathf.Max(holeRadius, ringSpacing * 0.25f);
+            d1 = d0 + ringSpacing;
+            d2 = d1 + ringSpacing;
+        }
+
+        private static float HorizontalDistance(Vector3 a, Vector3 b)
+        {
+            float dx = a.x - b.x;
+            float dz = a.z - b.z;
+            return Mathf.Sqrt(dx * dx + dz * dz);
         }
     }
 }

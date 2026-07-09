@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using HarmonicEngineV4.Bake;
 using HarmonicEngineV4.Core;
+using HarmonicEngineV4.Simulation;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -26,6 +27,38 @@ namespace HarmonicEngineV4.Tests.PlayMode
                         radius = 0.05f,
                         outwardNormal = Vector3.down
                     }
+                }
+            };
+        }
+
+        private static V4TestRig.Config GpuPendulumConfig(Vector3 initialTangentialVelocity)
+        {
+            const float ropeLength = 2.6f;
+            const float pivotY = 3f;
+            return new V4TestRig.Config
+            {
+                ConfigureBucket = (bucket, root) =>
+                {
+                    bucket.transform.position = new Vector3(0f, pivotY - ropeLength, 0f);
+                    bucket.transform.rotation = Quaternion.identity;
+
+                    var motion = bucket.gameObject.AddComponent<V4BucketMotionSettings>();
+                    motion.mode = V4BucketMotionMode.Pendulum;
+                    motion.useGpuPendulum = true;
+
+                    var pendulum = bucket.gameObject.AddComponent<V4SphericalPendulumController>();
+                    pendulum.pivotPoint = new Vector3(0f, pivotY, 0f);
+                    pendulum.ropeLength = ropeLength;
+                    pendulum.initialTangentialVelocity = initialTangentialVelocity;
+                    pendulum.adoptManualBucketPoseOnReset = true;
+                    pendulum.sloshFeedbackScale = 0f;
+                    pendulum.SetGpuIntegrationActive(true);
+
+                    bucket.gameObject.AddComponent<V4GpuBucketDriver>();
+                },
+                ConfigureRoot = root =>
+                {
+                    root.carryRate = 25f;
                 }
             };
         }
@@ -289,6 +322,93 @@ namespace HarmonicEngineV4.Tests.PlayMode
                 // Red (255,0,0) and blue (0,0,255): any mix has green == 0 (+1 rounding slack).
                 Assert.LessOrEqual(g, 2u, $"blended color left the red-blue hull: {packed:X8}");
             }
+        }
+
+        [Test]
+        public void GpuPendulum_Swing_NoNaN()
+        {
+            using var rig = V4TestRig.Create(GpuPendulumConfig(new Vector3(0.5f, 0f, 0f)));
+            rig.Step(300, Dt);
+            AssertNoNaN(rig.ReadPositions(), "gpu pendulum positions");
+            foreach (Vector4 v in rig.ReadVelocities())
+            {
+                Assert.IsFalse(float.IsNaN(v.x) || float.IsNaN(v.y) || float.IsNaN(v.z), "NaN velocity in gpu pendulum");
+            }
+        }
+
+        [Test]
+        public void GpuPendulum_Rest_InsideParticlesFeelGravity()
+        {
+            using var rig = V4TestRig.Create(GpuPendulumConfig(Vector3.zero));
+            rig.Step(12, Dt);
+
+            float yVelSum = 0f;
+            int count = 0;
+            Vector4[] velocities = rig.ReadVelocities();
+            uint[] flags = rig.ReadFlags();
+            for (int i = 0; i < velocities.Length; i++)
+            {
+                if (!V4ParticleFlags.IsInside(flags[i]))
+                {
+                    continue;
+                }
+
+                yVelSum += velocities[i].y;
+                count++;
+            }
+
+            Assert.Greater(count, 50, "expected inside particles to sample");
+            Assert.Less(yVelSum / count, -0.05f, "gravity should pull inside particles downward in world space");
+        }
+
+        [Test]
+        public void GpuPendulum_Swing_FluidTracksMovingFrame()
+        {
+            using var rig = V4TestRig.Create(GpuPendulumConfig(new Vector3(0.55f, 0f, -0.1f)));
+
+            float alignSum = 0f;
+            float ratioSum = 0f;
+            int sampleCount = 0;
+            for (int frame = 0; frame < 180; frame++)
+            {
+                rig.Step(1, Dt);
+
+                Vector3 origin = rig.Bucket.transform.position;
+                Vector3 linearVelocity = rig.Bucket.LinearVelocity;
+                Vector3 angularVelocity = rig.Bucket.AngularVelocity;
+                Vector4[] positions = rig.ReadPositions();
+                Vector4[] velocities = rig.ReadVelocities();
+                uint[] flags = rig.ReadFlags();
+
+                for (int i = 0; i < positions.Length; i++)
+                {
+                    if (!V4ParticleFlags.IsInside(flags[i]))
+                    {
+                        continue;
+                    }
+
+                    Vector3 pos = positions[i];
+                    Vector3 vel = velocities[i];
+                    Vector3 frameVel = linearVelocity + Vector3.Cross(angularVelocity, pos - origin);
+                    float frameSpeed = frameVel.magnitude;
+                    float particleSpeed = vel.magnitude;
+                    if (frameSpeed < 0.08f || particleSpeed < 0.02f)
+                    {
+                        continue;
+                    }
+
+                    alignSum += Mathf.Abs(Vector3.Dot(vel, frameVel) / (particleSpeed * frameSpeed + 1e-6f));
+                    ratioSum += particleSpeed / frameSpeed;
+                    sampleCount++;
+                }
+            }
+
+            Assert.Greater(sampleCount, 200, "not enough inside particle samples during swing");
+            float meanAlign = alignSum / sampleCount;
+            float meanRatio = ratioSum / sampleCount;
+            Assert.Greater(meanAlign, 0.2f, $"fluid should correlate with bucket frame motion (mean |align| {meanAlign:F3})");
+            Assert.Greater(meanRatio, 0.08f, $"fluid should move with the swinging bucket (mean speed ratio {meanRatio:F3})");
+            Assert.Less(meanRatio, 4f, $"fluid should not wildly overshoot bucket motion (mean speed ratio {meanRatio:F3})");
         }
     }
 }

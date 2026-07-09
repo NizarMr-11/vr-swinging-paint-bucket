@@ -90,6 +90,37 @@ namespace HarmonicEngineV4.Tests.EditMode
         }
 
         [Test]
+        public void SpawnMath_LatticeFillCylinder_CountApproximatesVolumeTimesDensity()
+        {
+            const float innerRadius = 0.3f;
+            const float yMin = 0f;
+            const float yMax = 0.6f;
+            const float density = 50000f;
+            List<Vector3> points = V4SpawnMath.LatticeFillCylinder(innerRadius, yMin, yMax, density);
+
+            int expected = V4SpawnMath.ExpectedCount(
+                V4SpawnMath.CylinderSlabVolume(innerRadius, yMin, yMax),
+                density);
+            Assert.Greater(points.Count, expected * 0.7f);
+            Assert.Less(points.Count, expected * 1.3f);
+        }
+
+        [Test]
+        public void SpawnMath_LatticeFillCylinderSlab_AllPointsInsideSlab()
+        {
+            float innerRadius = 0.3f;
+            List<Vector3> points = V4SpawnMath.LatticeFillCylinderSlab(innerRadius, 0f, 0.2f, 30000f);
+            Assert.IsNotEmpty(points);
+            foreach (Vector3 p in points)
+            {
+                float r = Mathf.Sqrt(p.x * p.x + p.z * p.z);
+                Assert.LessOrEqual(r, innerRadius + 1e-4f);
+                Assert.GreaterOrEqual(p.y, -1e-4f);
+                Assert.LessOrEqual(p.y, 0.2f + 1e-4f);
+            }
+        }
+
+        [Test]
         public void SpawnMath_LatticeFill_IsDeterministic()
         {
             List<Vector3> a = V4SpawnMath.LatticeFillSphere(Vector3.one, 0.25f, 20000f);

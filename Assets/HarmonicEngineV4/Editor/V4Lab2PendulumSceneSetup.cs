@@ -24,19 +24,24 @@ namespace HarmonicEngineV4.Editor
                 return;
             }
 
+            EnsureComponent<V4GpuBucketDriver>(bucket);
             EnsureComponent<V4BucketMotionSettings>(bucket).mode = V4BucketMotionMode.Pendulum;
+            V4BucketMotionSettings motionSettings = bucket.GetComponent<V4BucketMotionSettings>();
+            motionSettings.useGpuPendulum = true;
             V4SphericalPendulumController pendulum = EnsureComponent<V4SphericalPendulumController>(bucket);
             Transform pivot = EnsurePivot("Pendulum Pivot", new Vector3(0f, 3f, 0f));
             pendulum.pivotTransform = pivot;
             pendulum.pivotPoint = pivot.position;
             pendulum.adoptManualBucketPoseOnReset = true;
             pendulum.twistAngleDegrees = 0f;
-            pendulum.SyncSceneSetupPose(moveBucket: false);
+            pendulum.initialTangentialVelocity = Vector3.zero;
+            pendulum.PreparePlayInitPose();
             EnsureComponent<V4TorricelliEjectionSettings>(bucket);
             EnsureComponent<V4FluidMassProbe>(bucket);
             EnsureComponent<V4PendulumRopeVisualizer>(bucket);
 
             V4Bucket bucketComponent = bucket.GetComponent<V4Bucket>();
+            SetupThreeColorLayers(bucketComponent);
             if (bucketComponent.holes.Count > 0)
             {
                 V4HoleDef hole = bucketComponent.holes[0];
@@ -52,7 +57,7 @@ namespace HarmonicEngineV4.Editor
                 root.restrictSpawnToBucketCavity = true;
             }
 
-            ReparentSpawnZones(bucket, root);
+            RemoveSphereSpawnZones(bucket, root);
             pendulum.CaptureRestPoseFromScene();
             pendulum.ResetSimulation();
 
@@ -68,24 +73,26 @@ namespace HarmonicEngineV4.Editor
             Debug.Log("[V4Lab2PendulumSceneSetup] Applied pendulum setup to HarmonicEngineLab2.");
         }
 
-        private static void ReparentSpawnZones(GameObject bucket, V4PipelineRoot root)
+        private static void SetupThreeColorLayers(V4Bucket bucket)
         {
-            if (root == null || root.spawnZones == null)
+            float slab = bucket.height / 3f;
+            bucket.heightLayers.Clear();
+            bucket.heightLayers.Add(new V4LayerDef { thickness = slab, color = Color.black });
+            bucket.heightLayers.Add(new V4LayerDef { thickness = slab, color = Color.white });
+            bucket.heightLayers.Add(new V4LayerDef { thickness = slab, color = Color.yellow });
+            bucket.topBandHeight = slab;
+        }
+
+        private static void RemoveSphereSpawnZones(GameObject bucket, V4PipelineRoot root)
+        {
+            foreach (V4SpawnZone zone in bucket.GetComponentsInChildren<V4SpawnZone>(true))
             {
-                return;
+                Object.DestroyImmediate(zone.gameObject);
             }
 
-            foreach (V4SpawnZone zone in root.spawnZones)
+            if (root != null && root.spawnZones != null)
             {
-                if (zone == null)
-                {
-                    continue;
-                }
-
-                Transform t = zone.transform;
-                Vector3 worldPos = t.position;
-                t.SetParent(bucket.transform, worldPositionStays: true);
-                t.localPosition = bucket.transform.InverseTransformPoint(worldPos);
+                root.spawnZones.Clear();
             }
         }
 

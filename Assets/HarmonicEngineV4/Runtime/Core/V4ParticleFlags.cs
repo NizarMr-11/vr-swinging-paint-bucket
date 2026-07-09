@@ -4,9 +4,10 @@ namespace HarmonicEngineV4.Core
     {
         None = 0,
         HoleZone0 = 1,
-        HoleZone1 = 2,
-        HoleZone2 = 3,
-        TopBand = 4
+        HeightLayer = 2,
+        HoleZone1 = 3,
+        HoleZone2 = 4,
+        TopBand = 5
     }
 
     /// <summary>
@@ -14,7 +15,7 @@ namespace HarmonicEngineV4.Core
     /// both sides pack/unpack identically.
     ///   bit 0      : Inside bucket volume this frame (reversible)
     ///   bit 1      : hasEscaped latch (permanent; only the classification kernel sets it)
-    ///   bits 2-4   : zone assignment this frame
+    ///   bits 2-4   : zone assignment this frame (HeightLayer stores layer index in hole bits)
     ///   bits 5-9   : owning hole index
     ///   bits 10-17 : liquid profile index
     /// </summary>
@@ -36,6 +37,9 @@ namespace HarmonicEngineV4.Core
         public static bool HasEscaped(uint flags) => (flags & EscapedBit) != 0;
         public static V4Zone GetZone(uint flags) => (V4Zone)((flags & ZoneMask) >> ZoneShift);
         public static int GetHole(uint flags) => (int)((flags & HoleMask) >> HoleShift);
+
+        /// <summary>Layer index when zone is <see cref="V4Zone.HeightLayer"/>.</summary>
+        public static int GetLayerIndex(uint flags) => GetHole(flags);
         public static int GetProfile(uint flags) => (int)((flags & ProfileMask) >> ProfileShift);
 
         public static uint SetInside(uint flags, bool inside) =>

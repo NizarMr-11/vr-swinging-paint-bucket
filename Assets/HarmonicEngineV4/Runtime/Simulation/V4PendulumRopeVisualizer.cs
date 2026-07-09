@@ -29,6 +29,17 @@ namespace HarmonicEngineV4.Simulation
 
         private void LateUpdate()
         {
+            V4BucketMotionSettings motionSettings = GetComponent<V4BucketMotionSettings>();
+            if (motionSettings != null && motionSettings.UseGpuPendulum)
+            {
+                if (_line != null)
+                {
+                    _line.enabled = false;
+                }
+
+                return;
+            }
+
             if (_pendulum == null || !_pendulum.enabled || _line == null)
             {
                 if (_line != null)

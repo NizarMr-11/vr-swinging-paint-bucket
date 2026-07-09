@@ -11,10 +11,15 @@ namespace HarmonicEngineV4.Simulation
     {
         public V4BucketMotionMode mode = V4BucketMotionMode.Keyboard;
 
+        [Tooltip("When pendulum mode is active, integrate bucket physics on the GPU inside V4PipelineRoot.")]
+        public bool useGpuPendulum = true;
+
         private V4BucketMotionController _keyboard;
         private V4SphericalPendulumController _pendulum;
+        private V4GpuBucketDriver _gpuDriver;
 
         public bool IsPendulumMode => mode == V4BucketMotionMode.Pendulum;
+        public bool UseGpuPendulum => IsPendulumMode && useGpuPendulum;
 
         private void Awake()
         {
@@ -54,6 +59,11 @@ namespace HarmonicEngineV4.Simulation
             {
                 _pendulum = GetComponent<V4SphericalPendulumController>();
             }
+
+            if (_gpuDriver == null)
+            {
+                _gpuDriver = GetComponent<V4GpuBucketDriver>();
+            }
         }
 
         private void ApplyMode()
@@ -70,6 +80,12 @@ namespace HarmonicEngineV4.Simulation
             if (_pendulum != null)
             {
                 _pendulum.enabled = pendulum;
+                _pendulum.SetGpuIntegrationActive(UseGpuPendulum);
+            }
+
+            if (_gpuDriver != null)
+            {
+                _gpuDriver.enabled = UseGpuPendulum;
             }
 
             if (bucket != null && !pendulum)

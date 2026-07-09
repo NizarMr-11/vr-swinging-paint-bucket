@@ -46,6 +46,8 @@ namespace HarmonicEngineV4.Simulation
 
         private V4Bucket _bucket;
         private V4FluidMassProbe _fluidProbe;
+        private V4GpuBucketDriver _gpuDriver;
+        private bool _gpuIntegrationActive;
         private Vector3 _unitDirection;
         private Vector3 _tangentialVelocity;
         private Vector3 _prevAngularVelocity;
@@ -69,12 +71,31 @@ namespace HarmonicEngineV4.Simulation
         /// <summary>Twist ω (degrees) about the rope axis.</summary>
         public float OmegaDegrees => twistAngleDegrees;
 
+        public bool HasRestPose => _hasRestPose;
+
+        public Vector3 RestBucketPosition => _restBucketPosition;
+
+        public void SetGpuIntegrationActive(bool active)
+        {
+            _gpuIntegrationActive = active;
+        }
+
+        public bool IsGpuIntegrationActive => _gpuIntegrationActive;
+
         private void Awake()
         {
             _bucket = GetComponent<V4Bucket>();
             _fluidProbe = GetComponent<V4FluidMassProbe>();
+            _gpuDriver = GetComponent<V4GpuBucketDriver>();
             CaptureRestPoseFromScene();
-            ResetSimulation();
+            if (!_gpuIntegrationActive)
+            {
+                ResetSimulation();
+            }
+            else
+            {
+                SyncInternalStateFromScene();
+            }
         }
 
         private void OnEnable()
@@ -86,6 +107,18 @@ namespace HarmonicEngineV4.Simulation
             }
 
             CaptureRestPoseFromScene();
+            if (_gpuIntegrationActive)
+            {
+                SyncInternalStateFromScene();
+                if (adoptManualBucketPoseOnReset)
+                {
+                    ApplyManualRestPoseToTransform();
+                }
+
+                _gpuDriver?.ResetFromPendulum(this);
+                return;
+            }
+
             ResetSimulation();
         }
 
@@ -99,7 +132,7 @@ namespace HarmonicEngineV4.Simulation
 
         private void FixedUpdate()
         {
-            if (!Application.isPlaying)
+            if (!Application.isPlaying || _gpuIntegrationActive)
             {
                 return;
             }
@@ -186,10 +219,48 @@ namespace HarmonicEngineV4.Simulation
 
             transform.rotation = V4SphericalPendulumMath.ComputeBucketRotation(_unitDirection, twistAngleDegrees);
 
-            if (moveBucket && length > 1e-4f)
+            if (moveBucket && length > 1e-4f && !adoptManualBucketPoseOnReset)
             {
                 transform.position = V4SphericalPendulumMath.WorldPosition(pivot, ropeLength, _unitDirection);
             }
+        }
+
+        /// <summary>
+        /// Play/init path for a manually placed bucket: keep the authored world XYZ (e.g. off to the side),
+        /// only derive rope length/direction and hang rotation from that position.
+        /// </summary>
+        public void ApplyManualRestPoseToTransform()
+        {
+            CaptureRestPoseFromScene();
+            if (!_hasRestPose)
+            {
+                SyncSceneSetupPose(moveBucket: false);
+                return;
+            }
+
+            Vector3 pivot = GetPivotWorld();
+            Vector3 delta = _restBucketPosition - pivot;
+            if (delta.sqrMagnitude > 1e-8f)
+            {
+                ropeLength = delta.magnitude;
+                _unitDirection = delta / ropeLength;
+                UpdateAlphaBeta();
+            }
+
+            transform.SetPositionAndRotation(
+                _restBucketPosition,
+                V4SphericalPendulumMath.ComputeBucketRotation(_unitDirection, twistAngleDegrees));
+        }
+
+        public void PreparePlayInitPose()
+        {
+            if (adoptManualBucketPoseOnReset)
+            {
+                ApplyManualRestPoseToTransform();
+                return;
+            }
+
+            SyncSceneSetupPose(moveBucket: true);
         }
 
         public void CaptureRestPoseFromScene()
@@ -208,6 +279,18 @@ namespace HarmonicEngineV4.Simulation
 
         public void ResetSimulation()
         {
+            if (_gpuIntegrationActive)
+            {
+                SyncInternalStateFromScene();
+                if (adoptManualBucketPoseOnReset)
+                {
+                    ApplyManualRestPoseToTransform();
+                }
+
+                _gpuDriver?.ResetFromPendulum(this);
+                return;
+            }
+
             if (adoptManualBucketPoseOnReset && _hasRestPose)
             {
                 Vector3 pivot = GetPivotWorld();
@@ -235,7 +318,51 @@ namespace HarmonicEngineV4.Simulation
             ApplyPoseAndKinematics(Time.fixedDeltaTime > 1e-6f ? Time.fixedDeltaTime : 0.02f);
         }
 
-        public void SetFluidFeedback(V4FluidMassStats stats)
+        private void SyncInternalStateFromScene()
+        {
+            if (adoptManualBucketPoseOnReset && _hasRestPose)
+            {
+                Vector3 pivot = GetPivotWorld();
+                Vector3 delta = _restBucketPosition - pivot;
+                if (delta.sqrMagnitude > 1e-8f)
+                {
+                    ropeLength = delta.magnitude;
+                    _unitDirection = delta / ropeLength;
+                }
+            }
+
+            _tangentialVelocity = V4SphericalPendulumMath.ProjectOntoTangentPlane(
+                initialTangentialVelocity,
+                _unitDirection);
+            UpdateAlphaBeta();
+        }
+
+        public void SyncStateFromGpu(V4GpuBucketState state)
+        {
+            _unitDirection = state.unitDirection;
+            _tangentialVelocity = state.tangentialVelocity;
+            AngularVelocityWorld = state.angularVelocity;
+            AngularAccelerationWorld = state.angularAcceleration;
+            UpdateAlphaBeta();
+
+            var rotation = new Quaternion(
+                state.worldRotation.x,
+                state.worldRotation.y,
+                state.worldRotation.z,
+                state.worldRotation.w);
+            transform.SetPositionAndRotation(state.worldOrigin, rotation);
+
+            if (_bucket != null && Application.isPlaying)
+            {
+                _bucket.SetAnalyticKinematics(
+                    state.linearVelocity,
+                    state.angularVelocity,
+                    state.angularAcceleration,
+                    useAnalytic: state.useGpuState > 0.5f);
+            }
+        }
+
+        private void SetFluidFeedback(V4FluidMassStats stats)
         {
             float blend = Mathf.Clamp01(fluidMassSmoothing);
             _smoothedFluidMass = Mathf.Lerp(_smoothedFluidMass, stats.totalMass, blend);

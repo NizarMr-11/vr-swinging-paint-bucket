@@ -48,6 +48,32 @@ namespace HarmonicEngineV4.Simulation
             return tangential * feedbackScale;
         }
 
+        public static void IntegrateVerletStep(
+            ref Vector3 unitDirection,
+            ref Vector3 tangentialVelocity,
+            float ropeLength,
+            float gravity,
+            float damping,
+            float deltaTime,
+            Vector3 sloshAcceleration)
+        {
+            Vector3 accel0 = ComputeGravityTangent(unitDirection, gravity)
+                - damping * tangentialVelocity
+                + sloshAcceleration;
+
+            Vector3 vHalf = tangentialVelocity + accel0 * deltaTime;
+            unitDirection += (vHalf / Mathf.Max(ropeLength, 1e-6f)) * deltaTime;
+            unitDirection = NormalizeDirection(unitDirection, Vector3.down);
+
+            Vector3 accel1 = ComputeGravityTangent(unitDirection, gravity)
+                - damping * vHalf
+                + sloshAcceleration;
+
+            tangentialVelocity = ProjectOntoTangentPlane(
+                tangentialVelocity + 0.5f * (accel0 + accel1) * deltaTime,
+                unitDirection);
+        }
+
         public static void IntegrateStep(
             ref Vector3 unitDirection,
             ref Vector3 tangentialVelocity,
@@ -78,24 +104,13 @@ namespace HarmonicEngineV4.Simulation
         public static Quaternion ComputeBucketRotation(Vector3 unitDirection, float twistDegrees = 0f)
         {
             Vector3 ropeDir = NormalizeDirection(unitDirection, Vector3.down);
-            Vector3 bucketUp = -ropeDir;
-            Vector3 referenceForward = Mathf.Abs(Vector3.Dot(bucketUp, Vector3.up)) > 0.99f
-                ? Vector3.forward
-                : Vector3.up;
-            Vector3 tangent = Vector3.Cross(referenceForward, bucketUp);
-            if (tangent.sqrMagnitude < 1e-8f)
-            {
-                tangent = Vector3.right;
-            }
-
-            tangent.Normalize();
-            Quaternion baseRotation = Quaternion.LookRotation(tangent, bucketUp);
+            Quaternion rotation = Quaternion.FromToRotation(Vector3.up, -ropeDir);
             if (Mathf.Abs(twistDegrees) < 1e-4f)
             {
-                return baseRotation;
+                return rotation;
             }
 
-            return Quaternion.AngleAxis(twistDegrees, ropeDir) * baseRotation;
+            return Quaternion.AngleAxis(twistDegrees, ropeDir) * rotation;
         }
 
         /// <summary>Azimuth α (degrees, around world Y) and polar β (degrees from world +Y) for rope direction.</summary>
