@@ -12,6 +12,9 @@ namespace HarmonicEngineV4.Simulation
     /// </summary>
     public sealed class V4BucketMotionController : MonoBehaviour
     {
+        [Tooltip("When false, keyboard bucket control is ignored (used by networked clients).")]
+        public bool inputEnabled = true;
+
         [Min(0f)] public float moveSpeed = 1.2f;
         [Min(0f)] public float tiltSpeed = 60f;
         [Min(0f)] public float spinSpeed = 120f;
@@ -117,6 +120,11 @@ namespace HarmonicEngineV4.Simulation
 
         private void Update()
         {
+            if (!inputEnabled)
+            {
+                return;
+            }
+
             // While the right mouse button is held, the fly camera owns WASD/QE.
             if (Mouse.current != null && Mouse.current.rightButton.isPressed)
             {
@@ -141,6 +149,11 @@ namespace HarmonicEngineV4.Simulation
 #else
         private void Update()
         {
+            if (!inputEnabled)
+            {
+                return;
+            }
+
             // While the right mouse button is held, the fly camera owns WASD/QE.
             if (Input.GetMouseButton(1))
             {

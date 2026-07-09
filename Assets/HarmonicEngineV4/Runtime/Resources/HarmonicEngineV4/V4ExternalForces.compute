@@ -31,6 +31,9 @@ float _DeltaTime;
 float _CarryRate;              // relaxation rate toward the bucket frame velocity
 float _TotalExpectedLoss;      // CPU-side EMA sum across holes (spec section 5)
 float _DownwardScale;
+float3 _BucketAngularAcceleration;
+float _ApplyNonInertialForces;
+float _HoleExitSpeedOverride;
 uint _ActiveParticleCount;
 
 [numthreads(64, 1, 1)]
@@ -59,6 +62,15 @@ void ExternalForcesKernel(uint3 id : SV_DispatchThreadID)
         float3 frameVel = _BucketLinearVelocity + cross(_BucketAngularVelocity, pos - _BucketWorldOrigin);
         float blend = 1.0 - exp(-_CarryRate * _DeltaTime);
         vel += (frameVel - vel) * blend;
+
+        if (_ApplyNonInertialForces > 0.5)
+        {
+            float3 rWorld = pos - _BucketWorldOrigin;
+            float3 centrifugal = -cross(_BucketAngularVelocity, cross(_BucketAngularVelocity, rWorld));
+            float3 euler = -cross(_BucketAngularAcceleration, rWorld);
+            float3 coriolis = -2.0 * cross(_BucketAngularVelocity, vel);
+            vel += (centrifugal + euler + coriolis) * _DeltaTime;
+        }
     }
 
     uint zone = V4GetZone(flags);
@@ -70,14 +82,20 @@ void ExternalForcesKernel(uint3 id : SV_DispatchThreadID)
 
         if (zone == V4_ZONE_HOLE0)
         {
+            float targetExit = profile.zoneStrength0;
+            if (_HoleExitSpeedOverride > targetExit)
+            {
+                targetExit = _HoleExitSpeedOverride;
+            }
+
             // Eject (not dt-scaled): raise the velocity along the hole's outward normal
             // up to the profile's target exit speed (spec section 5). Velocity-targeting
             // instead of a raw add keeps the outflow a continuous stream rather than
             // per-frame clumps, since particles keep whatever exit speed they built up.
             float exitSpeed = dot(vel, dirWorld);
-            if (exitSpeed < profile.zoneStrength0)
+            if (exitSpeed < targetExit)
             {
-                vel += dirWorld * (profile.zoneStrength0 - exitSpeed);
+                vel += dirWorld * (targetExit - exitSpeed);
             }
         }
         else

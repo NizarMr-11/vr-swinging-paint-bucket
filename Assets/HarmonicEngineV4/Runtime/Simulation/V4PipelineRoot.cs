@@ -283,6 +283,93 @@ namespace HarmonicEngineV4.Simulation
         /// <summary>Networking: align sim frame counter with remote authority.</summary>
         public void SetNetworkFrameIndex(uint frameIndex) => FrameIndex = frameIndex;
 
+        /// <summary>Networking: read the full canvas paint grid into a CPU array (rgb + depth).</summary>
+        public void ReadCanvasGridSnapshot(Vector4[] grid)
+        {
+            if (_canvasGridBuffer == null || grid == null)
+            {
+                return;
+            }
+
+            int count = CanvasGridSize.x * CanvasGridSize.y;
+            if (grid.Length < count)
+            {
+                throw new ArgumentException($"grid length {grid.Length} < canvas cell count {count}");
+            }
+
+            _canvasGridBuffer.GetData(grid, 0, 0, count);
+        }
+
+        /// <summary>Networking: replace the canvas paint grid and refresh the display texture.</summary>
+        public void ApplyNetworkCanvasSnapshot(Vector4[] grid)
+        {
+            if (_canvasGridBuffer == null)
+            {
+                return;
+            }
+
+            int count = CanvasGridSize.x * CanvasGridSize.y;
+            if (grid == null || grid.Length < count)
+            {
+                throw new ArgumentException($"grid length must be at least {count}");
+            }
+
+            _canvasGridBuffer.SetData(grid, 0, 0, count);
+            BlitCanvasToTexture();
+        }
+
+        /// <summary>Networking: clear canvas paint to the authored base color.</summary>
+        public void ResetCanvasGridForNetwork()
+        {
+            if (_canvasGridBuffer == null)
+            {
+                return;
+            }
+
+            SetCanvasUniforms();
+            _executor.DispatchThreads("ClearCanvas", CanvasGridSize.x * CanvasGridSize.y);
+            BlitCanvasToTexture();
+        }
+
+        /// <summary>Networking: replace baked hole data and upload to the GPU holes buffer.</summary>
+        public void ApplyNetworkBakedHoles(V4BakedHole[] holes)
+        {
+            if (!Initialized || _holesBuffer == null)
+            {
+                return;
+            }
+
+            holes ??= Array.Empty<V4BakedHole>();
+            _bakedHoles = (V4BakedHole[])holes.Clone();
+
+            if (bucket != null)
+            {
+                bucket.holes.Clear();
+                for (int i = 0; i < _bakedHoles.Length; i++)
+                {
+                    V4BakedHole hole = _bakedHoles[i];
+                    bucket.holes.Add(new V4HoleDef
+                    {
+                        localPosition = hole.localPosition,
+                        radius = hole.radius,
+                        outwardNormal = hole.outwardNormal
+                    });
+                }
+            }
+
+            if (_bakedHoles.Length > 0)
+            {
+                if (_bakedHoles.Length > _holesBuffer.count)
+                {
+                    V4Log.Warning(V4LogCategory.General,
+                        $"network hole count {_bakedHoles.Length} exceeds holes buffer capacity {_holesBuffer.count}; truncating upload");
+                }
+
+                int uploadCount = Mathf.Min(_bakedHoles.Length, _holesBuffer.count);
+                _holesBuffer.SetData(_bakedHoles, 0, 0, uploadCount);
+            }
+        }
+
         /// <summary>GPU rest density target (lattice-calibrated) for profile index 0.</summary>
         public float GpuRestDensity(int profileIndex = 0)
         {
@@ -677,11 +764,27 @@ namespace HarmonicEngineV4.Simulation
             var colors = new uint[count];
             var flags = new uint[count];
 
+            bool seedPendulumVelocity = ShouldSeedPendulumSpawnVelocity();
+            float torricelliSpeed = ResolveTorricelliExitSpeed();
+            Vector3 bucketOrigin = bucket.transform.position;
+            Vector3 downwardJet = Vector3.down * torricelliSpeed;
+
             for (int i = 0; i < count; i++)
             {
                 SpawnedParticle p = spawned[i];
                 block0[i] = new Vector4(p.Position.x, p.Position.y, p.Position.z, ParticleRadius);
-                block1[i] = Vector4.zero;
+                if (seedPendulumVelocity)
+                {
+                    Vector3 frameVel = bucket.LinearVelocity
+                        + Vector3.Cross(bucket.AngularVelocity, p.Position - bucketOrigin);
+                    Vector3 spawnVel = frameVel + downwardJet;
+                    block1[i] = new Vector4(spawnVel.x, spawnVel.y, spawnVel.z, 0f);
+                }
+                else
+                {
+                    block1[i] = Vector4.zero;
+                }
+
                 colors[i] = p.Color;
                 // Spawn state (spec section 3): Outside, hasEscaped = false.
                 flags[i] = V4ParticleFlags.SetProfile(0u, p.ProfileIndex);
@@ -691,6 +794,39 @@ namespace HarmonicEngineV4.Simulation
             ActiveParticleCount = count;
 
             _countersBuffer.SetData(new uint[V4Counters.SlotCount]);
+        }
+
+        private bool ShouldSeedPendulumSpawnVelocity()
+        {
+            if (bucket == null)
+            {
+                return false;
+            }
+
+            V4BucketMotionSettings settings = bucket.GetComponent<V4BucketMotionSettings>();
+            return settings != null && settings.IsPendulumMode;
+        }
+
+        private float ResolveTorricelliExitSpeed()
+        {
+            if (bucket == null)
+            {
+                return 0f;
+            }
+
+            V4TorricelliEjectionSettings torricelli = bucket.GetComponent<V4TorricelliEjectionSettings>();
+            return torricelli != null ? torricelli.ExitSpeed : 0f;
+        }
+
+        private bool ShouldApplyNonInertialForces()
+        {
+            if (bucket == null)
+            {
+                return false;
+            }
+
+            V4BucketMotionSettings settings = bucket.GetComponent<V4BucketMotionSettings>();
+            return settings != null && settings.IsPendulumMode;
         }
 
         private void BuildManifestAndExecutor()
@@ -1028,6 +1164,7 @@ namespace HarmonicEngineV4.Simulation
 
             _forcesShader.SetVector("_BucketLinearVelocity", bucket.LinearVelocity);
             _forcesShader.SetVector("_BucketAngularVelocity", bucket.AngularVelocity);
+            _forcesShader.SetVector("_BucketAngularAcceleration", bucket.AngularAcceleration);
             _forcesShader.SetVector("_BucketWorldOrigin", bucket.transform.position);
             _pbfShader.SetVector("_BucketLinearVelocity", bucket.LinearVelocity);
             _pbfShader.SetVector("_BucketAngularVelocity", bucket.AngularVelocity);
@@ -1037,6 +1174,8 @@ namespace HarmonicEngineV4.Simulation
             _forcesShader.SetFloat("_CarryRate", carryRate);
             _forcesShader.SetFloat("_TotalExpectedLoss", TotalExpectedLoss);
             _forcesShader.SetFloat("_DownwardScale", downwardScale);
+            _forcesShader.SetFloat("_ApplyNonInertialForces", ShouldApplyNonInertialForces() ? 1f : 0f);
+            _forcesShader.SetFloat("_HoleExitSpeedOverride", ResolveTorricelliExitSpeed());
 
             _pbfShader.SetFloat("_DeltaTime", deltaTime);
             _pbfShader.SetFloat("_SmoothingRadius", SmoothingRadius);

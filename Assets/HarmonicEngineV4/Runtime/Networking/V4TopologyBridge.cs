@@ -61,6 +61,11 @@ namespace HarmonicEngineV4.Networking
                 bucket = bucket == null ? null : new BucketTopology
                 {
                     center = new float3(bucket.transform.position.x, bucket.transform.position.y, bucket.transform.position.z),
+                    rotation = new float4(
+                        bucket.transform.rotation.x,
+                        bucket.transform.rotation.y,
+                        bucket.transform.rotation.z,
+                        bucket.transform.rotation.w),
                     innerRadius = bucket.innerRadius,
                     outerRadius = bucket.innerRadius + bucket.wallThickness,
                     height = bucket.height,
@@ -68,7 +73,7 @@ namespace HarmonicEngineV4.Networking
                     bottomThickness = bucket.wallThickness,
                     topBandHeight = bucket.topBandHeight,
                     topBandOffset = 0f,
-                    holes = null
+                    holes = V4HoleBridge.CaptureHoles(pipeline)
                 },
                 simulation = new SimulationTopology
                 {
@@ -84,7 +89,7 @@ namespace HarmonicEngineV4.Networking
                     resolutionY = pipeline.CanvasGridSize.y,
                     cellSize = pipeline.CanvasCellSize,
                     origin = new float3(canvas.MinCorner.x, canvas.PlaneY, canvas.MinCorner.y),
-                    cells = null
+                    cells = V4CanvasGridBridge.CapturePaintedCells(pipeline)
                 },
                 particles = particles
             };
@@ -125,10 +130,18 @@ namespace HarmonicEngineV4.Networking
                 pipeline.bucket.height = topology.bucket.height;
                 pipeline.bucket.wallThickness = topology.bucket.wallThickness;
                 pipeline.bucket.topBandHeight = topology.bucket.topBandHeight;
-                pipeline.bucket.transform.position = new Vector3(
-                    topology.bucket.center.x,
-                    topology.bucket.center.y,
-                    topology.bucket.center.z);
+                float4 rot = topology.bucket.rotation;
+                Quaternion rotation = rot.x == 0f && rot.y == 0f && rot.z == 0f && rot.w == 0f
+                    ? pipeline.bucket.transform.rotation
+                    : new Quaternion(rot.x, rot.y, rot.z, rot.w);
+                pipeline.bucket.transform.SetPositionAndRotation(
+                    new Vector3(topology.bucket.center.x, topology.bucket.center.y, topology.bucket.center.z),
+                    rotation);
+
+                if (topology.bucket.holes != null)
+                {
+                    V4HoleBridge.ApplyHoles(pipeline, topology.bucket.holes);
+                }
             }
 
             ParticleState[] particles = topology.particles ?? Array.Empty<ParticleState>();
@@ -153,6 +166,11 @@ namespace HarmonicEngineV4.Networking
 
             pipeline.ApplyNetworkParticleSnapshot(block0, block1, colors, flags, count);
             pipeline.SetNetworkFrameIndex(topology.frameIndex);
+
+            if (topology.canvas != null)
+            {
+                V4CanvasGridBridge.ApplyPaintedCells(pipeline, topology.canvas);
+            }
         }
 
         public static V4SoaCpuSnapshot ToSoaSnapshot(Topology topology)

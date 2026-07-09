@@ -14,12 +14,6 @@ Shader "HarmonicEngineV4/SSFluidRender"
         _SpecularPower ("Specular Power", Float) = 250
         _SpecularIntensity ("Specular Intensity", Float) = 1.5
         _ThicknessAbsorption ("Thickness Absorption", Float) = 2.0
-
-        _BlurCoveragePass ("", Float) = 0
-        _BlurDepthPass ("", Float) = 0
-        _BlurThicknessOutput ("", Float) = 0
-        _FluidDepth ("", 2D) = "black" {}
-        _FluidThicknessTexture ("", 2D) = "black" {}
     }
 
     SubShader
@@ -34,7 +28,7 @@ Shader "HarmonicEngineV4/SSFluidRender"
             ZWrite On
             ZTest LEqual
             Blend 0 One Zero
-            Blend 1 SrcAlpha One
+            Blend 1 One One
 
             CGPROGRAM
             #pragma vertex vert
@@ -42,17 +36,12 @@ Shader "HarmonicEngineV4/SSFluidRender"
             #pragma fragment fragDepthThickness
             #pragma target 4.5
             #include "UnityCG.cginc"
-            #include "Include/V4Common.hlsl"
 
-            // SOA position/velocity/color/flags buffers bound from C#.
+            // SOA position/color buffers bound from C#.
             StructuredBuffer<float4> _Block0;
-            StructuredBuffer<float4> _Block1;
-            StructuredBuffer<uint> _Flags;
             StructuredBuffer<uint> _PackedColors;
             uint _ParticleCount;
             float _SplatRadius;
-            float _VelocityStretchScale;
-            float _VelocityStretchMax;
             float4 _FluidColor;
             float _ThicknessWeight;
             float _UseParticleColor;
@@ -69,8 +58,6 @@ Shader "HarmonicEngineV4/SSFluidRender"
             {
                 float3 worldCenter : TEXCOORD0;
                 float3 particleRgb : TEXCOORD1;
-                float3 worldVelocity : TEXCOORD2;
-                uint particleFlags : TEXCOORD3;
             };
 
             struct g2f
@@ -80,9 +67,6 @@ Shader "HarmonicEngineV4/SSFluidRender"
                 float3 worldCenter : TEXCOORD1;
                 float3 particleRgb : TEXCOORD2;
                 float3 worldCorner : TEXCOORD3;
-                float3 stretchDir : TEXCOORD4;
-                float3 perpDir : TEXCOORD5;
-                float stretchFactor : TEXCOORD6;
             };
 
             struct FragOut
@@ -96,8 +80,6 @@ Shader "HarmonicEngineV4/SSFluidRender"
                 v2g o;
                 float4 b0 = _Block0[id];
                 o.worldCenter = b0.xyz;
-                o.worldVelocity = _Block1[id].xyz;
-                o.particleFlags = _Flags[id];
                 o.particleRgb = UnpackUintToFloat3(_PackedColors[id]);
                 return o;
             }
@@ -106,50 +88,14 @@ Shader "HarmonicEngineV4/SSFluidRender"
             void geom(point v2g input[1], inout TriangleStream<g2f> triStream)
             {
                 float3 worldCenter = input[0].worldCenter;
-                float3 worldVelocity = input[0].worldVelocity;
-                bool inside = V4IsInside(input[0].particleFlags);
-                float3 viewRightUnit = UNITY_MATRIX_V[0].xyz;
-                float3 viewUpUnit = UNITY_MATRIX_V[1].xyz;
-                float3 viewForward = -UNITY_MATRIX_V[2].xyz;
-
-                float stretchFactor = 1.0;
-                if (!inside)
-                {
-                    float speed = length(worldVelocity);
-                    stretchFactor = clamp(1.0 + speed * _VelocityStretchScale, 1.0, _VelocityStretchMax);
-                }
-
-                float3 velView = mul((float3x3)UNITY_MATRIX_V, worldVelocity);
-                float2 velScreen = velView.xy;
-                float planarSpeed = length(velScreen);
-
-                float3 stretchAxis;
-                float3 perpAxis;
-                float3 stretchDir;
-                float3 perpDir;
-
-                if (inside || planarSpeed < 1e-6)
-                {
-                    stretchDir = viewRightUnit;
-                    perpDir = viewUpUnit;
-                    stretchAxis = viewRightUnit * _SplatRadius;
-                    perpAxis = viewUpUnit * _SplatRadius;
-                    stretchFactor = 1.0;
-                }
-                else
-                {
-                    float2 velDirScreen = velScreen / planarSpeed;
-                    stretchDir = normalize(viewRightUnit * velDirScreen.x + viewUpUnit * velDirScreen.y);
-                    perpDir = normalize(cross(viewForward, stretchDir));
-                    stretchAxis = stretchDir * (_SplatRadius * stretchFactor);
-                    perpAxis = perpDir * _SplatRadius;
-                }
+                float3 viewRight = UNITY_MATRIX_V[0].xyz * _SplatRadius;
+                float3 viewUp = UNITY_MATRIX_V[1].xyz * _SplatRadius;
 
                 float3 corners[4] = {
-                    worldCenter - stretchAxis - perpAxis,
-                    worldCenter + stretchAxis - perpAxis,
-                    worldCenter - stretchAxis + perpAxis,
-                    worldCenter + stretchAxis + perpAxis
+                    worldCenter - viewRight - viewUp,
+                    worldCenter + viewRight - viewUp,
+                    worldCenter - viewRight + viewUp,
+                    worldCenter + viewRight + viewUp
                 };
 
                 float2 uvs[4] = {
@@ -162,9 +108,6 @@ Shader "HarmonicEngineV4/SSFluidRender"
                 g2f o;
                 o.worldCenter = worldCenter;
                 o.particleRgb = input[0].particleRgb;
-                o.stretchDir = stretchDir;
-                o.perpDir = perpDir;
-                o.stretchFactor = stretchFactor;
 
                 [unroll]
                 for (int i = 0; i < 4; i++)
@@ -178,44 +121,22 @@ Shader "HarmonicEngineV4/SSFluidRender"
                 triStream.RestartStrip();
             }
 
-            bool IntersectViewAlignedEllipsoid(
-                float3 rayOrigin,
-                float3 rayDir,
-                float3 center,
-                float3 stretchDir,
-                float3 perpDir,
-                float3 viewForward,
-                float baseRadius,
-                float stretchFactor,
-                out float3 hitWorld)
+            bool IntersectSphere(float3 rayOrigin, float3 rayDir, float3 center, float radius, out float3 hitWorld)
             {
-                float a = baseRadius * stretchFactor;
-                float b = baseRadius;
-
-                float3 ro = rayOrigin - center;
-                float3 rd = rayDir;
-
-                float3 oL = float3(dot(ro, stretchDir), dot(ro, perpDir), dot(ro, viewForward));
-                float3 dL = float3(dot(rd, stretchDir), dot(rd, perpDir), dot(rd, viewForward));
-
-                float3 oN = float3(oL.x / a, oL.y / b, oL.z / b);
-                float3 dN = float3(dL.x / a, dL.y / b, dL.z / b);
-
-                float A = dot(dN, dN);
-                float B = 2.0 * dot(oN, dN);
-                float C = dot(oN, oN) - 1.0;
-                float disc = B * B - 4.0 * A * C;
+                float3 oc = rayOrigin - center;
+                float b = dot(rayDir, oc);
+                float c = dot(oc, oc) - radius * radius;
+                float disc = b * b - c;
                 if (disc < 0.0)
                 {
                     hitWorld = 0;
                     return false;
                 }
 
-                float sqrtDisc = sqrt(disc);
-                float t = (-B - sqrtDisc) / max(A, 1e-6);
+                float t = -b - sqrt(disc);
                 if (t <= 0.0)
                 {
-                    t = (-B + sqrtDisc) / max(A, 1e-6);
+                    t = -b + sqrt(disc);
                 }
 
                 if (t <= 0.0)
@@ -237,19 +158,9 @@ Shader "HarmonicEngineV4/SSFluidRender"
                 float3 worldCamera = _WorldSpaceCameraPos;
                 float3 worldCenter = i.worldCenter;
                 float3 rayDir = normalize(i.worldCorner - worldCamera);
-                float3 viewForward = -UNITY_MATRIX_V[2].xyz;
 
                 float3 hitWorld;
-                if (!IntersectViewAlignedEllipsoid(
-                    worldCamera,
-                    rayDir,
-                    worldCenter,
-                    i.stretchDir,
-                    i.perpDir,
-                    viewForward,
-                    _SplatRadius,
-                    i.stretchFactor,
-                    hitWorld))
+                if (!IntersectSphere(worldCamera, rayDir, worldCenter, _SplatRadius, hitWorld))
                 {
                     discard;
                 }
@@ -263,7 +174,7 @@ Shader "HarmonicEngineV4/SSFluidRender"
                 float3 rgb = lerp(_FluidColor.rgb, i.particleRgb, saturate(_UseParticleColor));
                 float weight = _ThicknessWeight;
 
-                o.depth = float4(eyeDepth, 1.0, 0.0, 1.0);
+                o.depth = float4(eyeDepth, 0.0, 0.0, 1.0);
                 o.thickness = float4(rgb * weight, weight);
                 return o;
             }
@@ -285,146 +196,42 @@ Shader "HarmonicEngineV4/SSFluidRender"
             #include "UnityCG.cginc"
 
             sampler2D _MainTex;
-            sampler2D _FluidDepth;
             float4 _MainTex_TexelSize;
             float _BlurFalloff;
             float _BlurRadius;
-            float _BlurCoveragePass;
-            float _BlurDepthPass;
-            float _BlurThicknessOutput;
-
-            void BilateralBlurThickness(
-                float2 uv,
-                float centerDepth,
-                out float4 blurredThickness)
-            {
-                float3 sumThicknessRgb = 0.0;
-                float sumThicknessA = 0.0;
-                float weightSum = 0.0;
-
-                for (int x = -2; x <= 2; x++)
-                {
-                    for (int y = -2; y <= 2; y++)
-                    {
-                        float2 offset = float2(x, y) * _MainTex_TexelSize.xy * _BlurRadius;
-                        float2 sampleUv = uv + offset;
-                        float sampleDepth = tex2D(_FluidDepth, sampleUv).r;
-
-                        if (sampleDepth > 0.0)
-                        {
-                            float spatialW = exp(-(x * x + y * y) / 8.0);
-                            float depthDiff = sampleDepth - centerDepth;
-                            float rangeW = exp(-(depthDiff * depthDiff) / _BlurFalloff);
-                            float w = spatialW * rangeW;
-                            float4 sampleThickness = tex2D(_MainTex, sampleUv);
-                            sumThicknessRgb += sampleThickness.rgb * w;
-                            sumThicknessA += sampleThickness.a * w;
-                            weightSum += w;
-                        }
-                    }
-                }
-
-                float invWeight = 1.0 / max(weightSum, 0.0001);
-                blurredThickness = float4(sumThicknessRgb * invWeight, sumThicknessA * invWeight);
-            }
-
-            float BilateralBlurDepth(float2 uv, float centerDepth)
-            {
-                float sumDepth = 0.0;
-                float weightSum = 0.0;
-
-                for (int x = -2; x <= 2; x++)
-                {
-                    for (int y = -2; y <= 2; y++)
-                    {
-                        float2 offset = float2(x, y) * _MainTex_TexelSize.xy * _BlurRadius;
-                        float sampleDepth = tex2D(_MainTex, uv + offset).r;
-
-                        if (sampleDepth > 0.0)
-                        {
-                            float spatialW = exp(-(x * x + y * y) / 8.0);
-                            float depthDiff = sampleDepth - centerDepth;
-                            float rangeW = exp(-(depthDiff * depthDiff) / _BlurFalloff);
-                            float w = spatialW * rangeW;
-                            sumDepth += sampleDepth * w;
-                            weightSum += w;
-                        }
-                    }
-                }
-
-                return sumDepth / max(weightSum, 0.0001);
-            }
 
             float4 fragBlur(v2f_img i) : SV_Target
             {
-                if (_BlurThicknessOutput > 0.5)
-                {
-                    float centerDepth = tex2D(_FluidDepth, i.uv).r;
-                    if (centerDepth <= 0.0)
-                    {
-                        return 0.0;
-                    }
-
-                    float4 blurredThickness;
-                    BilateralBlurThickness(i.uv, centerDepth, blurredThickness);
-                    return blurredThickness;
-                }
-
-                float4 center = tex2D(_MainTex, i.uv);
-                float centerDepth = center.r;
-
-                if (_BlurCoveragePass > 0.5)
-                {
-                    if (centerDepth <= 0.0)
-                    {
-                        return 0.0;
-                    }
-
-                    float outDepth = centerDepth;
-                    if (_BlurDepthPass > 0.5)
-                    {
-                        outDepth = BilateralBlurDepth(i.uv, centerDepth);
-                    }
-
-                    float validSpatialSum = 0.0;
-                    float totalSpatialSum = 0.0;
-                    for (int x = -2; x <= 2; x++)
-                    {
-                        for (int y = -2; y <= 2; y++)
-                        {
-                            float spatialW = exp(-(x * x + y * y) / 8.0);
-                            totalSpatialSum += spatialW;
-
-                            float2 offset = float2(x, y) * _MainTex_TexelSize.xy * _BlurRadius;
-                            float sampleDepth = tex2D(_MainTex, i.uv + offset).r;
-                            if (sampleDepth > 0.0)
-                            {
-                                validSpatialSum += spatialW;
-                            }
-                        }
-                    }
-
-                    float silhouetteCoverage = validSpatialSum / max(totalSpatialSum, 0.0001);
-                    if (outDepth <= 0.0)
-                    {
-                        return 0.0;
-                    }
-
-                    return float4(outDepth, silhouetteCoverage, 0.0, 1.0);
-                }
-
+                float centerDepth = tex2D(_MainTex, i.uv).r;
                 if (centerDepth <= 0.0)
                 {
                     return 0.0;
                 }
 
-                float blurredDepth = BilateralBlurDepth(i.uv, centerDepth);
-                if (blurredDepth <= 0.0)
+                float sum = 0.0;
+                float weightSum = 0.0;
+
+                for (int x = -2; x <= 2; x++)
                 {
-                    return 0.0;
+                    for (int y = -2; y <= 2; y++)
+                    {
+                        float2 offset = float2(x, y) * _MainTex_TexelSize.xy * _BlurRadius;
+                        float sampleDepth = tex2D(_MainTex, i.uv + offset).r;
+
+                        if (sampleDepth > 0.0)
+                        {
+                            float spatialW = exp(-(x * x + y * y) / 8.0);
+                            float depthDiff = sampleDepth - centerDepth;
+                            float rangeW = exp(-(depthDiff * depthDiff) / _BlurFalloff);
+                            float w = spatialW * rangeW;
+                            sum += sampleDepth * w;
+                            weightSum += w;
+                        }
+                    }
                 }
 
-                return float4(blurredDepth, center.g, 0.0, 1.0);
+                float blurredDepth = sum / max(weightSum, 0.0001);
+                return float4(blurredDepth, 0.0, 0.0, 1.0);
             }
             ENDCG
         }
@@ -439,7 +246,7 @@ Shader "HarmonicEngineV4/SSFluidRender"
             Blend SrcAlpha OneMinusSrcAlpha
 
             CGPROGRAM
-            #pragma vertex vertFullscreenTriangle
+            #pragma vertex vert_img
             #pragma fragment fragComposite
             #pragma target 5.0
             #include "UnityCG.cginc"
@@ -455,36 +262,13 @@ Shader "HarmonicEngineV4/SSFluidRender"
             float _SpecularIntensity;
             float _ThicknessAbsorption;
 
-            struct v2f_composite
+            float4 fragComposite(v2f_img i) : SV_Target
             {
-                float4 pos : SV_POSITION;
-                float2 uv : TEXCOORD0;
-            };
-
-            v2f_composite vertFullscreenTriangle(uint vid : SV_VertexID)
-            {
-                v2f_composite o;
-                float2 uv = float2((vid << 1) & 2, vid & 2);
-                o.pos = float4(uv * 2.0 - 1.0, 0.0, 1.0);
-                o.uv = uv;
-                if (_MainTex_TexelSize.y < 0.0)
-                {
-                    o.uv.y = 1.0 - o.uv.y;
-                }
-
-                return o;
-            }
-
-            float4 fragComposite(v2f_composite i) : SV_Target
-            {
-                float4 depthSample = tex2D(_MainTex, i.uv);
-                float depth = depthSample.r;
+                float depth = tex2D(_MainTex, i.uv).r;
                 if (depth <= 0.0)
                 {
                     return float4(0.0, 0.0, 0.0, 0.0);
                 }
-
-                float smoothedCoverage = depthSample.g;
 
                 float dzdx = ddx(depth) * _NormalScale;
                 float dzdy = ddy(depth) * _NormalScale;
@@ -509,7 +293,6 @@ Shader "HarmonicEngineV4/SSFluidRender"
 
                 float3 finalColor = baseColor * (0.35 + 0.65 * NdotL) + specular + (fresnel * 0.3);
                 float alpha = saturate(thickness * _ThicknessAbsorption);
-                alpha *= smoothstep(0.0, 0.25, smoothedCoverage);
 
                 return float4(finalColor, alpha);
             }
@@ -525,13 +308,12 @@ Shader "HarmonicEngineV4/SSFluidRender"
             Cull Off
 
             CGPROGRAM
-            #pragma vertex vertFullscreenTriangleDebug
+            #pragma vertex vertFull
             #pragma fragment fragDebugDepth
             #pragma target 3.0
             #include "UnityCG.cginc"
 
             sampler2D _FluidDepth;
-            float4 _FluidDepth_TexelSize;
             float _MaxEyeDepth;
 
             struct v2f
@@ -540,17 +322,11 @@ Shader "HarmonicEngineV4/SSFluidRender"
                 float2 uv : TEXCOORD0;
             };
 
-            v2f vertFullscreenTriangleDebug(uint vid : SV_VertexID)
+            v2f vertFull(appdata_img v)
             {
                 v2f o;
-                float2 uv = float2((vid << 1) & 2, vid & 2);
-                o.pos = float4(uv * 2.0 - 1.0, 0.0, 1.0);
-                o.uv = uv;
-                if (_FluidDepth_TexelSize.y < 0.0)
-                {
-                    o.uv.y = 1.0 - o.uv.y;
-                }
-
+                o.pos = UnityObjectToClipPos(v.vertex);
+                o.uv = v.texcoord;
                 return o;
             }
 

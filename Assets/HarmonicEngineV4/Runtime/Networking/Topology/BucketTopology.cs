@@ -7,6 +7,7 @@ namespace HarmonicEngineV4.Networking.State
     public sealed class BucketTopology : IEquatable<BucketTopology>
     {
         public float3 center;
+        public float4 rotation;
         public float innerRadius;
         public float outerRadius;
         public float height;
@@ -25,6 +26,7 @@ namespace HarmonicEngineV4.Networking.State
             }
 
             if (!center.Equals(other.center)
+                || !rotation.Equals(other.rotation)
                 || !innerRadius.Equals(other.innerRadius)
                 || !outerRadius.Equals(other.outerRadius)
                 || !height.Equals(other.height)
@@ -64,6 +66,7 @@ namespace HarmonicEngineV4.Networking.State
             unchecked
             {
                 int hash = center.GetHashCode();
+                hash = (hash * 397) ^ rotation.GetHashCode();
                 hash = (hash * 397) ^ innerRadius.GetHashCode();
                 hash = (hash * 397) ^ outerRadius.GetHashCode();
                 hash = (hash * 397) ^ height.GetHashCode();

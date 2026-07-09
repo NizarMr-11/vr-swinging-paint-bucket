@@ -39,12 +39,25 @@ namespace HarmonicEngineV4.Simulation
         /// <summary>World-space angular velocity (radians/sec), from the last sampled frame.</summary>
         public Vector3 AngularVelocity { get; private set; }
 
+        /// <summary>World-space angular acceleration (rad/s²), analytic or derived.</summary>
+        public Vector3 AngularAcceleration { get; private set; }
+
+        public bool UseAnalyticKinematics { get; private set; }
+
         public Matrix4x4 LocalToWorld => transform.localToWorldMatrix;
         public Matrix4x4 WorldToLocal => transform.worldToLocalMatrix;
 
         /// <summary>Called by the pipeline once per frame before dispatch to derive frame velocities.</summary>
         public void SampleKinematics(float deltaTime)
         {
+            if (UseAnalyticKinematics)
+            {
+                _prevPosition = transform.position;
+                _prevRotation = transform.rotation;
+                _hasPrev = true;
+                return;
+            }
+
             if (_hasPrev && deltaTime > 1e-6f)
             {
                 LinearVelocity = (transform.position - _prevPosition) / deltaTime;
@@ -59,11 +72,31 @@ namespace HarmonicEngineV4.Simulation
                 AngularVelocity = float.IsNaN(axis.x)
                     ? Vector3.zero
                     : axis.normalized * (angleDeg * Mathf.Deg2Rad / deltaTime);
+                AngularAcceleration = Vector3.zero;
             }
 
             _prevPosition = transform.position;
             _prevRotation = transform.rotation;
             _hasPrev = true;
+        }
+
+        /// <summary>Feed exact velocities from the pendulum driver instead of finite differencing.</summary>
+        public void SetAnalyticKinematics(
+            Vector3 linearVelocity,
+            Vector3 angularVelocity,
+            Vector3 angularAcceleration = default,
+            bool useAnalytic = true)
+        {
+            LinearVelocity = linearVelocity;
+            AngularVelocity = angularVelocity;
+            AngularAcceleration = angularAcceleration;
+            UseAnalyticKinematics = useAnalytic;
+        }
+
+        public void ClearAnalyticKinematics()
+        {
+            UseAnalyticKinematics = false;
+            AngularAcceleration = Vector3.zero;
         }
 
         public V4BucketBake.Result BakeHoles()

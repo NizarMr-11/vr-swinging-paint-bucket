@@ -33,6 +33,7 @@ namespace HarmonicEngineV4.Networking.State
             bucket = bucket == null ? null : new BucketTopology
             {
                 center = bucket.center,
+                rotation = bucket.rotation,
                 innerRadius = bucket.innerRadius,
                 outerRadius = bucket.outerRadius,
                 height = bucket.height,
@@ -40,7 +41,7 @@ namespace HarmonicEngineV4.Networking.State
                 bottomThickness = bucket.bottomThickness,
                 topBandHeight = bucket.topBandHeight,
                 topBandOffset = bucket.topBandOffset,
-                holes = bucket.holes == null ? null : (HoleDefinition[])bucket.holes.Clone()
+                holes = V4HoleBridge.CloneHoles(bucket.holes)
             },
             simulation = simulation == null ? null : new SimulationTopology
             {
@@ -50,7 +51,7 @@ namespace HarmonicEngineV4.Networking.State
                 globalDensity = simulation.globalDensity,
                 profiles = simulation.profiles == null ? null : (LiquidProfileTopology[])simulation.profiles.Clone()
             },
-            canvas = canvas,
+            canvas = V4CanvasGridBridge.CloneCanvasGrid(canvas),
             particles = CloneParticles(particles)
         };
 

@@ -42,6 +42,13 @@ namespace HarmonicEngineV4.Networking
         [Tooltip("Client: step simulation locally between network applies. Off = receive-only mirror.")]
         public bool clientSimulatesLocally;
 
+        [Header("Bucket authority")]
+        [Tooltip("Host keeps keyboard bucket control enabled.")]
+        public bool hostAllowsBucketInput = true;
+
+        [Tooltip("Receive-only clients ignore local bucket keyboard input.")]
+        public bool disableClientBucketInput = true;
+
         private V4PipelineRoot _pipeline;
         private V4NetworkCoordinator _coordinator;
         private Coroutine _waitForPipeline;
@@ -91,6 +98,7 @@ namespace HarmonicEngineV4.Networking
             {
                 Teardown();
                 _pipeline.autoRun = true;
+                ApplyBucketInputAuthority(offline: true);
                 return;
             }
 
@@ -106,6 +114,45 @@ namespace HarmonicEngineV4.Networking
             _coordinator.Configure(_pipeline, role, transport, sessionId);
 
             _pipeline.autoRun = role == V4NetworkRole.Host || (role == V4NetworkRole.Client && clientSimulatesLocally);
+            ApplyBucketInputAuthority(offline: false);
+        }
+
+        private void ApplyBucketInputAuthority(bool offline)
+        {
+            if (_pipeline?.bucket == null)
+            {
+                return;
+            }
+
+            V4BucketMotionController motion = _pipeline.bucket.GetComponent<V4BucketMotionController>();
+            V4BucketMotionSettings motionSettings = _pipeline.bucket.GetComponent<V4BucketMotionSettings>();
+            if (motionSettings != null && motionSettings.IsPendulumMode)
+            {
+                if (motion != null)
+                {
+                    motion.inputEnabled = false;
+                }
+
+                return;
+            }
+
+            if (motion == null)
+            {
+                return;
+            }
+
+            if (offline)
+            {
+                motion.inputEnabled = true;
+                return;
+            }
+
+            motion.inputEnabled = role switch
+            {
+                V4NetworkRole.Host => hostAllowsBucketInput,
+                V4NetworkRole.Client => !disableClientBucketInput || clientSimulatesLocally,
+                _ => true
+            };
         }
 
         private IEnumerator ApplyWhenPipelineReady()

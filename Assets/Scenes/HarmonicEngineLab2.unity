@@ -159,12 +159,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 111909319}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.16, y: 0.911, z: 0.051}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: 0, y: 0.7071068, z: -0, w: 0.7071068}
+  m_LocalPosition: {x: 0.05099999, y: 0.5109999, z: -0.16000003}
+  m_LocalScale: {x: 0.99999976, y: 1, z: 0.99999976}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 822959949}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &124697321
 GameObject:
@@ -206,8 +206,54 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 124697321}
   serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0.7071068, z: -0, w: 0.7071068}
+  m_LocalPosition: {x: 0.000000014901161, y: 0.14999992, z: 0.10000002}
+  m_LocalScale: {x: 0.99999976, y: 1, z: 0.99999976}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 822959949}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &540354921
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 540354923}
+  - component: {fileID: 540354922}
+  m_Layer: 0
+  m_Name: Pendulum Pivot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &540354922
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 540354921}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 64da93cfafb0c1e48be567c6dd8e1034, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Simulation.V4PendulumPivot
+  gizmoRadius: 0.08
+  gizmoColor: {r: 1, g: 0.85, b: 0.2, a: 0.9}
+--- !u!4 &540354923
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 540354921}
+  serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.1, y: 0.55, z: 0}
+  m_LocalPosition: {x: 0, y: 3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -253,12 +299,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 811744846}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.094, y: 0.911, z: -0.018}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: 0, y: 0.7071068, z: -0, w: 0.7071068}
+  m_LocalPosition: {x: -0.018000016, y: 0.5109999, z: -0.09400001}
+  m_LocalScale: {x: 0.99999976, y: 1, z: 0.99999976}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 822959949}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &822959946
 GameObject:
@@ -272,6 +318,11 @@ GameObject:
   - component: {fileID: 822959947}
   - component: {fileID: 822959948}
   - component: {fileID: 822959950}
+  - component: {fileID: 822959955}
+  - component: {fileID: 822959954}
+  - component: {fileID: 822959953}
+  - component: {fileID: 822959952}
+  - component: {fileID: 822959951}
   m_Layer: 0
   m_Name: Bucket
   m_TagString: Untagged
@@ -296,7 +347,7 @@ MonoBehaviour:
   wallThickness: 0.05
   holes:
   - localPosition: {x: 0.1, y: 0, z: 0}
-    radius: 0
+    radius: 0.03
     outwardNormal: {x: 0, y: -1, z: 0}
   - localPosition: {x: -0.15, y: 0, z: 0.15}
     radius: 0
@@ -311,11 +362,12 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 822959946}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9519fe7887d50d947935f530670d9a50, type: 3}
   m_Name: 
   m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Simulation.V4BucketMotionController
+  inputEnabled: 0
   moveSpeed: 1.2
   tiltSpeed: 60
   spinSpeed: 120
@@ -332,11 +384,17 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 822959946}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.4, z: 0}
+  m_LocalRotation: {x: -0, y: -0.7071068, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: 0, y: 0.4000001, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1646445025}
+  - {fileID: 124697323}
+  - {fileID: 811744848}
+  - {fileID: 856704856}
+  - {fileID: 1018443672}
+  - {fileID: 111909321}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &822959950
@@ -356,6 +414,83 @@ MonoBehaviour:
   discRings: 24
   alpha: 0.45
   bucketColor: {r: 0.75, g: 0.78, b: 0.82, a: 1}
+--- !u!114 &822959951
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 822959946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8faeb4cb75c7be4f830d87c6322c102, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Simulation.V4PendulumRopeVisualizer
+  ropeColor: {r: 0.55, g: 0.35, b: 0.15, a: 1}
+  ropeWidth: 0.02
+--- !u!114 &822959952
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 822959946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2c52785cddaefd468f84966260cf4ba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Simulation.V4FluidMassProbe
+--- !u!114 &822959953
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 822959946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 42f160ca2730f0c46a076530b148bb5f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Simulation.V4TorricelliEjectionSettings
+  dischargeCoefficient: 0.75
+  headHeight: 0.4
+  gravity: 9.81
+--- !u!114 &822959954
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 822959946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bfb77095859428541b36528b47f4f6a0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Simulation.V4SphericalPendulumController
+  pivotTransform: {fileID: 540354923}
+  pivotPoint: {x: 0, y: 3, z: 0}
+  ropeLength: 2.6
+  gravity: 9.81
+  dampingCoefficient: 0.05
+  adoptManualBucketPoseOnReset: 1
+  twistAngleDegrees: 0
+  initialTangentialVelocity: {x: 0, y: 0, z: 0}
+  bucketMass: 0.5
+  sloshFeedbackScale: 1
+  fluidMassSmoothing: 0.2
+--- !u!114 &822959955
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 822959946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e9d858bcf72ee614dad4228c8b54184c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Simulation.V4BucketMotionSettings
+  mode: 1
 --- !u!1 &850489000
 GameObject:
   m_ObjectHideFlags: 0
@@ -384,21 +519,18 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 850489000}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 47305c1558fc79a439748e416a838159, type: 3}
   m_Name: 
   m_EditorClassIdentifier: HarmonicEngineV4.Runtime::HarmonicEngineV4.Rendering.V4ScreenSpaceFluidRenderer
   pipeline: {fileID: 1272400440}
   splatRadiusMultiplier: 3
-  thicknessWeight: 0.15
+  thicknessWeight: 0.2
   fluidColor: {r: 0.1, g: 0.4, b: 0.8, a: 1}
   useParticleColor: 1
-  velocityStretchScale: 1
-  velocityStretchMax: 3
-  blurFalloff: 0.1
-  blurRadius: 1.2
-  blurIterations: 5
+  blurFalloff: 0.05
+  blurRadius: 3
   normalScale: 100
   specularPower: 250
   specularIntensity: 1.5
@@ -411,7 +543,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 850489000}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe110591c35d5cd4fb38f4d806a612ee, type: 3}
   m_Name: 
@@ -548,12 +680,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 856704854}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.147, y: 0.911, z: -0.018}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: 0, y: 0.7071068, z: -0, w: 0.7071068}
+  m_LocalPosition: {x: -0.018000016, y: 0.5109999, z: -0.14700001}
+  m_LocalScale: {x: 0.99999976, y: 1, z: 0.99999976}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 822959949}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1018443670
 GameObject:
@@ -595,12 +727,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1018443670}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.147, y: 0.941, z: -0.018}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: 0, y: 0.7071068, z: -0, w: 0.7071068}
+  m_LocalPosition: {x: -0.018000016, y: 0.5409999, z: -0.14700001}
+  m_LocalScale: {x: 0.99999976, y: 1, z: 0.99999976}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 822959949}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1081748924
 GameObject:
@@ -830,10 +962,10 @@ MonoBehaviour:
   - {fileID: 111909320}
   globalDensity: 900000
   globalProfile: {fileID: 11400000, guid: 3a5b2c589cbcc604a894f7696d0d45f2, type: 2}
-  restrictSpawnToBucketCavity: 0
+  restrictSpawnToBucketCavity: 1
   autoRun: 1
   pbfIterations: 4
-  carryRate: 10
+  carryRate: 25
   downwardScale: 1
   emaSmoothing: 0.1
   pbfEpsilon: 50
@@ -879,13 +1011,12 @@ MonoBehaviour:
   showDebugPoints: 0
   debugPointSize: 0
   screenSpaceFluid:
-    splatRadiusMultiplier: 3
-    thicknessWeight: 0.15
+    splatRadiusMultiplier: 2.2
+    thicknessWeight: 0.2
     fluidColor: {r: 0.1, g: 0.4, b: 0.8, a: 1}
     useParticleColor: 1
-    blurFalloff: 0.1
-    blurRadius: 1.2
-    blurIterations: 5
+    blurFalloff: 0.05
+    blurRadius: 3
     normalScale: 100
     specularPower: 250
     specularIntensity: 1.5
@@ -912,6 +1043,8 @@ MonoBehaviour:
   loopbackPeer: {fileID: 0}
   publishOnFrameCompleted: 1
   clientSimulatesLocally: 0
+  hostAllowsBucketInput: 1
+  disableClientBucketInput: 1
 --- !u!1 &1646445023
 GameObject:
   m_ObjectHideFlags: 0
@@ -952,12 +1085,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1646445023}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.1, y: 0.62, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: 0, y: 0.7071068, z: -0, w: 0.7071068}
+  m_LocalPosition: {x: -0.000000014901161, y: 0.21999991, z: -0.10000002}
+  m_LocalScale: {x: 0.99999976, y: 1, z: 0.99999976}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 822959949}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
@@ -967,10 +1100,5 @@ SceneRoots:
   - {fileID: 1081748926}
   - {fileID: 822959949}
   - {fileID: 1163219464}
-  - {fileID: 124697323}
   - {fileID: 1272400441}
-  - {fileID: 1646445025}
-  - {fileID: 811744848}
-  - {fileID: 856704856}
-  - {fileID: 1018443672}
-  - {fileID: 111909321}
+  - {fileID: 540354923}

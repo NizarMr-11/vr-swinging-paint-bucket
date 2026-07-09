@@ -12,6 +12,7 @@ namespace HarmonicEngineV4.Core
         public const string ExternalForces = "HarmonicEngineV4/V4ExternalForces";
         public const string PbfSolver = "HarmonicEngineV4/V4PbfSolver";
         public const string CanvasSplat = "HarmonicEngineV4/V4CanvasSplat";
+        public const string FluidMassReduce = "HarmonicEngineV4/V4FluidMassReduce";
 
         public static ComputeShader Load(string resourcePath)
         {

@@ -151,6 +151,7 @@ namespace HarmonicEngineV4.Tests.EditMode
                 bucket = new BucketTopology
                 {
                     center = new float3(0f, 0.5f, 0f),
+                    rotation = new float4(0f, 0f, 0f, 1f),
                     innerRadius = 0.18f,
                     outerRadius = 0.22f,
                     height = 0.35f,
@@ -165,6 +166,10 @@ namespace HarmonicEngineV4.Tests.EditMode
                             holeIndex = 0,
                             localCenter = new float3(0.1f, 0.2f, 0.3f),
                             radius = 0.03f,
+                            outwardNormal = new float3(0f, -1f, 0f),
+                            d0 = 0.02f,
+                            d1 = 0.1f,
+                            d2 = 0.18f,
                             sdfBias = 0.001f,
                             isActive = true
                         }

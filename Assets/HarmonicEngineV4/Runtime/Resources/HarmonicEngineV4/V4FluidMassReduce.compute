@@ -1,0 +1,67 @@
+// GPU reduction of in-bucket fluid mass, center of mass, and momentum.
+#pragma kernel FluidMassReduceKernel
+
+#include "Include/V4Common.hlsl"
+#include "Include/V4BucketZones.hlsl"
+
+StructuredBuffer<float4> _Block0;
+StructuredBuffer<float4> _Block1;
+StructuredBuffer<uint> _Flags;
+
+float4x4 _BucketWorldToLocal;
+float _BucketInnerRadius;
+float _BucketHeight;
+float _BucketWallThickness;
+float _ParticleMass;
+uint _ActiveParticleCount;
+
+// Micro-units (kg or kg*m) stored as uint for InterlockedAdd.
+RWStructuredBuffer<uint> _Accum;
+
+#define ACC_MASS 0
+#define ACC_COMX 1
+#define ACC_COMY 2
+#define ACC_COMZ 3
+#define ACC_MOMX 4
+#define ACC_MOMY 5
+#define ACC_MOMZ 6
+#define ACC_COUNT 7
+#define MICRO_SCALE 1000000.0
+
+void AccumulateMicro(uint slot, float value)
+{
+    int micro = (int)round(value * MICRO_SCALE);
+    if (micro != 0)
+    {
+        InterlockedAdd(_Accum[slot], (uint)micro);
+    }
+}
+
+[numthreads(64, 1, 1)]
+void FluidMassReduceKernel(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveParticleCount)
+    {
+        return;
+    }
+
+    float3 pos = _Block0[i].xyz;
+    float3 vel = _Block1[i].xyz;
+    float3 localPos = mul(_BucketWorldToLocal, float4(pos, 1.0)).xyz;
+
+    if (!V4BucketShouldContainInside(localPos, _BucketInnerRadius, _BucketHeight, _BucketWallThickness))
+    {
+        return;
+    }
+
+    float mass = _ParticleMass;
+    AccumulateMicro(ACC_MASS, mass);
+    AccumulateMicro(ACC_COMX, pos.x * mass);
+    AccumulateMicro(ACC_COMY, pos.y * mass);
+    AccumulateMicro(ACC_COMZ, pos.z * mass);
+    AccumulateMicro(ACC_MOMX, vel.x * mass);
+    AccumulateMicro(ACC_MOMY, vel.y * mass);
+    AccumulateMicro(ACC_MOMZ, vel.z * mass);
+    InterlockedAdd(_Accum[ACC_COUNT], 1u);
+}
